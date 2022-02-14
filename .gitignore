@@ -1,0 +1,10 @@
+
+# Visual studio specific
+/.vs
+
+# Dependencies
+/deps
+
+# Build directory
+/bin32
+/bin64
