@@ -1,0 +1,84 @@
+#pragma once
+#include <string>
+#include <vector>
+
+enum State { STATE_DISABLED = 0, STATE_ENABLED };
+
+enum Comparison
+{
+	COMPARISON_NEVER = 0,
+	COMPARISON_ALWAYS,
+	COMPARISON_EQUAL,
+	COMPARISON_NOT_EQUAL,
+	COMPARISON_LESS,
+	COMPARISON_LESS_EQUAL,
+	COMPARISON_GREATER,
+	COMPARISON_GREATER_EQUAL,
+};
+
+enum Format
+{
+	FORMAT_DEPTH = 1,
+	FORMAT_STENCIL,
+	FORMAT_DEPTH_STENCIL,
+	FORMAT_RED,
+	FORMAT_RG,
+	FORMAT_RGB,
+	FORMAT_RGBA
+};
+
+enum Type
+{
+	TYPE_BYTE = 1,
+	TYPE_UNSIGNED_BYTE,
+	TYPE_SHORT,
+	TYPE_UNSIGNED_SHORT,
+	TYPE_INT,
+	TYPE_UNSIGNED_INT,
+	TYPE_HALF_FLOAT,
+	TYPE_FLOAT
+};
+
+enum Usage
+{
+	USAGE_STATIC = 0,
+	USAGE_DYNAMIC
+};
+
+struct Alpha
+{
+	enum Factor { ZERO = 1, ONE, SRC_ALPHA, ONE_MINUS_SRC_ALPHA, DST_ALPHA, ONE_MINUS_DST_ALPHA };
+	bool blend;
+	Factor sfactor;
+	Factor dfactor;
+};
+
+enum Topology
+{
+	TOPOLOGY_POINT_LIST = 1,
+	TOPOLOGY_LINE_LIST,
+	TOPOLOGY_LINE_STRIP,
+	TOPOLOGY_LINE_LOOP,
+	TOPOLOGY_TRIANGLE_LIST,
+	TOPOLOGY_TRIANGLE_STRIP,
+	TOPOLOGY_TRIANGLE_FAN
+};
+
+struct VertexLayoutElement
+{
+	enum Type { INT = 1, FLOAT, VEC2, VEC3, VEC4 };
+	Type type;
+	std::string name;
+};
+
+typedef std::vector<VertexLayoutElement> VertexLayoutElementList;
+
+enum IndexType
+{
+	INDEX_UNSIGNED_BYTE,
+	INDEX_UNSIGNED_SHORT,
+	INDEX_UNSIGNED_INT
+};
+
+typedef unsigned int UniformId;
+
