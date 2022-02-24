@@ -316,3 +316,21 @@ void Renderer2D::drawSprite(const Sprite & sprite)
 	// Draw command.
 	gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_LIST, 0, 6);
 }
+
+void drawTexture(const glm::vec2& position, const glm::vec2& size, glTexture* texture)
+{
+	glm::mat4 model = translate({ position, 0 }) * scale({ size / 2.0f, 1 });
+	// Bind shader.
+	sprite_shader->bind();
+	sprite_shader->setMat4(0, projection);
+	sprite_shader->setMat4(1, model);
+	sprite_shader->setVec4(2, {1, 1, 1, 1});
+	// Texture.
+	//sprite_shader->set_int(2, 0);
+	texture->bind(0);
+	// Bind buffers.
+	sprite_vertex_buffer->bind();
+	sprite_layout->bind();
+	// Draw command.
+	gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_LIST, 0, 6);
+}

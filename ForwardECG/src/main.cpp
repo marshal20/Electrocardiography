@@ -30,11 +30,10 @@ int main()
 	gdevSet(gldev);
 
 	// setup 2D renderer
-	Renderer2D r2d;
-	r2d.init();
+	Renderer2D::init();
 	float view_size = 2;
-	r2d.setProjection(ortho(-view_size, view_size, view_size, -view_size, 1, -1));
-	r2d.setStyle(Renderer2D::Style(true, 2, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
+	Renderer2D::setProjection(ortho(-view_size, view_size, view_size, -view_size, 1, -1));
+	Renderer2D::setStyle(Renderer2D::Style(true, 2, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
 
 	// main loop
 	while (!glfwWindowShouldClose(window))
@@ -45,7 +44,7 @@ int main()
 
 		// render here
 		gldev->clearColorBuffer(0.1, 0.05, 0.1, 1);
-		r2d.drawCircle({ 0, 0 }, 1);
+		Renderer2D::drawCircle({ 0, 0 }, 1);
 
 		// update window
 		glfwSwapBuffers(window);
