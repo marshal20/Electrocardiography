@@ -50,9 +50,9 @@ public:
 
 	glShader* createShader(const char* vertex_src, const char* fragment_src);
 	glTexture* createTexture(unsigned int width, unsigned int height, Format format, Type type);
-	glVertexBuffer* createVertexBuffer(unsigned int size, Usage usage, const void* data);
-	glIndexBuffer* createIndexBuffer(unsigned int size, Usage usage, const void* data);
-	glUniformBuffer* createUniformBuffer(unsigned int size, Usage usage, const void* data);
+	glVertexBuffer* createVertexBuffer(unsigned int size, Usage usage, const void* data = nullptr);
+	glIndexBuffer* createIndexBuffer(unsigned int size, Usage usage, const void* data = nullptr);
+	glUniformBuffer* createUniformBuffer(unsigned int size, Usage usage, const void* data = nullptr);
 	glVertexLayout* createVertexLayout(const VertexLayoutElementList& element_list);
 	glFrameBuffer* createFramebuffer(const std::vector<glTexture*>& color_tex, glTexture* depth_tex);
 

@@ -96,7 +96,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -113,7 +113,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -130,7 +130,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -147,7 +147,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -159,8 +159,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\camera.cpp" />
     <ClCompile Include="src\input.cpp" />
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\main_dev.cpp" />
     <ClCompile Include="src\opengl\gl_framebuffer.cpp" />
     <ClCompile Include="src\opengl\gl_graphics_device.cpp" />
     <ClCompile Include="src\opengl\gl_index_buffer.cpp" />
@@ -169,11 +171,15 @@
     <ClCompile Include="src\opengl\gl_uniform_buffer.cpp" />
     <ClCompile Include="src\opengl\gl_vertex_buffer.cpp" />
     <ClCompile Include="src\opengl\gl_vertex_layout.cpp" />
+    <ClCompile Include="src\renderer2d.cpp" />
     <ClCompile Include="src\stb\stb_image.c" />
+    <ClCompile Include="src\transform.cpp" />
     <ClCompile Include="src\window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\camera.h" />
     <ClInclude Include="src\input.h" />
+    <ClInclude Include="src\main_dev.h" />
     <ClInclude Include="src\opengl\definitions.h" />
     <ClInclude Include="src\opengl\gl_framebuffer.h" />
     <ClInclude Include="src\opengl\gl_graphics_device.h" />
@@ -183,7 +189,9 @@
     <ClInclude Include="src\opengl\gl_uniform_buffer.h" />
     <ClInclude Include="src\opengl\gl_vertex_buffer.h" />
     <ClInclude Include="src\opengl\gl_vertex_layout.h" />
+    <ClInclude Include="src\renderer2d.h" />
     <ClInclude Include="src\stb\stb_image.h" />
+    <ClInclude Include="src\transform.h" />
     <ClInclude Include="src\window.h" />
   </ItemGroup>
   <ItemGroup>
