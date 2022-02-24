@@ -139,7 +139,7 @@ int main()
 		for (MeshPlotVertex& vertex : torso.vertices)
 		{
 			Vector3<Real> r = Vector3<Real>(vertex.pos.x, vertex.pos.y, vertex.pos.z) - dipole_pos;
-			Real potential = 1/(4*PI*conductivity) * 1/r.norm() * r.dot(dipole_vec);
+			Real potential = 1/(4*PI*conductivity) * 1/pow(r.norm(), 3) * r.dot(dipole_vec);
 			vertex.value = potential;
 		}
 
