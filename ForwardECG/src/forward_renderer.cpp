@@ -58,7 +58,7 @@ void main()
 {
 	const vec3 light_dir = normalize(light_position - frag_position);
 	const vec3 view_dir = normalize(view_pos - frag_position);
-	const vec3 reflect_dir = reflect(-light_dir, normal);	
+	const vec3 reflect_dir = normalize(reflect(-light_dir, normal));	
 
 	vec3 diff_color = diffuse_color;
 	if(sample_diffuse == 1)
@@ -108,7 +108,8 @@ void ForwardRenderer::setViewProjectionMatrix(const glm::mat4& view)
 void ForwardRenderer::renderMesh(const glm::mat4& transform, Mesh* mesh)
 {
 	// TODO: abstract lighting.
-	const glm::vec3 light_posision = { 0, 10, 0 };
+	//const glm::vec3 light_posision = { 0, 10, 0 };
+	const glm::vec3 light_posision = view_pos;
 	const glm::vec3 light_color = { 1, 1, 1 };
 	//const glm::vec3 view_pos = { 6, 0, 0 };
 
@@ -131,10 +132,10 @@ void ForwardRenderer::renderMesh(const glm::mat4& transform, Mesh* mesh)
 	m_diffuse_shader->setFloat(5, mesh->material.specular);
 	m_diffuse_shader->setFloat(6, mesh->material.shininess);
 	// Light.
-	m_diffuse_shader->setVec3(10, light_posision);
-	m_diffuse_shader->setVec3(11, light_color);
-	m_diffuse_shader->setVec3(12, view_pos);
-
+	m_diffuse_shader->setVec3(m_diffuse_shader->getUniformId("light_position"), light_posision);
+	m_diffuse_shader->setVec3(m_diffuse_shader->getUniformId("light_color"), light_color);
+	m_diffuse_shader->setVec3(m_diffuse_shader->getUniformId("view_pos"), view_pos);
+	
 	// Drawing.
 	mesh->vertex_buffer->bind();
 	mesh->index_buffer->bind();

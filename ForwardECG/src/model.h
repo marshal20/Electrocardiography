@@ -33,3 +33,4 @@ struct Model
 glTexture* loadImageToTexture(const char* file_name);
 Model loadModelFile(const char* file_name);
 void freeModel(Model model);
+
