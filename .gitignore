@@ -8,3 +8,6 @@
 # Build directory
 /bin32
 /bin64
+
+# models
+/ForwardECG/models

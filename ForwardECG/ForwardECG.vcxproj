@@ -160,9 +160,11 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\camera.cpp" />
+    <ClCompile Include="src\forward_renderer.cpp" />
     <ClCompile Include="src\input.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\main_dev.cpp" />
+    <ClCompile Include="src\model.cpp" />
     <ClCompile Include="src\opengl\gl_framebuffer.cpp" />
     <ClCompile Include="src\opengl\gl_graphics_device.cpp" />
     <ClCompile Include="src\opengl\gl_index_buffer.cpp" />
@@ -178,8 +180,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\camera.h" />
+    <ClInclude Include="src\forward_renderer.h" />
     <ClInclude Include="src\input.h" />
     <ClInclude Include="src\main_dev.h" />
+    <ClInclude Include="src\model.h" />
     <ClInclude Include="src\opengl\definitions.h" />
     <ClInclude Include="src\opengl\gl_framebuffer.h" />
     <ClInclude Include="src\opengl\gl_graphics_device.h" />
