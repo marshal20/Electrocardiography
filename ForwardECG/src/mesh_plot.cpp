@@ -190,8 +190,8 @@ MeshPlotRenderer::MeshPlotRenderer()
 		});
 	m_view_matrix = glm::mat4(1);
 
-	m_color_n = glm::vec4(0, 0, 1, 0.5);
-	m_color_p = glm::vec4(1, 0, 0, 0.5);
+	m_color_n = glm::vec4(0, 0, 1, 1);
+	m_color_p = glm::vec4(1, 0, 0, 1);
 	m_max_val = 1;
 }
 

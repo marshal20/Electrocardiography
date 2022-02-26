@@ -164,6 +164,7 @@
     <ClCompile Include="src\input.cpp" />
     <ClCompile Include="src\main.cpp" />
     <ClCompile Include="src\main_dev.cpp" />
+    <ClCompile Include="src\math.cpp" />
     <ClCompile Include="src\mesh_plot.cpp" />
     <ClCompile Include="src\model.cpp" />
     <ClCompile Include="src\opengl\gl_framebuffer.cpp" />
@@ -184,6 +185,7 @@
     <ClInclude Include="src\forward_renderer.h" />
     <ClInclude Include="src\input.h" />
     <ClInclude Include="src\main_dev.h" />
+    <ClInclude Include="src\math.h" />
     <ClInclude Include="src\mesh_plot.h" />
     <ClInclude Include="src\model.h" />
     <ClInclude Include="src\opengl\definitions.h" />
