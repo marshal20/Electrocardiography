@@ -103,11 +103,13 @@ MeshPlot load_mesh_plot(const char* file_name)
 {
 	MeshPlot mesh;
 	Assimp::Importer importer;
+	importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_NORMALS | aiComponent_TANGENTS_AND_BITANGENTS); // remove normals and tangents
 	const aiScene* scene = importer.ReadFile(file_name,
 		aiProcessPreset_TargetRealtime_Quality |
 		aiProcess_CalcTangentSpace | aiProcess_Triangulate |
 		aiProcess_JoinIdenticalVertices | aiProcess_SortByPType |
-		aiProcess_OptimizeMeshes | aiProcess_OptimizeGraph);
+		aiProcess_OptimizeMeshes | aiProcess_OptimizeGraph |
+		aiProcess_RemoveComponent);
 
 	if (!scene)
 	{

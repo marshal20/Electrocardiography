@@ -59,19 +59,15 @@ public:
 		// torso mesh plot
 		torso = load_mesh_plot("models/torso_model_3.fbx");
 
-		//// convert from CM to M
-		//for (MeshPlotVertex& vertex : torso.vertices)
-		//{
-		//	vertex.pos = glm::vec3(vertex.pos.x*100, vertex.pos.y*100, vertex.pos.z*100);
-		//}
-
 		// initialize matrices
 		N = torso.vertices.size();
 		A = MatrixX<Real>(N, N);
 		B = MatrixX<Real>(N, 1);
 		Q = MatrixX<Real>(N, 1);
+		IA_inv = MatrixX<Real>(N, N);
 
 		// set parameters
+		t = 0;
 		dipole_pos = { 0.2, 0.4, 0 };
 		dipole_vec = { 0, 1, -1 };
 		conductivity = 1;
@@ -125,10 +121,9 @@ public:
 			Input::newFrame();
 
 			// animate dipole vector
-			static Real t = 0;
 			t += 0.01;
 			dipole_vec = { cos(-t), sin(-t), 0 };
-			//dipole_vec = dipole_vec;
+			//dipole_vec = 10*dipole_vec;
 
 			// update and render
 			calculate_potentials();
@@ -166,6 +161,7 @@ private:
 		}
 
 		// calculate potentials
+		//Q = (MatrixX<Real>::Identity(N, N) + A).colPivHouseholderQr().solve(B);
 		Q = IA_inv * B;
 	}
 
@@ -226,7 +222,8 @@ private:
 				Vector3<Real> a = glm2eigen(torso.vertices[face.idx[0]].pos);
 				Vector3<Real> b = glm2eigen(torso.vertices[face.idx[1]].pos);
 				Vector3<Real> c = glm2eigen(torso.vertices[face.idx[2]].pos);
-				Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
+				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
+				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
 
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
@@ -256,6 +253,7 @@ private:
 	Real sigma_n;
 	Vector3<Real> dipole_pos;
 	Vector3<Real> dipole_vec;
+	Real t;
 	MatrixX<Real> A;
 	MatrixX<Real> IA_inv;
 	MatrixX<Real> B;

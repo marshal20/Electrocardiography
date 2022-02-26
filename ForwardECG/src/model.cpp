@@ -129,7 +129,7 @@ static void processNode(
 				tex_coords = aivec3Convert(mesh->mTextureCoords[0][j]);
 			vertices_temp.push_back({ pos, normal, tex_coords });
 		}
-		// Load indecies.
+		// Load indices.
 		for (int k = 0; k < mesh->mNumFaces; k++)
 		{
 			indices_temp.push_back(mesh->mFaces[k].mIndices[0]);
