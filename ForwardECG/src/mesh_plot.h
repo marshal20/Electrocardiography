@@ -50,11 +50,15 @@ public:
 	~MeshPlotRenderer();
 
 	void set_view_projection_matrix(const glm::mat4& view);
+	void set_colors(const glm::vec4& color_p, const glm::vec4& color_n);
+	void set_max_val(float max_val);
 	void render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh);
 
 private:
 	glShader* m_plot_shader;
 	glVertexLayout* m_vertex_layout;
 	glm::mat4 m_view_matrix;
+	glm::vec4 m_color_p, m_color_n;
+	float m_max_val;
 };
 

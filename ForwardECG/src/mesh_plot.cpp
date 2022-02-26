@@ -165,16 +165,18 @@ static const char* plot_frag = R"(
 layout (location = 0) in vec3 frag_position;
 layout (location = 1) in float value;
 
+uniform vec4 color_n;
+uniform vec4 color_p;
+uniform float max_val;
+
 out vec4 FragColor;
 
 void main()
 {
-	vec3 cn = vec3(0, 0, 1);
-	vec3 cp = vec3(1, 0, 0);
+	float mix_percentage = (value/max_val+1)/2;
+	vec4 color = mix(color_n, color_p, mix_percentage);
 
-	vec3 color = mix(cn, cp, (value+1)/2);
-
-	FragColor = vec4(color, 1.0);
+	FragColor = color;
 }
 )";
 
@@ -187,6 +189,10 @@ MeshPlotRenderer::MeshPlotRenderer()
 		{VertexLayoutElement::FLOAT, "value"}
 		});
 	m_view_matrix = glm::mat4(1);
+
+	m_color_n = glm::vec4(0, 0, 1, 0.5);
+	m_color_p = glm::vec4(1, 0, 0, 0.5);
+	m_max_val = 1;
 }
 
 MeshPlotRenderer::~MeshPlotRenderer()
@@ -200,12 +206,26 @@ void MeshPlotRenderer::set_view_projection_matrix(const glm::mat4& view)
 	m_view_matrix = view;
 }
 
+void MeshPlotRenderer::set_colors(const glm::vec4& color_p, const glm::vec4& color_n)
+{
+	m_color_p = color_p;
+	m_color_n = color_n;
+}
+
+void MeshPlotRenderer::set_max_val(float max_val)
+{
+	m_max_val = max_val;
+}
+
 void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh_plot)
 {
 	m_plot_shader->bind();
 	// Transform.
-	m_plot_shader->setMat4(0, m_view_matrix);
-	m_plot_shader->setMat4(1, transform);
+	m_plot_shader->setMat4(m_plot_shader->getUniformId("view_proj"), m_view_matrix);
+	m_plot_shader->setMat4(m_plot_shader->getUniformId("model"), transform);
+	m_plot_shader->setVec4(m_plot_shader->getUniformId("color_n"), m_color_n);
+	m_plot_shader->setVec4(m_plot_shader->getUniformId("color_p"), m_color_p);
+	m_plot_shader->setFloat(m_plot_shader->getUniformId("max_val"), m_max_val);
 
 	// Drawing.
 	mesh_plot->vertex_buffer->bind();

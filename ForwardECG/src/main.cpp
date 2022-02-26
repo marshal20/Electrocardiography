@@ -196,20 +196,18 @@ int main()
 			torso.vertices[i].value = Q(i);
 		}
 
-		// normalize values
+		// calculate maximum value
 		Real max_abs = 0.0;
 		for (MeshPlotVertex& vertex : torso.vertices)
 		{
 			max_abs = rmax(rabs(vertex.value), max_abs);
 		}
-		for (MeshPlotVertex& vertex : torso.vertices)
-		{
-			vertex.value = vertex.value/max_abs;
-		}
 
 		torso.update_gpu_buffers();
 
 
+		// set alpha mode
+		gldev->setAlpha({ true, Alpha::Factor::SRC_ALPHA, Alpha::Factor::ONE_MINUS_SRC_ALPHA });
 
 		// render here
 		gldev->clearColorBuffer(0.1, 0.05, 0.1, 1);
@@ -221,7 +219,7 @@ int main()
 		gldev->depthFunc(COMPARISON_LESS);
 		gldev->clearDepthBuffer(1.0);
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		//fr->view_pos = camera.eye;
+		mpr->set_max_val(max_abs);
 		mpr->render_mesh_plot(scale({ 0.1, 0.1, 0.1 }), &torso);
 
 		// render dipole
