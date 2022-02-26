@@ -46,7 +46,8 @@ static void process_node(aiNode* node, const aiScene* scene, MeshPlot& mesh_plot
 		for (int j = 0; j < vertex_count; j++)
 		{
 			glm::vec3 pos = aivec3_convert(mesh->mVertices[j]);
-			mesh_plot.vertices.push_back({ pos, 0 });
+			glm::vec3 normal = aivec3_convert(mesh->mNormals[j]);
+			mesh_plot.vertices.push_back({ pos, normal, 0 });
 		}
 		// Load indecies.
 		for (int k = 0; k < mesh->mNumFaces; k++)
@@ -143,7 +144,8 @@ void free_mesh_plot(MeshPlot& mesh_plot)
 static const char* plot_vert = R"(
 #version 450 core
 layout (location = 0) in vec3 pos;
-layout (location = 1) in float value;
+layout (location = 1) in vec3 normal;
+layout (location = 2) in float value;
 
 layout (location = 0) uniform mat4 view_proj;
 layout (location = 1) uniform mat4 model;
@@ -181,6 +183,7 @@ MeshPlotRenderer::MeshPlotRenderer()
 	m_plot_shader = gdevGet()->createShader(plot_vert, plot_frag);
 	m_vertex_layout = gdevGet()->createVertexLayout({
 		{VertexLayoutElement::VEC3, "pos"},
+		{VertexLayoutElement::VEC3, "normal"},
 		{VertexLayoutElement::FLOAT, "value"}
 		});
 	m_view_matrix = glm::mat4(1);
