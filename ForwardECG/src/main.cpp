@@ -192,8 +192,17 @@ private:
 		}
 
 		// calculate potentials
-		//Q = (MatrixX<Real>::Identity(N, N) + A).colPivHouseholderQr().solve(B);
 		Q = IA_inv * B;
+		
+		//// debug
+		//if (Input::isKeyDown(GLFW_KEY_I))
+		//{
+		//	Q = IA_inv * B;
+		//}
+		//else
+		//{
+		//	Q = B;
+		//}
 	}
 
 	void render()
@@ -241,26 +250,30 @@ private:
 	{
 		Input::newFrame();
 
+		// camera forward, up and right
+		Vector3<Real> forward = glm2eigen(camera.look_at-camera.eye).normalized();
+		Vector3<Real> up = glm2eigen(camera.up);
+		Vector3<Real> right = forward.cross(up).normalized();
+		up = right.cross(forward).normalized(); // recalculate the up vector
+
 		// handle camera control (mouse middle button)
 		if (Input::isButtonDown(GLFW_MOUSE_BUTTON_MIDDLE))
 		{
 			Vector2<Real> cursor_delta = { Input::getCursorXDelta(), -Input::getCursorYDelta() };
-			glm::vec3 right = glm::normalize(glm::cross(camera.up, (camera.eye-camera.look_at)));
-			glm::vec3 up = glm::normalize(glm::cross((camera.eye-camera.look_at), right));
 			const Real translation_scaler = glm2eigen(camera.eye-camera.look_at).norm()/width;// 0.01;
 			const Real rotation_scaler = translation_scaler*10;
 
 			if (Input::isKeyDown(GLFW_KEY_LEFT_SHIFT) || Input::isKeyDown(GLFW_KEY_RIGHT_SHIFT))
 			{
 				// camera translation (shift + middle mouse button)
-				Vector3<Real> translation = glm2eigen(right)*translation_scaler*cursor_delta.x() + glm2eigen(up)*translation_scaler*cursor_delta.y();
+				Vector3<Real> translation = right*translation_scaler*cursor_delta.x() + up*translation_scaler*cursor_delta.y();
 				camera.look_at += -eigen2glm(translation);
 				camera.eye += -eigen2glm(translation);
 			}
 			else
 			{
 				// camera rotation (middle mouse button)
-				Vector3<Real> new_location_rel = glm2eigen(camera.eye-camera.look_at) - glm2eigen(right)*rotation_scaler*cursor_delta.x() - glm2eigen(up)*rotation_scaler*cursor_delta.y();
+				Vector3<Real> new_location_rel = glm2eigen(camera.eye-camera.look_at) - right*rotation_scaler*cursor_delta.x() - up*rotation_scaler*cursor_delta.y();
 				new_location_rel = new_location_rel.normalized() * glm2eigen(camera.eye-camera.look_at).norm();
 				camera.eye = camera.look_at + eigen2glm(new_location_rel);
 			}
@@ -270,13 +283,24 @@ private:
 			//	Input::getCursorXPos(), Input::getCursorYPos(),
 			//	Input::getCursorXDelta(), Input::getCursorYDelta());
 
-			// update camera up
-			camera.up = up;
 		}
 		
-		// camera zoom (scroll wheel)
-		Real zoom_delta = Input::getScrollDelta()/10;
-		camera.eye = eigen2glm(glm2eigen(camera.look_at) + (1-zoom_delta)*glm2eigen(camera.eye-camera.look_at));
+		const Real scroll_scaler = 0.1;
+		Real scroll_delta = scroll_scaler*Input::getScrollDelta();
+		if (Input::isKeyDown(GLFW_KEY_LEFT_CONTROL) || Input::isKeyDown(GLFW_KEY_RIGHT_CONTROL))
+		{
+			// camera roll (ctrl + scroll wheel)
+			Vector3<Real> new_up = (up + right*scroll_delta).normalized();
+			up = new_up;
+		}
+		else
+		{
+			// camera zoom (scroll wheel)
+			camera.eye = eigen2glm(glm2eigen(camera.look_at) + (1-scroll_delta)*glm2eigen(camera.eye-camera.look_at));
+		}
+
+		// update camera up
+		camera.up = eigen2glm(up);
 
 		// camera reset (zero key)
 		if (Input::isButtonPressed(GLFW_KEY_0))
