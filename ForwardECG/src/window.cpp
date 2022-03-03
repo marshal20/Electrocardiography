@@ -6,6 +6,8 @@
 
 static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
 static void mouseCallback(GLFWwindow* window, int key, int scancode, int action);
+static void cursorPosCallback(GLFWwindow * window, double xpos, double ypos);
+static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
 
 GLFWwindow* createOpenglWindow(int width, int height, const char* title)
 {
@@ -32,6 +34,8 @@ void hookInputCallbacks(GLFWwindow* window)
 {
 	glfwSetKeyCallback(window, keyCallback);
 	glfwSetMouseButtonCallback(window, mouseCallback);
+	glfwSetCursorPosCallback(window, cursorPosCallback);
+	glfwSetScrollCallback(window, scrollCallback);
 }
 
 static void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
@@ -49,3 +53,14 @@ static void mouseCallback(GLFWwindow * window, int button, int action, int mods)
 	else if (action == GLFW_RELEASE)
 		Input::handleButtonEvent(button, EVENT_RELEASE);
 }
+
+static void cursorPosCallback(GLFWwindow * window, double xpos, double ypos)
+{
+	Input::cursorPositionCallback(xpos, ypos);
+}
+
+static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
+{
+	Input::scrollCallback(xoffset, yoffset);
+}
+

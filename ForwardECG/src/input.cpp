@@ -5,6 +5,8 @@ static InputEvent key_events[256];
 static InputState key_states[256];
 static InputEvent button_events[256];
 static InputState button_states[256];
+static double xpos_cur, ypos_cur, xpos_last, ypos_last, xpos_next, ypos_next;
+static double scroll_cur, scroll_last, scroll_next;
 
 void Input::newFrame()
 {
@@ -17,14 +19,28 @@ void Input::newFrame()
 			key_states[i] = STATE_UP;
 			button_states[i] = STATE_UP;
 		}
+		xpos_cur = xpos_last = 0;
+		ypos_cur = ypos_last = 0;
+		scroll_cur = scroll_last = scroll_next = 0;
 		initialized = true;
 	}
+
 	// Clear all events.
 	for (int i = 0; i < 256; i++)
 	{
 		key_events[i] = EVENT_NO_EVENT;
 		button_events[i] = EVENT_NO_EVENT;
 	}
+
+	// cursor position
+	xpos_last = xpos_cur;
+	ypos_last = ypos_cur;
+	xpos_cur = xpos_next;
+	ypos_cur = ypos_next;
+
+	// scroll
+	scroll_last = scroll_cur;
+	scroll_cur = scroll_next;
 }
 
 void Input::handleKeyEvent(uint8_t key, InputEvent event)
@@ -43,6 +59,17 @@ void Input::handleButtonEvent(uint8_t button, InputEvent event)
 		button_states[button] = STATE_DOWN;
 	else if (event == EVENT_RELEASE)
 		button_states[button] = STATE_UP;
+}
+
+void Input::cursorPositionCallback(double xpos, double ypos)
+{
+	xpos_next = xpos;
+	ypos_next = ypos;
+}
+
+void Input::scrollCallback(double xoffset, double yoffset)
+{
+	scroll_next += yoffset;
 }
 
 // Keys.
@@ -107,4 +134,38 @@ bool Input::isButtonDown(uint8_t button)
 bool Input::isButtonUp(uint8_t button)
 {
 	return buttonState(button) == STATE_UP;
+}
+
+// Mouse position
+
+double Input::getCursorXPos()
+{
+	return xpos_cur;
+}
+
+double Input::getCursorYPos()
+{
+	return ypos_cur;
+}
+
+double Input::getCursorXDelta()
+{
+	return xpos_cur - xpos_last;
+}
+
+double Input::getCursorYDelta()
+{
+	return ypos_cur - ypos_last;
+}
+
+// Scroll
+
+double Input::getScrollOffset()
+{
+	return scroll_cur;
+}
+
+double Input::getScrollDelta()
+{
+	return scroll_cur - scroll_last;
 }

@@ -39,6 +39,17 @@ glm::mat4 OrthographicCamera::calculateViewProjection() const
 	return proj * view;
 }
 
+LookAtCamera::LookAtCamera(const glm::vec3& eye_, const glm::vec3& look_at_, const glm::vec3& up_, float fov_, float aspect_, float near_, float far_)
+{
+	eye = eye_;
+	look_at = look_at_;
+	up = up_;
+	fov = fov_;
+	aspect = aspect_;
+	near = near_;
+	far = far_;
+}
+
 glm::mat4 LookAtCamera::calculateViewProjection() const
 {
 	glm::mat4 view = lookAtView(eye, look_at, up);

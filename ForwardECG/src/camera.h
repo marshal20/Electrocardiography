@@ -21,7 +21,10 @@ public:
 class LookAtCamera : public Camera
 {
 public:
+	LookAtCamera() = default;
+	LookAtCamera(const glm::vec3& eye_, const glm::vec3& look_at_, const glm::vec3& up_, float fov_, float aspect_, float near_, float far_);
 	virtual glm::mat4 calculateViewProjection() const override;
+
 public:
 	glm::vec3 eye;
 	glm::vec3 look_at;

@@ -21,6 +21,8 @@
 
 using namespace Eigen;
 
+const LookAtCamera default_camera({ 0, 0, 5 }, { 0, 0, 0 }, { 0, 1, 0 }, (float)(45*PI/180), 1.0f, 0.1f, 1000.0f);
+
 
 class ForwardECGApp
 {
@@ -68,7 +70,7 @@ public:
 
 		// set parameters
 		t = 0;
-		dipole_pos = { 0.2, 0.4, 0 };
+		dipole_pos = { 0.2, 0.4, 0.1 };
 		dipole_vec = { 0, 1, -1 };
 		conductivity = 1;
 		sigma_p = 0;
@@ -91,13 +93,7 @@ public:
 		mpr = new MeshPlotRenderer;
 
 		// LookAtCamera
-		camera.eye = { 0, 0, 5 };
-		camera.look_at = { 0, 0, 0 };
-		camera.up = { 0, 1, 0 };
-		camera.fov = (float)(45*PI/180);
-		camera.aspect = 1.0f;
-		camera.near = 0.1f;
-		camera.far = 1000.0f;
+		camera = default_camera;
 
 		// calculate IA_inv
 		calculate_coefficients_matrix();
@@ -118,7 +114,7 @@ public:
 			camera.aspect = aspect;
 
 			// input
-			Input::newFrame();
+			handle_input();
 
 			// animate dipole vector
 			t += 0.01;
@@ -140,10 +136,45 @@ public:
 		free_mesh_plot(torso);
 		delete mpr;
 		delete gldev;
+		glfwDestroyWindow(window);
 		glfwTerminate();
 	}
 
 private:
+	void calculate_coefficients_matrix()
+	{
+		// BEM solver (bounded conductor)
+		// Q = B - AQ
+		// (I+A)Q = B
+		A = MatrixX<Real>::Zero(N, N);
+		for (int i = 0; i < torso.vertices.size(); i++)
+		{
+			const MeshPlotVertex& vertex = torso.vertices[i];
+			Vector3<Real> r = glm2eigen(vertex.pos);
+
+			// A
+			for (const MeshPlotFace& face : torso.faces)
+			{
+				Vector3<Real> a = glm2eigen(torso.vertices[face.idx[0]].pos);
+				Vector3<Real> b = glm2eigen(torso.vertices[face.idx[1]].pos);
+				Vector3<Real> c = glm2eigen(torso.vertices[face.idx[2]].pos);
+				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
+				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
+
+				Real area = ((b-a).cross(c-a)).norm()/2;
+				Vector3<Real> center = (a+b+c)/3; // triangle center
+				Real const_val = 1/(4*PI)*2*(sigma_n-sigma_p)/(sigma_n+sigma_p)*1/pow((r-center).norm(), 3) * (r-center).dot(face_normal)*area;
+
+				A(i, face.idx[0]) += const_val/3;
+				A(i, face.idx[1]) += const_val/3;
+				A(i, face.idx[2]) += const_val/3;
+			}
+		}
+
+		// (I+A)'
+		IA_inv = (MatrixX<Real>::Identity(N, N) + A).inverse();
+	}
+
 	void calculate_potentials()
 	{
 		// BEM solver (bounded conductor)
@@ -179,7 +210,8 @@ private:
 		{
 			max_abs = rmax(rabs(vertex.value), max_abs);
 		}
-		printf("max_abs : %f\n", max_abs);
+		//// debug
+		//printf("max_abs : %f\n", max_abs);
 
 		torso.update_gpu_buffers();
 
@@ -205,38 +237,55 @@ private:
 		Renderer2D::drawLine(p1, p2);
 	}
 
-	void calculate_coefficients_matrix()
+	void handle_input()
 	{
-		// BEM solver (bounded conductor)
-		// Q = B - AQ
-		// (I+A)Q = B
-		A = MatrixX<Real>::Zero(N, N);
-		for (int i = 0; i < torso.vertices.size(); i++)
+		Input::newFrame();
+
+		// handle camera control (mouse middle button)
+		if (Input::isButtonDown(GLFW_MOUSE_BUTTON_MIDDLE))
 		{
-			const MeshPlotVertex& vertex = torso.vertices[i];
-			Vector3<Real> r = glm2eigen(vertex.pos);
+			Vector2<Real> cursor_delta = { Input::getCursorXDelta(), -Input::getCursorYDelta() };
+			glm::vec3 right = glm::normalize(glm::cross(camera.up, (camera.eye-camera.look_at)));
+			glm::vec3 up = glm::normalize(glm::cross((camera.eye-camera.look_at), right));
+			const Real translation_scaler = glm2eigen(camera.eye-camera.look_at).norm()/width;// 0.01;
+			const Real rotation_scaler = translation_scaler*10;
 
-			// A
-			for (const MeshPlotFace& face : torso.faces)
+			if (Input::isKeyDown(GLFW_KEY_LEFT_SHIFT) || Input::isKeyDown(GLFW_KEY_RIGHT_SHIFT))
 			{
-				Vector3<Real> a = glm2eigen(torso.vertices[face.idx[0]].pos);
-				Vector3<Real> b = glm2eigen(torso.vertices[face.idx[1]].pos);
-				Vector3<Real> c = glm2eigen(torso.vertices[face.idx[2]].pos);
-				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
-
-				Real area = ((b-a).cross(c-a)).norm()/2;
-				Vector3<Real> center = (a+b+c)/3; // triangle center
-				Real const_val = 1/(4*PI)*2*(sigma_n-sigma_p)/(sigma_n+sigma_p)*1/pow((r-center).norm(), 3) * (r-center).dot(face_normal)*area;
-
-				A(i, face.idx[0]) += const_val/3;
-				A(i, face.idx[1]) += const_val/3;
-				A(i, face.idx[2]) += const_val/3;
+				// camera translation (shift + middle mouse button)
+				Vector3<Real> translation = glm2eigen(right)*translation_scaler*cursor_delta.x() + glm2eigen(up)*translation_scaler*cursor_delta.y();
+				camera.look_at += -eigen2glm(translation);
+				camera.eye += -eigen2glm(translation);
 			}
+			else
+			{
+				// camera rotation (middle mouse button)
+				Vector3<Real> new_location_rel = glm2eigen(camera.eye-camera.look_at) - glm2eigen(right)*rotation_scaler*cursor_delta.x() - glm2eigen(up)*rotation_scaler*cursor_delta.y();
+				new_location_rel = new_location_rel.normalized() * glm2eigen(camera.eye-camera.look_at).norm();
+				camera.eye = camera.look_at + eigen2glm(new_location_rel);
+			}
+
+			//// debug
+			//printf("Cursor pos: (%.2lf, %.2lf), delta: (%.2lf, %.2lf)          \r", 
+			//	Input::getCursorXPos(), Input::getCursorYPos(),
+			//	Input::getCursorXDelta(), Input::getCursorYDelta());
+
+			// update camera up
+			camera.up = up;
+		}
+		
+		// camera zoom (scroll wheel)
+		Real zoom_delta = Input::getScrollDelta()/10;
+		camera.eye = eigen2glm(glm2eigen(camera.look_at) + (1-zoom_delta)*glm2eigen(camera.eye-camera.look_at));
+
+		// camera reset (zero key)
+		if (Input::isButtonPressed(GLFW_KEY_0))
+		{
+			camera = default_camera;
 		}
 
-		// (I+A)'
-		IA_inv = (MatrixX<Real>::Identity(N, N) + A).inverse();
+		//// debug
+		//printf("Scroll delta: %.2lf                       \r", Input::getScrollOffset());
 	}
 
 private:

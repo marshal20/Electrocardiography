@@ -14,6 +14,9 @@ public:
 	static void newFrame();
 	static void handleKeyEvent(uint8_t key, InputEvent event);
 	static void handleButtonEvent(uint8_t button, InputEvent event);
+	static void cursorPositionCallback(double xpos, double ypos);
+	static void scrollCallback(double xoffset, double yoffset);
+
 
 	// Keys
 	static InputEvent keyEvent(uint8_t key);
@@ -30,5 +33,17 @@ public:
 	static bool isButtonReleased(uint8_t button);
 	static bool isButtonDown(uint8_t button);
 	static bool isButtonUp(uint8_t button);
+
+	// Mouse position
+	static double getCursorXPos();
+	static double getCursorYPos();
+	static double getCursorXDelta();
+	static double getCursorYDelta();
+
+	// Scroll
+	static double getScrollOffset();
+	static double getScrollDelta();
+
+
 };
 

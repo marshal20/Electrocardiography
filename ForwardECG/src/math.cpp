@@ -39,3 +39,8 @@ Eigen::Vector3<Real> glm2eigen(const glm::vec3& v3)
 {
 	return { v3.x, v3.y, v3.z };
 }
+
+glm::vec3 eigen2glm(const Eigen::Vector3<Real>& v3)
+{
+	return { v3.x(), v3.y(), v3.z() };
+}
