@@ -285,25 +285,26 @@ private:
 
 		}
 		
-		const Real scroll_scaler = 0.1;
-		Real scroll_delta = scroll_scaler*Input::getScrollDelta();
+		const Real zoom_scaler = 0.05;
+		const Real roll_scaler = 0.05;
+		Real scroll_delta = Input::getScrollDelta();
 		if (Input::isKeyDown(GLFW_KEY_LEFT_CONTROL) || Input::isKeyDown(GLFW_KEY_RIGHT_CONTROL))
 		{
 			// camera roll (ctrl + scroll wheel)
-			Vector3<Real> new_up = (up + right*scroll_delta).normalized();
+			Vector3<Real> new_up = (up + right*scroll_delta*roll_scaler).normalized();
 			up = new_up;
 		}
 		else
 		{
 			// camera zoom (scroll wheel)
-			camera.eye = eigen2glm(glm2eigen(camera.look_at) + (1-scroll_delta)*glm2eigen(camera.eye-camera.look_at));
+			camera.eye = eigen2glm(glm2eigen(camera.look_at) + (1-scroll_delta*zoom_scaler)*glm2eigen(camera.eye-camera.look_at));
 		}
 
 		// update camera up
 		camera.up = eigen2glm(up);
 
 		// camera reset (zero key)
-		if (Input::isButtonPressed(GLFW_KEY_0))
+		if (Input::isKeyPressed(GLFW_KEY_0))
 		{
 			camera = default_camera;
 		}
