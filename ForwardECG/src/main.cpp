@@ -11,6 +11,7 @@
 #include "opengl/gl_graphics_device.h"
 #include "transform.h"
 #include "renderer2d.h"
+#include "renderer3d.h"
 #include "model.h"
 #include "camera.h"
 #include "forward_renderer.h"
@@ -57,6 +58,10 @@ public:
 		const float view_size = 2;
 		Renderer2D::setProjection(ortho(-view_size, view_size, view_size, -view_size, 1, -1));
 		Renderer2D::setStyle(Renderer2D::Style(true, 2, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
+
+		// setup 3D renderer
+		Renderer3D::init();
+		Renderer3D::setStyle(Renderer3D::Style(true, 2, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
 
 		// torso mesh plot
 		torso = load_mesh_plot("models/torso_model_3.fbx");
@@ -235,15 +240,16 @@ private:
 		gldev->setAlpha(Alpha{ true, Alpha::SRC_ALPHA, Alpha::ONE_MINUS_SRC_ALPHA });
 
 		// render torso
+		const Real alpha = 1;
+		mpr->set_colors(glm::vec4(0, 0, 1, alpha), glm::vec4(1, 0, 0, alpha));
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
 		mpr->set_max_val(max_abs);
 		mpr->render_mesh_plot(glm::mat4(1), &torso);
 
 		// render dipole
-		Renderer2D::setProjection(ortho(-2, 2, 2, -2, 1, -1));
-		glm::vec2 p1 = { dipole_pos.x(), dipole_pos.y() };
-		glm::vec2 p2 = { (dipole_pos+dipole_vec).x(), (dipole_pos+dipole_vec).y() };
-		Renderer2D::drawLine(p1, p2);
+		gldev->depthTest(STATE_DISABLED); // disable depth testing
+		Renderer3D::setProjection(camera.calculateViewProjection());
+		Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec*0.5));
 	}
 
 	void handle_input()
@@ -276,6 +282,7 @@ private:
 				Vector3<Real> new_location_rel = glm2eigen(camera.eye-camera.look_at) - right*rotation_scaler*cursor_delta.x() - up*rotation_scaler*cursor_delta.y();
 				new_location_rel = new_location_rel.normalized() * glm2eigen(camera.eye-camera.look_at).norm();
 				camera.eye = camera.look_at + eigen2glm(new_location_rel);
+				//up = glm2eigen(camera.up);
 			}
 
 			//// debug

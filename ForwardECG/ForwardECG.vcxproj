@@ -176,6 +176,7 @@
     <ClCompile Include="src\opengl\gl_vertex_buffer.cpp" />
     <ClCompile Include="src\opengl\gl_vertex_layout.cpp" />
     <ClCompile Include="src\renderer2d.cpp" />
+    <ClCompile Include="src\renderer3d.cpp" />
     <ClCompile Include="src\stb\stb_image.c" />
     <ClCompile Include="src\transform.cpp" />
     <ClCompile Include="src\window.cpp" />
@@ -198,6 +199,7 @@
     <ClInclude Include="src\opengl\gl_vertex_buffer.h" />
     <ClInclude Include="src\opengl\gl_vertex_layout.h" />
     <ClInclude Include="src\renderer2d.h" />
+    <ClInclude Include="src\renderer3d.h" />
     <ClInclude Include="src\stb\stb_image.h" />
     <ClInclude Include="src\transform.h" />
     <ClInclude Include="src\window.h" />
