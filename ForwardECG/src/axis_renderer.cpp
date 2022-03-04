@@ -89,10 +89,12 @@ glTexture* AxisRenderer::get_texture()
 
 static Mesh create_xarrow_mesh()
 {
-	Mesh xarrow = loadModelFile("models/xaxis_arrow.fbx").mesh_list[0];
-	xarrow.material.shininess = 0;
-	xarrow.material.specular = 0;
-	xarrow.material.ambient = 1;
-	return xarrow;
+	//Mesh xarrow = loadModelFile("models/xaxis_arrow.fbx").mesh_list[0];
+	//xarrow.material.shininess = 0;
+	//xarrow.material.specular = 0;
+	//xarrow.material.ambient = 1;
+	//return xarrow;
+
+	return Mesh();
 }
 
