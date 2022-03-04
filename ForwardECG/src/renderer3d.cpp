@@ -144,3 +144,18 @@ void Renderer3D::drawPolygon(const glm::vec3* points, int count)
 	}
 }
 
+void Renderer3D::drawPoint(const glm::vec3& point, const glm::vec4& color, float size)
+{
+	Vertex line[1] = {
+	{ point }
+	};
+	bind_global_buffers();
+	simple_shader->setMat4(1, glm::mat4(1));
+	// Update buffer.
+	vertex_buffer->update(0, sizeof(line), line);
+	// Draw command.
+	simple_shader->setVec4(2, color);
+	glPointSize(size);
+	gdevGet()->drawArrays(TOPOLOGY_POINT_LIST, 0, 1);
+}
+

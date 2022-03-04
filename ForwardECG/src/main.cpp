@@ -28,6 +28,150 @@ using namespace Eigen;
 const LookAtCamera default_camera({ 0, 0, 5 }, { 0, 0, 0 }, { 0, 1, 0 }, (float)(45*PI/180), 1.0f, 0.1f, 1000.0f);
 
 
+
+
+struct Triangle
+{
+	Eigen::Vector3<Real> a, b, c;
+};
+
+// Checks if a point (p) is inside a triangle (a, b, c).
+static bool is_point_in_triangle(const Triangle& triangle, const Eigen::Vector3<Real>& p)
+{
+	Eigen::Vector3<Real> u = triangle.b - triangle.a;
+	Eigen::Vector3<Real> v = triangle.c - triangle.a;
+	Eigen::Vector3<Real> w = p - triangle.a;
+
+	float uu = u.dot(u);
+	float uv = u.dot(v);
+	float vv = v.dot(v);
+	float wu = w.dot(u);
+	float wv = w.dot(v);
+	float dominator = uv * uv - uu * vv;
+
+	float s = (uv * wv - vv * wu) / dominator;
+	float t = (uv * wu - uu * wv) / dominator;
+	if (s >= 0.0 && t >= 0.0 && (s + t) <= 1.0)
+		return true;
+
+	return false;
+}
+
+static Real perpendicular_distance(const Eigen::Vector3<Real>& a, const Eigen::Vector3<Real>& b, const Eigen::Vector3<Real>& point)
+{
+	Eigen::Vector3<Real> ab_norm = (b-a).normalized();
+	Real ab_dot = (point-a).dot(ab_norm);
+	Real pointa = (point-a).norm();
+	return sqrt(pointa*pointa - ab_dot*ab_dot);
+}
+
+struct Ray
+{
+	Eigen::Vector3<Real> origin;
+	Eigen::Vector3<Real> direction;
+
+	Eigen::Vector3<Real> point_at_dir(const Real& scaler) const
+	{
+		return origin + scaler*direction;
+	}
+
+	// Checks if a ray (r) intersects a plane (p, n).
+	Real intersect_plane(const Eigen::Vector3<Real>& p, const Eigen::Vector3<Real>& n) const
+	{
+		float RHS = n.dot(p) - n.dot(origin);
+		float LHS = direction.dot(n);
+		return RHS / LHS;
+	}
+
+	bool intersect_triangle(const Triangle& triangle, Real& t) const
+	{
+		Eigen::Vector3<Real> u = triangle.b - triangle.a;
+		Eigen::Vector3<Real> v = triangle.c - triangle.a;
+		Eigen::Vector3<Real> n = u.cross(v).normalized();
+		t = intersect_plane(triangle.a, n);
+		if (is_point_in_triangle(triangle, point_at_dir(t)))
+		{
+			return true;
+		}
+		return false;
+	}
+};
+
+static Eigen::Vector2<Real> get_point_in_triangle_basis(const Triangle& triangle, const Eigen::Vector3<Real>& p)
+{
+	Eigen::Vector3<Real> u = triangle.b - triangle.a;
+	Eigen::Vector3<Real> v = triangle.c - triangle.a;
+	Eigen::Vector3<Real> w = p - triangle.a;
+
+	float uu = u.dot(u);
+	float uv = u.dot(v);
+	float vv = v.dot(v);
+	float wu = w.dot(u);
+	float wv = w.dot(v);
+	float dominator = uv * uv - uu * vv;
+
+	float s = (uv * wv - vv * wu) / dominator;
+	float t = (uv * wu - uu * wv) / dominator;
+
+	return { s, t };
+}
+
+static bool ray_mesh_intersect(const MeshPlot& mesh, const Ray& ray, Real& t, int& tri_idx)
+{
+	bool intersected = false;
+	Real min_t = INFINITY;
+
+	for (int i = 0; i < mesh.faces.size(); i++)
+	{
+		const MeshPlotFace& face = mesh.faces[i];
+		Triangle tri = { glm2eigen(mesh.vertices[face.idx[0]].pos), 
+						 glm2eigen(mesh.vertices[face.idx[1]].pos), 
+						 glm2eigen(mesh.vertices[face.idx[2]].pos) };
+		Real new_t;
+		if (ray.intersect_triangle(tri, new_t))
+		{
+			intersected = true;
+			if (new_t < min_t)
+			{
+				min_t = new_t;
+				tri_idx = i;
+			}
+		}
+	}
+
+	t = min_t;
+	return intersected;
+}
+
+struct Probe
+{
+	int triangle_idx;
+	Eigen::Vector3<Real> point;
+};
+
+static Real evaluate_probe(const MeshPlot& mesh, const Probe& probe)
+{
+	const MeshPlotFace& face = mesh.faces[probe.triangle_idx];
+	Triangle tri = { glm2eigen(mesh.vertices[face.idx[0]].pos),
+					 glm2eigen(mesh.vertices[face.idx[1]].pos),
+					 glm2eigen(mesh.vertices[face.idx[2]].pos) };
+
+	if (is_point_in_triangle(tri, probe.point))
+	{
+		Real scaler_a = perpendicular_distance(tri.b, tri.c, probe.point);
+		Real scaler_b = perpendicular_distance(tri.a, tri.c, probe.point);
+		Real scaler_c = perpendicular_distance(tri.a, tri.b, probe.point);
+		Real total = scaler_a+scaler_b+scaler_c;
+		scaler_a /= total;
+		scaler_b /= total;
+		scaler_c /= total;
+
+		return scaler_a*mesh.vertices[face.idx[0]].value + scaler_b*mesh.vertices[face.idx[1]].value + scaler_c*mesh.vertices[face.idx[2]].value;
+	}
+
+	return 0;
+}
+
 class ForwardECGApp
 {
 public:
@@ -279,6 +423,12 @@ private:
 		Renderer3D::setProjection(camera.calculateViewProjection());
 		Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec*0.5));
 
+		// render probes
+		for (const Probe& probe : probes)
+		{
+			Renderer3D::drawPoint(eigen2glm(probe.point), {0, 1, 0, 1}, 4);
+		}
+
 		// render axis
 		axis_renderer->render(camera);
 		Renderer2D::setProjection(ortho(0, width, height, 0, -1, 1));
@@ -301,8 +451,8 @@ private:
 		// dipole position and vector
 		glm::vec3 im_dipole_pos = eigen2glm(dipole_pos);
 		glm::vec3 im_dipole_vec = eigen2glm(dipole_vec);
-		ImGui::InputFloat3("Dipole position", (float*)&im_dipole_pos);
-		ImGui::InputFloat3("Dipole Vector", (float*)&im_dipole_vec);
+		ImGui::DragFloat3("Dipole position", (float*)&im_dipole_pos, 0.01f);
+		ImGui::DragFloat3("Dipole Vector", (float*)&im_dipole_vec, 0.01f);
 		dipole_pos = glm2eigen(im_dipole_pos);
 		dipole_vec = glm2eigen(im_dipole_vec);
 
@@ -314,6 +464,37 @@ private:
 		// mesh plot colors
 		ImGui::ColorEdit4("Negative color", (float*)&color_n);
 		ImGui::ColorEdit4("Positive color", (float*)&color_p);
+
+		// probes
+		static int current_selected_probe = -1;
+		probes_str.clear();
+		for (const Probe& probe : probes)
+		{
+			Real probe_value = evaluate_probe(torso, probe);
+			probes_str.push_back(std::to_string(probe_value));
+		}
+		probes_str_ptr.clear();
+		for (const std::string& str : probes_str)
+		{
+			probes_str_ptr.push_back(&str[0]);
+		}
+		ImGui::ListBox("Probes", &current_selected_probe, &probes_str_ptr[0], probes_str_ptr.size());
+		if (current_selected_probe != -1)
+		{
+			// probe info
+			const Probe& probe = probes[current_selected_probe];
+			ImGui::Text("\tTri: %d", probe.triangle_idx);
+			ImGui::Text("\tPoint: {%.3lf, %.3lf, %.3lf}", probe.point.x(), probe.point.y(), probe.point.z());
+			ImGui::Text("\tValue: %.3lf", evaluate_probe(torso, probe));
+		}
+		if (ImGui::Button("Add Probe"))
+		{
+			adding_probes = true;
+		}
+		if (adding_probes)
+		{
+			ImGui::Text("\tClick to add a probe");
+		}
 
 		// stats
 		Real max_val = -INFINITY;
@@ -387,9 +568,31 @@ private:
 		camera.up = eigen2glm(up);
 
 		// camera reset (0 key)
-		if (Input::isKeyPressed(GLFW_KEY_0))
+		if (Input::isKeyDown(GLFW_KEY_0))
 		{
 			camera = default_camera;
+		}
+
+		// cancel adding probes
+		if (Input::isKeyDown(GLFW_KEY_ESCAPE))
+		{
+			adding_probes = false;
+		}
+
+		// adding_probes
+		if (adding_probes && Input::isButtonDown(GLFW_MOUSE_BUTTON_LEFT))
+		{
+			// TODO: calculate ray direction from mouse location
+			Ray ray = { glm2eigen(camera.eye), glm2eigen(camera.look_at-camera.eye) };
+
+			Real t;
+			int tri_idx;
+			if (ray_mesh_intersect(torso, ray, t, tri_idx))
+			{
+				probes.push_back({ tri_idx, ray.point_at_dir(t) });
+			}
+
+			adding_probes = false;
 		}
 	}
 
@@ -414,6 +617,11 @@ private:
 	MatrixX<Real> IA_inv;
 	MatrixX<Real> B;
 	MatrixX<Real> Q;
+
+	bool adding_probes = false;
+	std::vector<Probe> probes;
+	std::vector<std::string> probes_str;
+	std::vector<const char*> probes_str_ptr;
 };
 
 
