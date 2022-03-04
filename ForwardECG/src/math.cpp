@@ -25,6 +25,16 @@ Real rmax(Real a, Real b)
 	return b;
 }
 
+Real rmin(Real a, Real b)
+{
+	if (a < b)
+	{
+		return a;
+	}
+
+	return b;
+}
+
 Real rabs(Real val)
 {
 	if (val < 0)

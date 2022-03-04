@@ -71,6 +71,8 @@ public:
 
 		// torso mesh plot
 		torso = load_mesh_plot("models/torso_model_3.fbx");
+		color_n = { 0, 0, 1, 1 };
+		color_p = { 1, 0, 0, 1 };
 
 		// initialize matrices
 		N = torso.vertices.size();
@@ -82,23 +84,23 @@ public:
 		// set parameters
 		t = 0;
 		dipole_pos = { 0.2, 0.4, 0.1 };
-		dipole_vec = { 0, 1, -1 };
+		dipole_vec = { 1, 0, 0 };
 		conductivity = 1;
 		sigma_p = 0;
 		sigma_n = conductivity;
 
-		// Debug
-		Real max_val_x = 0.0;
-		Real max_val_y = 0.0;
-		Real max_val_z = 0.0;
-		for (MeshPlotVertex& vertex : torso.vertices)
-		{
-			max_val_x = rmax(rabs(vertex.pos.x), max_val_x);
-			max_val_y = rmax(rabs(vertex.pos.y), max_val_y);
-			max_val_z = rmax(rabs(vertex.pos.z), max_val_z);
-		}
-		printf("max vertex values: {%f, %f, %f}\n", max_val_x, max_val_y, max_val_z);
-		printf("vertex count: %d\n", torso.vertices.size());
+		//// Debug
+		//Real max_val_x = 0.0;
+		//Real max_val_y = 0.0;
+		//Real max_val_z = 0.0;
+		//for (MeshPlotVertex& vertex : torso.vertices)
+		//{
+		//	max_val_x = rmax(rabs(vertex.pos.x), max_val_x);
+		//	max_val_y = rmax(rabs(vertex.pos.y), max_val_y);
+		//	max_val_z = rmax(rabs(vertex.pos.z), max_val_z);
+		//}
+		//printf("max vertex values: {%f, %f, %f}\n", max_val_x, max_val_y, max_val_z);
+		//printf("vertex count: %d\n", torso.vertices.size());
 
 		// mesh plot renderer
 		mpr = new MeshPlotRenderer;
@@ -125,6 +127,9 @@ public:
 		// main loop
 		while (!glfwWindowShouldClose(window))
 		{
+			// poll events
+			glfwPollEvents();
+
 			// handle window size change
 			glfwGetWindowSize(window, &width, &height);
 			gldev->resizeBackbuffer(width, height);
@@ -135,9 +140,12 @@ public:
 			// input
 			handle_input();
 
+			// set values
+			sigma_p = 0;
+			sigma_n = conductivity;
 			// animate dipole vector
 			t += 0.01;
-			dipole_vec = { cos(-t), sin(-t), 0 };
+			//dipole_vec = { cos(-t), sin(-t), 0 };
 			//dipole_vec = 10*dipole_vec;
 
 			// update and render
@@ -146,7 +154,6 @@ public:
 
 			// update window
 			glfwSwapBuffers(window);
-			glfwPollEvents();
 			glfwSwapInterval(1);
 			//std::this_thread::sleep_for(std::chrono::milliseconds(16));
 		}
@@ -261,7 +268,7 @@ private:
 
 		// render torso
 		const Real alpha = 1;
-		mpr->set_colors(glm::vec4(0, 0, 1, alpha), glm::vec4(1, 0, 0, alpha));
+		mpr->set_colors(color_p, color_n);
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
 		mpr->set_max_val(max_abs);
 		mpr->render_mesh_plot(glm::mat4(1), &torso);
@@ -282,65 +289,49 @@ private:
 
 	void render_gui()
 	{
-		// all GUI stuff goes here
-
-		// TEMPORARY
-		// Our state
-		static bool show_demo_window = true;
-		static bool show_another_window = false;
-		static ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-
 		// Start the Dear ImGui frame
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
-		if (show_demo_window)
+
+
+		ImGui::Begin("Controls");
+
+		// dipole position and vector
+		glm::vec3 im_dipole_pos = eigen2glm(dipole_pos);
+		glm::vec3 im_dipole_vec = eigen2glm(dipole_vec);
+		ImGui::InputFloat3("Dipole position", (float*)&im_dipole_pos);
+		ImGui::InputFloat3("Dipole Vector", (float*)&im_dipole_vec);
+		dipole_pos = glm2eigen(im_dipole_pos);
+		dipole_vec = glm2eigen(im_dipole_vec);
+
+		//// conductivity
+		//float im_conductivity = conductivity;
+		//ImGui::InputFloat("Conductivity", &im_conductivity, 0.01, 10);
+		//conductivity = im_conductivity;
+
+		// mesh plot colors
+		ImGui::ColorEdit4("Negative color", (float*)&color_n);
+		ImGui::ColorEdit4("Positive color", (float*)&color_p);
+
+		// stats
+		Real max_val = -INFINITY;
+		Real min_val = INFINITY;
+		for (MeshPlotVertex& vertex : torso.vertices)
 		{
-			ImGui::ShowDemoWindow(&show_demo_window);
+			max_val = rmax(vertex.value, max_val);
+			min_val = rmin(vertex.value, min_val);
 		}
+		ImGui::Text("Stats:");
+		ImGui::Text("\tMin: %.3f, Max: %.3f", min_val, max_val);
 
-		// 2. Show a simple window that we create ourselves. We use a Begin/End pair to created a named window.
-		{
-			static float f = 0.0f;
-			static int counter = 0;
-
-			ImGui::Begin("Hello, world!");                          // Create a window called "Hello, world!" and append into it.
-
-			ImGui::Text("This is some useful text.");               // Display some text (you can use a format strings too)
-			ImGui::Checkbox("Demo Window", &show_demo_window);      // Edit bools storing our window open/close state
-			ImGui::Checkbox("Another Window", &show_another_window);
-
-			ImGui::SliderFloat("float", &f, 0.0f, 1.0f);            // Edit 1 float using a slider from 0.0f to 1.0f
-			ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-			if (ImGui::Button("Button"))                            // Buttons return true when clicked (most widgets return true when edited/activated)
-				counter++;
-			ImGui::SameLine();
-			ImGui::Text("counter = %d", counter);
-
-			ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
-			ImGui::End();
-		}
-
-		// 3. Show another simple window.
-		if (show_another_window)
-		{
-			ImGui::Begin("Another Window", &show_another_window);   // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-			ImGui::Text("Hello from another window!");
-			if (ImGui::Button("Close Me"))
-				show_another_window = false;
-			ImGui::End();
-		}
+		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms)", ImGui::GetIO().Framerate, 1000.0f/ImGui::GetIO().Framerate);
+		ImGui::End();
 
 		// Rendering
 		ImGui::Render();
-
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-
-
-
-
 	}
 
 	void handle_input()
@@ -375,12 +366,6 @@ private:
 				camera.eye = camera.look_at + eigen2glm(new_location_rel);
 				//up = glm2eigen(camera.up);
 			}
-
-			//// debug
-			//printf("Cursor pos: (%.2lf, %.2lf), delta: (%.2lf, %.2lf)          \r", 
-			//	Input::getCursorXPos(), Input::getCursorYPos(),
-			//	Input::getCursorXDelta(), Input::getCursorYDelta());
-
 		}
 		
 		const Real zoom_scaler = 0.05;
@@ -392,23 +377,20 @@ private:
 			Vector3<Real> new_up = (up + right*scroll_delta*roll_scaler).normalized();
 			up = new_up;
 		}
-		else
+		if (Input::isKeyDown(GLFW_KEY_LEFT_ALT) || Input::isKeyDown(GLFW_KEY_RIGHT_ALT))
 		{
-			// camera zoom (scroll wheel)
+			// camera zoom (Alt + scroll wheel)
 			camera.eye = eigen2glm(glm2eigen(camera.look_at) + (1-scroll_delta*zoom_scaler)*glm2eigen(camera.eye-camera.look_at));
 		}
 
 		// update camera up
 		camera.up = eigen2glm(up);
 
-		// camera reset (R key)
-		if (Input::isKeyPressed(GLFW_KEY_R))
+		// camera reset (0 key)
+		if (Input::isKeyPressed(GLFW_KEY_0))
 		{
 			camera = default_camera;
 		}
-
-		//// debug
-		//printf("Scroll delta: %.2lf                       \r", Input::getScrollOffset());
 	}
 
 private:
@@ -419,6 +401,7 @@ private:
 	unsigned int N;
 	AxisRenderer* axis_renderer;
 	MeshPlotRenderer* mpr;
+	glm::vec4 color_n, color_p;
 	LookAtCamera camera;
 
 	Real conductivity;
