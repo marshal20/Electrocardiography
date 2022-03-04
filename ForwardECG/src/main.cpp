@@ -18,6 +18,7 @@
 #include "mesh_plot.h"
 #include <Eigen/Dense>
 #include "math.h"
+#include "axis_renderer.h"
 
 
 using namespace Eigen;
@@ -52,6 +53,9 @@ public:
 		hookInputCallbacks(window);
 		gldev = createOpenglDevice(window);
 		gdevSet(gldev);
+
+		// axis renderer
+		axis_renderer = new AxisRenderer(80, 80);
 
 		// setup 2D renderer
 		Renderer2D::init();
@@ -139,6 +143,9 @@ public:
 
 		// cleanup
 		free_mesh_plot(torso);
+		Renderer2D::cleanup();
+		Renderer3D::cleanup();
+		delete axis_renderer;
 		delete mpr;
 		delete gldev;
 		glfwDestroyWindow(window);
@@ -248,8 +255,14 @@ private:
 
 		// render dipole
 		gldev->depthTest(STATE_DISABLED); // disable depth testing
+		Renderer3D::setStyle(Renderer3D::Style(true, 2, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
 		Renderer3D::setProjection(camera.calculateViewProjection());
 		Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec*0.5));
+
+		// render axis
+		axis_renderer->render(camera);
+		Renderer2D::setProjection(ortho(0, width, height, 0, -1, 1));
+		Renderer2D::drawTexture({ width-50, height-50 }, { 80, 80 }, axis_renderer->get_texture());
 	}
 
 	void handle_input()
@@ -310,8 +323,8 @@ private:
 		// update camera up
 		camera.up = eigen2glm(up);
 
-		// camera reset (zero key)
-		if (Input::isKeyPressed(GLFW_KEY_0))
+		// camera reset (R key)
+		if (Input::isKeyPressed(GLFW_KEY_R))
 		{
 			camera = default_camera;
 		}
@@ -326,6 +339,7 @@ private:
 	glGraphicsDevice* gldev;
 	MeshPlot torso;
 	unsigned int N;
+	AxisRenderer* axis_renderer;
 	MeshPlotRenderer* mpr;
 	LookAtCamera camera;
 

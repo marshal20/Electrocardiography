@@ -317,7 +317,7 @@ void Renderer2D::drawSprite(const Sprite & sprite)
 	gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_LIST, 0, 6);
 }
 
-void drawTexture(const glm::vec2& position, const glm::vec2& size, glTexture* texture)
+void Renderer2D::drawTexture(const glm::vec2& position, const glm::vec2& size, glTexture* texture)
 {
 	glm::mat4 model = translate({ position, 0 }) * scale({ size / 2.0f, 1 });
 	// Bind shader.

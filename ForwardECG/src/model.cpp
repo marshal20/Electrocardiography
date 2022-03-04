@@ -183,7 +183,13 @@ void freeModel(Model model)
 {
 	for (Mesh& mesh : model.mesh_list)
 	{
-		delete[] mesh.vertex_buffer;
-		delete[] mesh.index_buffer;
+		delete mesh.vertex_buffer;
+		delete mesh.index_buffer;
 	}
+}
+
+void freeMesh(Mesh mesh)
+{
+	delete mesh.vertex_buffer;
+	delete mesh.index_buffer;
 }

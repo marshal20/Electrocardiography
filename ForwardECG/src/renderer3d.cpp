@@ -104,6 +104,7 @@ void Renderer3D::drawLine(const glm::vec3 & p1, const glm::vec3 & p2)
 		{ p2 }
 	};
 	bind_global_buffers();
+	simple_shader->setMat4(1, glm::mat4(1));
 	// Update buffer.
 	vertex_buffer->update(0, sizeof(line), line);
 	// Draw command.
@@ -111,7 +112,7 @@ void Renderer3D::drawLine(const glm::vec3 & p1, const glm::vec3 & p2)
 	{
 		simple_shader->setVec4(2, style.stroke_color);
 		glLineWidth(style.stroke_width);
-		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, 2);
+		gdevGet()->drawArrays(TOPOLOGY_LINE_LIST, 0, 2);
 	}
 }
 

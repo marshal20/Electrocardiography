@@ -159,6 +159,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\axis_renderer.cpp" />
     <ClCompile Include="src\camera.cpp" />
     <ClCompile Include="src\forward_renderer.cpp" />
     <ClCompile Include="src\input.cpp" />
@@ -182,6 +183,7 @@
     <ClCompile Include="src\window.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\axis_renderer.h" />
     <ClInclude Include="src\camera.h" />
     <ClInclude Include="src\forward_renderer.h" />
     <ClInclude Include="src\input.h" />
