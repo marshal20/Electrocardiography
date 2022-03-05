@@ -40,6 +40,6 @@ public:
 
 	static void fill(const glm::vec4& color);
 	static void drawLine(const glm::vec3& p1, const glm::vec3& p2);
-	static void drawPolygon(const glm::vec3* points, int count);
+	static void drawPolygon(const glm::vec3* points, int count, bool loop = false);
 	static void drawPoint(const glm::vec3& point, const glm::vec4& color = { 0, 0, 0, 1 }, float size = 2.0);
 };

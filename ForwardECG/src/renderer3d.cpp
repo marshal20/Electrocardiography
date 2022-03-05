@@ -9,7 +9,7 @@
 
 
 #define PI 3.14159265359
-#define MAX_VERTICES 256
+#define MAX_VERTICES 1024
 
 // Simple shader.
 static const char* simple_vert = R"(
@@ -116,31 +116,34 @@ void Renderer3D::drawLine(const glm::vec3 & p1, const glm::vec3 & p2)
 	}
 }
 
-void Renderer3D::drawPolygon(const glm::vec3* points, int count)
+void Renderer3D::drawPolygon(const glm::vec3* points, int count, bool loop)
 {
-	count = (count <= MAX_VERTICES) ? count : MAX_VERTICES;
-	for (int i = 0; i < count; i++)
+	int new_count = (count <= MAX_VERTICES) ? count : MAX_VERTICES;
+
+	for (int i = 0; i < new_count; i++)
 		vertices[i] = { points[i] };
 	bind_global_buffers();
+	simple_shader->setMat4(1, glm::mat4(1));
 	// Update buffer.
-	vertex_buffer->update(0, count * sizeof(Vertex), vertices);
+	vertex_buffer->update(0, new_count * sizeof(Vertex), vertices);
 	// Draw command.
 	if (style.fill)
 	{
 		simple_shader->setVec4(2, style.fill_color);
-		gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_FAN, 0, count);
+		gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_FAN, 0, new_count);
 	}
 	if (style.stroke)
 	{
 		simple_shader->setVec4(2, style.stroke_color);
 		glLineWidth(style.stroke_width);
-		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, count);
+		Topology topology = loop ? TOPOLOGY_LINE_LOOP : TOPOLOGY_LINE_STRIP;
+		gdevGet()->drawArrays(topology, 0, new_count);
 	}
 
 	// render the rest of points
 	if (count > MAX_VERTICES)
 	{
-		drawPolygon(&points[MAX_VERTICES-1], count-MAX_VERTICES);
+		drawPolygon(&points[MAX_VERTICES-1], count-MAX_VERTICES, loop);
 	}
 }
 

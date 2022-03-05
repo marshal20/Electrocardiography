@@ -22,6 +22,8 @@
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
 #include "geometry.h"
+#include "bezier_curve.h"
+
 
 using namespace Eigen;
 
@@ -156,10 +158,6 @@ public:
 		// main loop
 		while (!glfwWindowShouldClose(window))
 		{
-			// poll events
-			Input::newFrame();
-			glfwPollEvents();
-
 			// handle window size change
 			glfwGetWindowSize(window, &width, &height);
 			gldev->resizeBackbuffer(width, height);
@@ -174,17 +172,50 @@ public:
 			sigma_p = 0;
 			sigma_n = conductivity;
 			// animate dipole vector
-			t += 0.01;
+			//t += 0.01;
 			//dipole_vec = { cos(-t), sin(-t), 0 };
 			//dipole_vec = 10*dipole_vec;
+
+
+			// update dipoles_values size
+			sample_count = dipole_curve.total_duration()/dt + 1;
+			//probes_values = Eigen::MatrixX<Real>(probes.size(), sample_count);
+			probes_values.resize(probes.size(), sample_count);
+
+			for (int step = 0; step < steps_per_frame; step++)
+			{
+				// animate dipole vector
+				if (use_curve)
+				{
+					// update dipole vector
+					t = current_sample*dt;
+					dipole_vec = dipole_curve.point_at(t);
+
+					// calculate probes values at time point
+					for (int i = 0; i < probes.size(); i++)
+					{
+						const Probe& probe = probes[i];
+
+						Real probe_value = evaluate_probe(torso, probe);
+						probes_values(i, current_sample) = probe_value;
+					}
+
+					current_sample++;
+					current_sample = current_sample%sample_count;
+				}
+			}
+
 
 			// update and render
 			calculate_potentials();
 			render();
 
 			// update window
+			// poll events
+			Input::newFrame();
 			glfwSwapBuffers(window);
 			glfwSwapInterval(1);
+			glfwPollEvents();
 			//std::this_thread::sleep_for(std::chrono::milliseconds(16));
 		}
 
@@ -304,10 +335,35 @@ private:
 		mpr->render_mesh_plot(glm::mat4(1), &torso);
 
 		// render dipole
+		const Real dipole_vector_scale = 0.5;
 		gldev->depthTest(STATE_DISABLED); // disable depth testing
 		Renderer3D::setStyle(Renderer3D::Style(true, 2, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
 		Renderer3D::setProjection(camera.calculateViewProjection());
-		Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec*0.5));
+		Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec*dipole_vector_scale));
+
+		// render dipole locus
+		if (use_curve)
+		{
+			dipole_locus.resize(sample_count);
+			for (int i = 0; i < sample_count; i++)
+			{
+				dipole_locus[i] = eigen2glm(dipole_pos + dipole_curve.point_at(i*dt)*dipole_vector_scale);
+			}
+			Renderer3D::setStyle(Renderer3D::Style(true, 1, { 1, 1, 1, 1 }, false, { 0.75, 0, 0 ,1 }));
+			Renderer3D::drawPolygon(&dipole_locus[0], dipole_locus.size(), false);
+		}
+
+		// render bezier curve handles
+		Renderer3D::setStyle(Renderer3D::Style(true, 1, { 0.7, 0.7, 0.7, 1 }, false, { 0.75, 0, 0 ,1 }));
+		for (int i = 0; i < dipole_curve.segments_duratoins.size(); i++)
+		{
+			// handle 1
+			Renderer3D::drawLine(eigen2glm(dipole_pos+dipole_curve.points[i*3+0]*dipole_vector_scale), 
+								 eigen2glm(dipole_pos+dipole_curve.points[i*3+1]*dipole_vector_scale));
+			// handle 2
+			Renderer3D::drawLine(eigen2glm(dipole_pos+dipole_curve.points[i*3+2]*dipole_vector_scale),
+								 eigen2glm(dipole_pos+dipole_curve.points[i*3+3]*dipole_vector_scale));
+		}
 
 		// render probes
 		for (int i = 0; i < probes.size(); i++)
@@ -351,6 +407,53 @@ private:
 		dipole_pos = glm2eigen(im_dipole_pos);
 		dipole_vec = glm2eigen(im_dipole_vec);
 
+		// dipole curve
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Checkbox("Use curve for dipole vector", &use_curve);
+		if (use_curve)
+		{
+			// dt
+			float im_dt = dt;
+			ImGui::SliderFloat("time step", &im_dt, 0.001, 0.1);
+			dt = im_dt;
+
+			// steps per frame
+			ImGui::SliderInt("steps per frame", &steps_per_frame, 0, 100);
+
+			// curve points
+			glm::vec3 im_curve_point_pos;
+			float im_curve_duration;
+			for (int i = 0; i < dipole_curve.points.size(); i++)
+			{
+				// point position
+				im_curve_point_pos = eigen2glm(dipole_curve.points[i]);
+				std::string point_name = "p" + std::to_string(i);
+				ImGui::DragFloat3(point_name.c_str(), (float*)&im_curve_point_pos[i], 0.01f);
+				dipole_curve.points[i] = glm2eigen(im_curve_point_pos);
+				// segment duration
+				if (i != 0 && i%3 == 0)
+				{
+					int segment_idx = i/3-1;
+					im_curve_duration = dipole_curve.segments_duratoins[segment_idx];
+					ImGui::SameLine();
+					std::string duration_name = "d" + std::to_string(segment_idx);
+					ImGui::InputFloat(duration_name.c_str(), &im_curve_duration);
+					dipole_curve.segments_duratoins[segment_idx] = im_curve_duration;
+				}
+			}
+
+			// add and remove point
+			if (ImGui::Button("Add point"))
+			{
+				dipole_curve.add_point({ 1, 1, 1 });
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("remove point"))
+			{
+				dipole_curve.remove_point();
+			}
+		}
+
 		//// conductivity
 		// ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		//float im_conductivity = conductivity;
@@ -376,7 +479,7 @@ private:
 			probes_str_ptr.push_back(&str[0]);
 		}
 		ImGui::ListBox("Probes", &current_selected_probe, &probes_str_ptr[0], probes_str_ptr.size());
-		if (current_selected_probe != -1)
+		if (current_selected_probe != -1 && current_selected_probe < probes.size())
 		{
 			// probe info
 			const Probe& probe = probes[current_selected_probe];
@@ -419,7 +522,7 @@ private:
 		
 		ImGui::End();
 
-		// Rendering
+		// render ImGui
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 	}
@@ -543,6 +646,17 @@ private:
 	MatrixX<Real> B;
 	MatrixX<Real> Q;
 
+	// dipole vector curve
+	bool use_curve = true;
+	BezierCurve dipole_curve = { {{0.001, 0.001, 0.001}, {-1, 0, 0}, {-1, -1, 0}, {1, -1, 0}}, {1} };
+	Real dt = 0.001; // time step
+	int steps_per_frame = 4;
+	int sample_count;
+	int current_sample = 0;
+	Eigen::MatrixX<Real> probes_values;
+	std::vector<glm::vec3> dipole_locus;
+
+	// probes
 	bool adding_probe = false;
 	bool adding_probe_intersected = false;
 	Eigen::Vector3<Real> adding_probe_intersection;
