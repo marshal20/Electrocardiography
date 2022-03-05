@@ -428,7 +428,7 @@ private:
 				// point position
 				im_curve_point_pos = eigen2glm(dipole_curve.points[i]);
 				std::string point_name = "p" + std::to_string(i);
-				ImGui::DragFloat3(point_name.c_str(), (float*)&im_curve_point_pos[i], 0.01f);
+				ImGui::DragFloat3(point_name.c_str(), (float*)&im_curve_point_pos, 0.01f);
 				dipole_curve.points[i] = glm2eigen(im_curve_point_pos);
 				// segment duration
 				if (i != 0 && i%3 == 0)
@@ -504,6 +504,13 @@ private:
 			ImGui::Text("\tClick to add a probe");
 		}
 
+		// view probes graph
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		if (ImGui::Button("Probes graph"))
+		{
+			probes_graph = true;
+		}
+
 		// stats
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		Real max_val = -INFINITY;
@@ -521,6 +528,28 @@ private:
 		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms)", ImGui::GetIO().Framerate, 1000.0f/ImGui::GetIO().Framerate);
 		
 		ImGui::End();
+
+
+		// probes graph
+		if (probes_graph)
+		{
+			ImGui::Begin("Probes Graph", &probes_graph);
+
+			for (int i = 0; i < probes.size(); i++)
+			{
+				static std::vector<float> values;
+				values.resize(sample_count);
+				for (int j = 0; j < sample_count; j++)
+				{
+					values[j] = probes_values(i, j);
+				}
+				std::string plot_name = "probe" + std::to_string(i);
+				ImGui::PlotLines(plot_name.c_str(), &values[0], sample_count);
+			}
+
+			ImGui::End();
+		}
+
 
 		// render ImGui
 		ImGui::Render();
@@ -661,6 +690,7 @@ private:
 	bool adding_probe_intersected = false;
 	Eigen::Vector3<Real> adding_probe_intersection;
 	int current_selected_probe = -1;
+	bool probes_graph = false;
 	std::vector<Probe> probes;
 	std::vector<std::string> probes_str;
 	std::vector<const char*> probes_str_ptr;
