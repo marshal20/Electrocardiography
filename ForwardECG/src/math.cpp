@@ -54,3 +54,9 @@ glm::vec3 eigen2glm(const Eigen::Vector3<Real>& v3)
 {
 	return { v3.x(), v3.y(), v3.z() };
 }
+
+
+Eigen::Vector3<Real> rodrigues_rotate(const Eigen::Vector3<Real>& v, const Eigen::Vector3<Real>& axis, Real theta)
+{
+	return v*cos(theta) + axis.cross(v)*sin(theta) + axis*axis.dot(v)*(1-cos(theta));
+}

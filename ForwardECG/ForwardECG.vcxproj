@@ -162,6 +162,7 @@
     <ClCompile Include="src\axis_renderer.cpp" />
     <ClCompile Include="src\camera.cpp" />
     <ClCompile Include="src\forward_renderer.cpp" />
+    <ClCompile Include="src\geometry.cpp" />
     <ClCompile Include="src\imgui\imgui.cpp" />
     <ClCompile Include="src\imgui\imgui_demo.cpp" />
     <ClCompile Include="src\imgui\imgui_draw.cpp" />
@@ -193,6 +194,7 @@
     <ClInclude Include="src\axis_renderer.h" />
     <ClInclude Include="src\camera.h" />
     <ClInclude Include="src\forward_renderer.h" />
+    <ClInclude Include="src\geometry.h" />
     <ClInclude Include="src\imgui\imconfig.h" />
     <ClInclude Include="src\imgui\imgui.h" />
     <ClInclude Include="src\imgui\imgui_impl_glfw.h" />

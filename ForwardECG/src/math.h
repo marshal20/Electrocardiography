@@ -15,3 +15,5 @@ Real rabs(Real val);
 Eigen::Vector3<Real> glm2eigen(const glm::vec3& v3);
 glm::vec3 eigen2glm(const Eigen::Vector3<Real>& v3);
 
+
+Eigen::Vector3<Real> rodrigues_rotate(const Eigen::Vector3<Real>& v, const Eigen::Vector3<Real>& axis, Real theta);
