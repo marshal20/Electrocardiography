@@ -59,7 +59,7 @@ static Real evaluate_probe(const MeshPlot& mesh, const Probe& probe)
 	return 0;
 }
 
-static bool dump_probes_values_to_cvs(
+static bool dump_probes_values_to_csv(
 	const char* file_name,
 	const Eigen::Vector3<Real>& dipole_pos,
 	const BezierCurve& dipole_vec_curve, 
@@ -79,7 +79,7 @@ static bool dump_probes_values_to_cvs(
 	line += "sample, time, ";
 	line += "dipole_posx, dipole_posy, dipole_posz, ";
 	line += "dipole_vecx, dipole_vecy, dipole_vecz, ";
-	for (int i = 0; i < probes_values.cols(); i++)
+	for (int i = 0; i < probes_values.rows(); i++)
 	{
 		if (i != 0)
 		{
@@ -102,13 +102,13 @@ static bool dump_probes_values_to_cvs(
 		line += std::to_string(dipole_vec[0]) + ", " + std::to_string(dipole_vec[1]) + ", " + std::to_string(dipole_vec[2]) + ", ";
 
 		// probe values
-		for (int i = 0; i < probes_values.cols(); i++)
+		for (int i = 0; i < probes_values.rows(); i++)
 		{
 			if (i != 0)
 			{
 				line += ", ";
 			}
-			line += std::to_string(probes_values(sample, i));
+			line += std::to_string(probes_values(i, sample));
 		}
 		line += "\n";
 		fwrite(line.c_str(), sizeof(char), line.size(), file);
@@ -569,17 +569,17 @@ private:
 		{
 			probes_graph = true;
 		}
-		// dump to cvs
-		if (ImGui::Button("Dump to CVS"))
+		// dump to csv
+		if (ImGui::Button("Dump to csv"))
 		{
-			bool res = dump_probes_values_to_cvs("probes.cvs", dipole_pos, dipole_curve, dt, sample_count, probes_values);
+			bool res = dump_probes_values_to_csv("probes.csv", dipole_pos, dipole_curve, dt, sample_count, probes_values);
 			if (res)
 			{
-				printf("Successfuly dumped probes to probes.cvs\n");
+				printf("Successfuly dumped probes to probes.csv\n");
 			}
 			else
 			{
-				printf("Failed to dump probes to CVS file\n");
+				printf("Failed to dump probes to csv file\n");
 			}
 		}
 
