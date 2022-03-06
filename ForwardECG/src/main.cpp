@@ -59,6 +59,65 @@ static Real evaluate_probe(const MeshPlot& mesh, const Probe& probe)
 	return 0;
 }
 
+static bool dump_probes_values_to_cvs(
+	const char* file_name,
+	const Eigen::Vector3<Real>& dipole_pos,
+	const BezierCurve& dipole_vec_curve, 
+	const Real dt, 
+	const int sample_count,
+	const Eigen::MatrixX<Real> probes_values)
+{
+	FILE* file = fopen(file_name, "w");
+	if (!file)
+	{
+		return false;
+	}
+
+	std::string line = "";
+
+	// column names
+	line += "sample, time, ";
+	line += "dipole_posx, dipole_posy, dipole_posz, ";
+	line += "dipole_vecx, dipole_vecy, dipole_vecz, ";
+	for (int i = 0; i < probes_values.cols(); i++)
+	{
+		if (i != 0)
+		{
+			line += ", ";
+		}
+		line += "probe" + std::to_string(i);
+	}
+	line += "\n";
+	fwrite(line.c_str(), sizeof(char), line.size(), file);
+
+	// values
+	for (int sample = 0; sample < sample_count; sample++)
+	{
+		Real t = sample*dt;
+		Eigen::Vector3<Real> dipole_vec = dipole_vec_curve.point_at(t);
+
+		line = "";
+		line += std::to_string(sample) + ", " + std::to_string(t) + ", ";
+		line += std::to_string(dipole_pos[0]) + ", " + std::to_string(dipole_pos[1]) + ", " + std::to_string(dipole_pos[2]) + ", ";
+		line += std::to_string(dipole_vec[0]) + ", " + std::to_string(dipole_vec[1]) + ", " + std::to_string(dipole_vec[2]) + ", ";
+
+		// probe values
+		for (int i = 0; i < probes_values.cols(); i++)
+		{
+			if (i != 0)
+			{
+				line += ", ";
+			}
+			line += std::to_string(probes_values(sample, i));
+		}
+		line += "\n";
+		fwrite(line.c_str(), sizeof(char), line.size(), file);
+	}
+
+	fclose(file);
+	return true;
+}
+
 class ForwardECGApp
 {
 public:
@@ -307,7 +366,7 @@ private:
 		}
 
 		// calculate maximum value
-		Real max_abs = 0.0;
+		Real max_abs = 1e-6;
 		for (MeshPlotVertex& vertex : torso.vertices)
 		{
 			max_abs = rmax(rabs(vertex.value), max_abs);
@@ -504,11 +563,24 @@ private:
 			ImGui::Text("\tClick to add a probe");
 		}
 
-		// view probes graph
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		// view probes graph
 		if (ImGui::Button("Probes graph"))
 		{
 			probes_graph = true;
+		}
+		// dump to cvs
+		if (ImGui::Button("Dump to CVS"))
+		{
+			bool res = dump_probes_values_to_cvs("probes.cvs", dipole_pos, dipole_curve, dt, sample_count, probes_values);
+			if (res)
+			{
+				printf("Successfuly dumped probes to probes.cvs\n");
+			}
+			else
+			{
+				printf("Failed to dump probes to CVS file\n");
+			}
 		}
 
 		// stats
@@ -677,7 +749,7 @@ private:
 
 	// dipole vector curve
 	bool use_curve = true;
-	BezierCurve dipole_curve = { {{0.001, 0.001, 0.001}, {-1, 0, 0}, {-1, -1, 0}, {1, -1, 0}}, {1} };
+	BezierCurve dipole_curve = { {{0, 0, 0}, {-1, 0, 0}, {-1, -1, 0}, {1, -1, 0}}, {1} };
 	Real dt = 0.001; // time step
 	int steps_per_frame = 4;
 	int sample_count;

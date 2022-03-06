@@ -94,7 +94,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
@@ -111,7 +111,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
@@ -128,7 +128,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN64\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
@@ -145,7 +145,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN64\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
