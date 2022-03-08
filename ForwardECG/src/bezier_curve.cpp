@@ -44,7 +44,7 @@ void BezierCurve::remove_point()
 		// remove segment duration
 		if ((points.size()-1)%3 == 0)
 		{
-			segments_duratoins.erase(segments_duratoins.end());
+			segments_duratoins.erase(segments_duratoins.begin()+segments_duratoins.size()-1);
 		}
 
 		// remove point

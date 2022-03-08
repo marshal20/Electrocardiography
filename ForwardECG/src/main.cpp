@@ -214,6 +214,9 @@ public:
 
 	void run()
 	{
+		// enable v-sync
+		glfwSwapInterval(1);
+
 		// main loop
 		while (!glfwWindowShouldClose(window))
 		{
@@ -238,44 +241,47 @@ public:
 
 			// update dipoles_values size
 			sample_count = dipole_curve.total_duration()/dt + 1;
-			//probes_values = Eigen::MatrixX<Real>(probes.size(), sample_count);
 			probes_values.resize(probes.size(), sample_count);
 
-			for (int step = 0; step < steps_per_frame; step++)
+			// animate dipole vector
+			if (use_dipole_curve)
 			{
-				// animate dipole vector
-				if (use_curve)
+				for (int step = 0; step < steps_per_frame; step++)
 				{
 					// update dipole vector
 					t = current_sample*dt;
 					dipole_vec = dipole_curve.point_at(t);
 
+					// calculate
+					calculate_potentials();
+
 					// calculate probes values at time point
 					for (int i = 0; i < probes.size(); i++)
 					{
-						const Probe& probe = probes[i];
-
-						Real probe_value = evaluate_probe(torso, probe);
+						Real probe_value = evaluate_probe(torso, probes[i]);
 						probes_values(i, current_sample) = probe_value;
 					}
 
+					// next sample
 					current_sample++;
 					current_sample = current_sample%sample_count;
 				}
 			}
+			else
+			{
+				calculate_potentials();
+			}
 
 
-			// update and render
-			calculate_potentials();
+			// render
 			render();
 
-			// update window
+			// swap buffers
+			glfwSwapBuffers(window);
+
 			// poll events
 			Input::newFrame();
-			glfwSwapBuffers(window);
-			glfwSwapInterval(1);
 			glfwPollEvents();
-			//std::this_thread::sleep_for(std::chrono::milliseconds(16));
 		}
 
 		// cleanup
@@ -355,16 +361,16 @@ private:
 		//{
 		//	Q = B;
 		//}
-	}
 
-	void render()
-	{
-		// update mesh plot
+		// update torso potentials
 		for (int i = 0; i < torso.vertices.size(); i++)
 		{
 			torso.vertices[i].value = Q(i);
 		}
+	}
 
+	void render()
+	{
 		// calculate maximum value
 		Real max_abs = 1e-6;
 		for (MeshPlotVertex& vertex : torso.vertices)
@@ -374,6 +380,7 @@ private:
 		//// debug
 		//printf("max_abs : %f\n", max_abs);
 
+		// update torso potential values at GPU
 		torso.update_gpu_buffers();
 
 
@@ -401,7 +408,7 @@ private:
 		Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec*dipole_vector_scale));
 
 		// render dipole locus
-		if (use_curve)
+		if (use_dipole_curve && render_dipole_curve)
 		{
 			dipole_locus.resize(sample_count);
 			for (int i = 0; i < sample_count; i++)
@@ -412,16 +419,19 @@ private:
 			Renderer3D::drawPolygon(&dipole_locus[0], dipole_locus.size(), false);
 		}
 
-		// render bezier curve handles
-		Renderer3D::setStyle(Renderer3D::Style(true, 1, { 0.7, 0.7, 0.7, 1 }, false, { 0.75, 0, 0 ,1 }));
-		for (int i = 0; i < dipole_curve.segments_duratoins.size(); i++)
+		// render bezier curve handles (if render_dipole_curve_lines is true)
+		if (use_dipole_curve && render_dipole_curve && render_dipole_curve_lines)
 		{
-			// handle 1
-			Renderer3D::drawLine(eigen2glm(dipole_pos+dipole_curve.points[i*3+0]*dipole_vector_scale), 
-								 eigen2glm(dipole_pos+dipole_curve.points[i*3+1]*dipole_vector_scale));
-			// handle 2
-			Renderer3D::drawLine(eigen2glm(dipole_pos+dipole_curve.points[i*3+2]*dipole_vector_scale),
-								 eigen2glm(dipole_pos+dipole_curve.points[i*3+3]*dipole_vector_scale));
+			Renderer3D::setStyle(Renderer3D::Style(true, 1, { 0.7, 0.7, 0.7, 1 }, false, { 0.75, 0, 0 ,1 }));
+			for (int i = 0; i < dipole_curve.segments_duratoins.size(); i++)
+			{
+				// handle 1
+				Renderer3D::drawLine(eigen2glm(dipole_pos+dipole_curve.points[i*3+0]*dipole_vector_scale),
+					eigen2glm(dipole_pos+dipole_curve.points[i*3+1]*dipole_vector_scale));
+				// handle 2
+				Renderer3D::drawLine(eigen2glm(dipole_pos+dipole_curve.points[i*3+2]*dipole_vector_scale),
+					eigen2glm(dipole_pos+dipole_curve.points[i*3+3]*dipole_vector_scale));
+			}
 		}
 
 		// render probes
@@ -468,8 +478,9 @@ private:
 
 		// dipole curve
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Checkbox("Use curve for dipole vector", &use_curve);
-		if (use_curve)
+		ImGui::Checkbox("Use curve for dipole vector", &use_dipole_curve);
+		ImGui::Text("Time: %.4 s", t);
+		if (use_dipole_curve)
 		{
 			// dt
 			float im_dt = dt;
@@ -521,31 +532,54 @@ private:
 
 		// mesh plot colors
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Rendering options");
 		ImGui::ColorEdit4("Negative color", (float*)&color_n);
 		ImGui::ColorEdit4("Positive color", (float*)&color_p);
+		if (use_dipole_curve)
+		{
+			ImGui::Checkbox("Render dipole curve", &render_dipole_curve);
+			if (render_dipole_curve)
+			{
+				ImGui::Checkbox("Render dipole curve lines", &render_dipole_curve_lines);
+			}
+		}
 
 		// probes
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		probes_str.clear();
-		for (const Probe& probe : probes)
+		if (ImGui::ListBoxHeader("Probes", {0, 80}))
 		{
-			Real probe_value = evaluate_probe(torso, probe);
-			probes_str.push_back(std::to_string(probe_value));
+			for (int i = 0; i < probes.size(); i++)
+			{
+				std::string item_name = "probe" + std::to_string(i);
+				bool is_selected = i==current_selected_probe;
+				ImGui::Selectable(item_name.c_str(), &is_selected);
+				if (is_selected)
+				{
+					current_selected_probe = i;
+				}
+			}
+			ImGui::ListBoxFooter();
 		}
-		probes_str_ptr.clear();
-		for (const std::string& str : probes_str)
+		// Probe values
+		if (ImGui::ListBoxHeader("Probes Values", { 0, 80 }))
 		{
-			probes_str_ptr.push_back(&str[0]);
+			for (int i = 0; i < probes.size(); i++)
+			{
+				Real probe_value = evaluate_probe(torso, probes[i]);
+				std::string item_name = std::to_string(probe_value);
+				ImGui::Text(item_name.c_str());
+			}
+			ImGui::ListBoxFooter();
 		}
-		ImGui::ListBox("Probes", &current_selected_probe, &probes_str_ptr[0], probes_str_ptr.size());
+		// probe info
 		if (current_selected_probe != -1 && current_selected_probe < probes.size())
 		{
-			// probe info
 			const Probe& probe = probes[current_selected_probe];
 			ImGui::Text("\tTri: %d", probe.triangle_idx);
 			ImGui::Text("\tPoint: {%.3lf, %.3lf, %.3lf}", probe.point.x(), probe.point.y(), probe.point.z());
 			ImGui::Text("\tValue: %.3lf", evaluate_probe(torso, probe));
 		}
+		// Add and Remove probe
 		if (ImGui::Button("Add Probe"))
 		{
 			adding_probe = true;
@@ -607,16 +641,20 @@ private:
 		{
 			ImGui::Begin("Probes Graph", &probes_graph);
 
+			// graph height
+			ImGui::SliderFloat("Height", &probes_graph_height, 10, 200);
+
+			// graphs
+			static std::vector<float> values;
+			values.resize(sample_count);
 			for (int i = 0; i < probes.size(); i++)
 			{
-				static std::vector<float> values;
-				values.resize(sample_count);
 				for (int j = 0; j < sample_count; j++)
 				{
 					values[j] = probes_values(i, j);
 				}
 				std::string plot_name = "probe" + std::to_string(i);
-				ImGui::PlotLines(plot_name.c_str(), &values[0], sample_count);
+				ImGui::PlotLines(plot_name.c_str(), &values[0], sample_count, 0, NULL, FLT_MAX, FLT_MAX, {0, probes_graph_height });
 			}
 
 			ImGui::End();
@@ -678,14 +716,15 @@ private:
 		// update camera up
 		camera.up = eigen2glm(up);
 
-		// camera reset (0 key)
-		if (Input::isKeyDown(GLFW_KEY_0))
+		// camera reset (R key)
+		if (Input::isKeyPressed(GLFW_KEY_R))
 		{
 			camera = default_camera;
+			camera.aspect = (float)width / (float)height;
 		}
 
-		// cancel adding probes
-		if (Input::isKeyDown(GLFW_KEY_ESCAPE))
+		// cancel adding probes (Esc)
+		if (Input::isKeyPressed(GLFW_KEY_ESCAPE))
 		{
 			adding_probe = false;
 		}
@@ -748,7 +787,7 @@ private:
 	MatrixX<Real> Q;
 
 	// dipole vector curve
-	bool use_curve = true;
+	bool use_dipole_curve = true;
 	BezierCurve dipole_curve = { {{0, 0, 0}, {-1, 0, 0}, {-1, -1, 0}, {1, -1, 0}}, {1} };
 	Real dt = 0.001; // time step
 	int steps_per_frame = 4;
@@ -756,6 +795,8 @@ private:
 	int current_sample = 0;
 	Eigen::MatrixX<Real> probes_values;
 	std::vector<glm::vec3> dipole_locus;
+	bool render_dipole_curve = true;
+	bool render_dipole_curve_lines = true;
 
 	// probes
 	bool adding_probe = false;
@@ -763,9 +804,8 @@ private:
 	Eigen::Vector3<Real> adding_probe_intersection;
 	int current_selected_probe = -1;
 	bool probes_graph = false;
+	float probes_graph_height = 100;
 	std::vector<Probe> probes;
-	std::vector<std::string> probes_str;
-	std::vector<const char*> probes_str_ptr;
 };
 
 
