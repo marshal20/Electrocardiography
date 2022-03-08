@@ -34,6 +34,8 @@ struct Probe
 {
 	int triangle_idx;
 	Eigen::Vector3<Real> point;
+
+	std::string name;
 };
 
 static Real evaluate_probe(const MeshPlot& mesh, const Probe& probe)
@@ -62,9 +64,10 @@ static Real evaluate_probe(const MeshPlot& mesh, const Probe& probe)
 static bool dump_probes_values_to_csv(
 	const char* file_name,
 	const Eigen::Vector3<Real>& dipole_pos,
-	const BezierCurve& dipole_vec_curve, 
-	const Real dt, 
+	const BezierCurve& dipole_vec_curve,
+	const Real dt,
 	const int sample_count,
+	const std::vector<Probe>& probes,
 	const Eigen::MatrixX<Real> probes_values)
 {
 	FILE* file = fopen(file_name, "w");
@@ -85,7 +88,7 @@ static bool dump_probes_values_to_csv(
 		{
 			line += ", ";
 		}
-		line += "probe" + std::to_string(i);
+		line += probes[i].name;
 	}
 	line += "\n";
 	fwrite(line.c_str(), sizeof(char), line.size(), file);
@@ -479,7 +482,7 @@ private:
 		// dipole curve
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Checkbox("Use curve for dipole vector", &use_dipole_curve);
-		ImGui::Text("Time: %.4 s", t);
+		ImGui::Text("Time: %.4f s", t);
 		if (use_dipole_curve)
 		{
 			// dt
@@ -515,7 +518,7 @@ private:
 			// add and remove point
 			if (ImGui::Button("Add point"))
 			{
-				dipole_curve.add_point({ 1, 1, 1 });
+				dipole_curve.add_point({ 0, 0, 0 });
 			}
 			ImGui::SameLine();
 			if (ImGui::Button("remove point"))
@@ -550,9 +553,8 @@ private:
 		{
 			for (int i = 0; i < probes.size(); i++)
 			{
-				std::string item_name = "probe" + std::to_string(i);
 				bool is_selected = i==current_selected_probe;
-				ImGui::Selectable(item_name.c_str(), &is_selected);
+				ImGui::Selectable(probes[i].name.c_str(), &is_selected);
 				if (is_selected)
 				{
 					current_selected_probe = i;
@@ -560,24 +562,29 @@ private:
 			}
 			ImGui::ListBoxFooter();
 		}
-		// Probe values
-		if (ImGui::ListBoxHeader("Probes Values", { 0, 80 }))
-		{
-			for (int i = 0; i < probes.size(); i++)
-			{
-				Real probe_value = evaluate_probe(torso, probes[i]);
-				std::string item_name = std::to_string(probe_value);
-				ImGui::Text(item_name.c_str());
-			}
-			ImGui::ListBoxFooter();
-		}
 		// probe info
 		if (current_selected_probe != -1 && current_selected_probe < probes.size())
 		{
+			probe_info = true;
+			ImGui::Begin("Probe info", &probe_info);
+
 			const Probe& probe = probes[current_selected_probe];
-			ImGui::Text("\tTri: %d", probe.triangle_idx);
+
+			char probe_name_buffer[256];
+			strncpy(probe_name_buffer, probes[current_selected_probe].name.c_str(), sizeof(probe_name_buffer)-1);
+			ImGui::InputText("Name", (char*)&probe_name_buffer, sizeof(probe_name_buffer));
+			probes[current_selected_probe].name = probe_name_buffer;
+
+			ImGui::Text("\tTriangle: %d", probe.triangle_idx);
 			ImGui::Text("\tPoint: {%.3lf, %.3lf, %.3lf}", probe.point.x(), probe.point.y(), probe.point.z());
 			ImGui::Text("\tValue: %.3lf", evaluate_probe(torso, probe));
+
+			ImGui::End();
+
+			if (!probe_info)
+			{
+				current_selected_probe = -1;
+			}
 		}
 		// Add and Remove probe
 		if (ImGui::Button("Add Probe"))
@@ -594,8 +601,21 @@ private:
 		}
 		if (adding_probe)
 		{
-			ImGui::Text("\tClick to add a probe");
+			ImGui::SameLine();
+			ImGui::Text("Click to add a probe");
 		}
+		// Probe values
+		if (ImGui::ListBoxHeader("Probes Values", { 0, 80 }))
+		{
+			for (int i = 0; i < probes.size(); i++)
+			{
+				Real probe_value = evaluate_probe(torso, probes[i]);
+				std::string item_name = std::to_string(probe_value);
+				ImGui::Text(item_name.c_str());
+			}
+			ImGui::ListBoxFooter();
+		}
+
 
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		// view probes graph
@@ -606,7 +626,7 @@ private:
 		// dump to csv
 		if (ImGui::Button("Dump to csv"))
 		{
-			bool res = dump_probes_values_to_csv("probes.csv", dipole_pos, dipole_curve, dt, sample_count, probes_values);
+			bool res = dump_probes_values_to_csv("probes.csv", dipole_pos, dipole_curve, dt, sample_count, probes, probes_values);
 			if (res)
 			{
 				printf("Successfuly dumped probes to probes.csv\n");
@@ -653,8 +673,7 @@ private:
 				{
 					values[j] = probes_values(i, j);
 				}
-				std::string plot_name = "probe" + std::to_string(i);
-				ImGui::PlotLines(plot_name.c_str(), &values[0], sample_count, 0, NULL, FLT_MAX, FLT_MAX, {0, probes_graph_height });
+				ImGui::PlotLines(probes[i].name.c_str(), &values[0], sample_count, 0, NULL, FLT_MAX, FLT_MAX, {0, probes_graph_height});
 			}
 
 			ImGui::End();
@@ -755,7 +774,7 @@ private:
 			{
 				if (Input::isButtonDown(GLFW_MOUSE_BUTTON_LEFT))
 				{
-					probes.push_back({ tri_idx, ray.point_at_dir(t) });
+					probes.push_back({ tri_idx, ray.point_at_dir(t), "probe" + std::to_string(probe_name_counter++)});
 					adding_probe = false;
 				}
 				adding_probe_intersected = true;
@@ -802,7 +821,9 @@ private:
 	bool adding_probe = false;
 	bool adding_probe_intersected = false;
 	Eigen::Vector3<Real> adding_probe_intersection;
+	bool probe_info;
 	int current_selected_probe = -1;
+	int probe_name_counter = 1;
 	bool probes_graph = false;
 	float probes_graph_height = 100;
 	std::vector<Probe> probes;
