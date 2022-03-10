@@ -122,6 +122,71 @@ static bool dump_probes_values_to_csv(
 	return true;
 }
 
+struct ProbeSerialized
+{
+	int tri;
+	double px, py, pz;
+	char name[16];
+};
+
+static bool import_probes(const std::string& file_name, std::vector<Probe>& probes)
+{
+	FILE* file = fopen(file_name.c_str(), "r");
+	if (!file)
+	{
+		return false;
+	}
+
+	std::vector<Probe> new_probes;
+
+	// read probes count
+	int probes_count = 0;
+	fread(&probes_count, sizeof(probes_count), 1, file);
+
+	// read probes
+	ProbeSerialized serialized_probe;
+	new_probes.reserve(probes_count);
+	for (int i = 0; i < probes_count; i++)
+	{
+		fread(&serialized_probe, sizeof(serialized_probe), 1, file);
+		new_probes.push_back({ serialized_probe.tri, {serialized_probe.px, serialized_probe.py, serialized_probe.pz}, serialized_probe.name });
+	}
+
+	// assign imported probes
+	probes = new_probes;
+
+	fclose(file);
+	return true;
+}
+
+static bool export_probes(const std::string& file_name, const std::vector<Probe>& probes)
+{
+	FILE* file = fopen(file_name.c_str(), "w");
+	if (!file)
+	{
+		return false;
+	}
+
+	// read probes count
+	const int probes_count = probes.size();
+	fwrite(&probes_count, sizeof(probes_count), 1, file);
+
+	// read probes
+	ProbeSerialized serialized_probe;
+	for (int i = 0; i < probes_count; i++)
+	{
+		const Probe& probe = probes[i];
+		serialized_probe = { probe.triangle_idx, probe.point.x(), probe.point.y(), probe.point.z() };
+		strncpy(serialized_probe.name, probe.name.c_str(), sizeof(serialized_probe)-1);
+		serialized_probe.name[sizeof(serialized_probe)-1] = '\0';
+
+		fwrite(&serialized_probe, sizeof(serialized_probe), 1, file);
+	}
+
+	fclose(file);
+	return true;
+}
+
 class ForwardECGApp
 {
 public:
@@ -605,6 +670,45 @@ private:
 			ImGui::SameLine();
 			ImGui::Text("Click to add a probe");
 		}
+		// Import probes locations
+		if (ImGui::Button("Import probes"))
+		{
+			// save file dialog
+			std::string file_name = open_file_dialog("locations.probes", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
+
+			// dump
+			if (file_name != "")
+			{
+				if (import_probes(file_name, probes))
+				{
+					printf("Imported \"%s\" probes\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to import \"%s\" probes\n", file_name.c_str());
+				}
+			}
+		}
+		// Export probes locations
+		if (ImGui::Button("Export probes"))
+		{
+			// open file dialog
+			std::string file_name = save_file_dialog("locations.probes", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
+
+			// dump
+			if (file_name != "")
+			{
+				if (export_probes(file_name, probes))
+				{
+					printf("Exported \"%s\" probes\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to export \"%s\" probes\n", file_name.c_str());
+				}
+			}
+		}
+		
 		// Probe values
 		if (ImGui::ListBoxHeader("Probes Values", { 0, 80 }))
 		{
@@ -628,7 +732,7 @@ private:
 		if (ImGui::Button("Dump to csv"))
 		{
 			// save file dialog
-			std::string file_name = save_file_dialog("probes.csv", "CSV File (.csv)\0*.csv\0All\0*.*\0");
+			std::string file_name = save_file_dialog("probes.csv", "CSV File (.csv)\0*.csv\0All Files\0*.*\0\0");
 
 			// dump
 			if (file_name != "")
@@ -833,7 +937,7 @@ private:
 	int current_selected_probe = -1;
 	int probe_name_counter = 1;
 	bool probes_graph = false;
-	float probes_graph_height = 100;
+	float probes_graph_height = 70;
 	std::vector<Probe> probes;
 };
 
