@@ -662,6 +662,30 @@ private:
 					ImGui::InputFloat(duration_name.c_str(), &im_curve_duration);
 					dipole_curve.segments_duratoins[segment_idx] = im_curve_duration;
 				}
+				// tangent point mirror
+				if (i != 0 && i != 1 && i%3 != 0)
+				{
+					ImGui::SameLine();
+					std::string point_mirror_name = "Mirror " + std::to_string(i);
+					if (ImGui::Button(point_mirror_name.c_str()))
+					{
+						int pivot_idx = ((i+1)/3)*3;
+						if (i == pivot_idx-1)
+						{
+							Eigen::Vector3<Real> new_point = dipole_curve.points[pivot_idx] - (dipole_curve.points[pivot_idx+1]-dipole_curve.points[pivot_idx]);
+							dipole_curve.points[i] = new_point;
+						}
+						else if (i == pivot_idx+1)
+						{
+							Eigen::Vector3<Real> new_point = dipole_curve.points[pivot_idx] - (dipole_curve.points[pivot_idx-1]-dipole_curve.points[pivot_idx]);
+							dipole_curve.points[i] = new_point;
+						}
+						else
+						{
+							printf("Invalid index for curve point mirror operation");
+						}
+					}
+				}
 			}
 
 			// add and remove point
