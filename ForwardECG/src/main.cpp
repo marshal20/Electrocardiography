@@ -122,6 +122,7 @@ static bool dump_probes_values_to_csv(
 	return true;
 }
 
+
 struct ProbeSerialized
 {
 	int tri;
@@ -167,18 +168,18 @@ static bool export_probes(const std::string& file_name, const std::vector<Probe>
 		return false;
 	}
 
-	// read probes count
+	// write probes count
 	const int probes_count = probes.size();
 	fwrite(&probes_count, sizeof(probes_count), 1, file);
 
-	// read probes
+	// write probes
 	ProbeSerialized serialized_probe;
 	for (int i = 0; i < probes_count; i++)
 	{
 		const Probe& probe = probes[i];
 		serialized_probe = { probe.triangle_idx, probe.point.x(), probe.point.y(), probe.point.z() };
-		strncpy(serialized_probe.name, probe.name.c_str(), sizeof(serialized_probe)-1);
-		serialized_probe.name[sizeof(serialized_probe)-1] = '\0';
+		strncpy(serialized_probe.name, probe.name.c_str(), sizeof(serialized_probe.name)-1);
+		serialized_probe.name[sizeof(serialized_probe.name)-1] = '\0';
 
 		fwrite(&serialized_probe, sizeof(serialized_probe), 1, file);
 	}
@@ -186,6 +187,88 @@ static bool export_probes(const std::string& file_name, const std::vector<Probe>
 	fclose(file);
 	return true;
 }
+
+
+struct PointSerialized
+{
+	double x, y, z;
+};
+
+static bool import_curve(const std::string& file_name, BezierCurve& curve)
+{
+	FILE* file = fopen(file_name.c_str(), "r");
+	if (!file)
+	{
+		return false;
+	}
+
+	BezierCurve new_curve;
+
+	// read points count
+	int points_count = 0;
+	fread(&points_count, sizeof(points_count), 1, file);
+	int durations_count = 0;
+	fread(&durations_count, sizeof(durations_count), 1, file);
+
+	// read points
+	PointSerialized serialized_point;
+	new_curve.points.reserve(points_count);
+	for (int i = 0; i < points_count; i++)
+	{
+		fread(&serialized_point, sizeof(serialized_point), 1, file);
+		new_curve.points.push_back({ serialized_point.x, serialized_point.y, serialized_point.z });
+	}
+
+	// read durations
+	double temp;
+	new_curve.segments_duratoins.reserve(durations_count);
+	for (int i = 0; i < durations_count; i++)
+	{
+		fread(&temp, sizeof(temp), 1, file);
+		new_curve.segments_duratoins.push_back(temp);
+	}
+
+	// assign imported probes
+	curve = new_curve;
+
+	fclose(file);
+	return true;
+}
+
+static bool export_curve(const std::string& file_name, const BezierCurve& curve)
+{
+	FILE* file = fopen(file_name.c_str(), "w");
+	if (!file)
+	{
+		return false;
+	}
+
+	// read points count
+	const int points_count = curve.points.size();
+	fwrite(&points_count, sizeof(points_count), 1, file);
+	const int durations_count = curve.segments_duratoins.size();
+	fwrite(&durations_count, sizeof(durations_count), 1, file);
+
+	// write points
+	PointSerialized serialized_point;
+	for (int i = 0; i < points_count; i++)
+	{
+		serialized_point = { curve.points[i].x(), curve.points[i].y(), curve.points[i].z() };
+		fwrite(&serialized_point, sizeof(serialized_point), 1, file);
+	}
+
+	// read durations
+	double temp;
+	for (int i = 0; i < durations_count; i++)
+	{
+		temp = curve.segments_duratoins[i];
+		fwrite(&temp, sizeof(temp), 1, file);
+	}
+
+	fclose(file);
+	return true;
+}
+
 
 class ForwardECGApp
 {
@@ -591,6 +674,45 @@ private:
 			{
 				dipole_curve.remove_point();
 			}
+
+			// Import curve locations
+			if (ImGui::Button("Import curve"))
+			{
+				// save file dialog
+				std::string file_name = open_file_dialog("dipole_vector.curve", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
+
+				// dump
+				if (file_name != "")
+				{
+					if (import_curve(file_name, dipole_curve))
+					{
+						printf("Imported \"%s\" curve\n", file_name.c_str());
+					}
+					else
+					{
+						printf("Failed to import \"%s\" curve\n", file_name.c_str());
+					}
+				}
+			}
+			// Export probes locations
+			if (ImGui::Button("Export curve"))
+			{
+				// open file dialog
+				std::string file_name = save_file_dialog("dipole_vector.curve", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
+
+				// dump
+				if (file_name != "")
+				{
+					if (export_curve(file_name, dipole_curve))
+					{
+						printf("Exported \"%s\" curve\n", file_name.c_str());
+					}
+					else
+					{
+						printf("Failed to export \"%s\" curve\n", file_name.c_str());
+					}
+				}
+			}
 		}
 
 		//// conductivity
@@ -708,7 +830,6 @@ private:
 				}
 			}
 		}
-		
 		// Probe values
 		if (ImGui::ListBoxHeader("Probes Values", { 0, 80 }))
 		{
