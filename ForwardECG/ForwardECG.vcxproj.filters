@@ -108,6 +108,9 @@
     <ClCompile Include="src\bezier_curve.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\filedialog.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\window.h">
@@ -207,6 +210,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\bezier_curve.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\filedialog.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

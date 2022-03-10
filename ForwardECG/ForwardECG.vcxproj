@@ -162,6 +162,7 @@
     <ClCompile Include="src\axis_renderer.cpp" />
     <ClCompile Include="src\bezier_curve.cpp" />
     <ClCompile Include="src\camera.cpp" />
+    <ClCompile Include="src\filedialog.cpp" />
     <ClCompile Include="src\forward_renderer.cpp" />
     <ClCompile Include="src\geometry.cpp" />
     <ClCompile Include="src\imgui\imgui.cpp" />
@@ -195,6 +196,7 @@
     <ClInclude Include="src\axis_renderer.h" />
     <ClInclude Include="src\bezier_curve.h" />
     <ClInclude Include="src\camera.h" />
+    <ClInclude Include="src\filedialog.h" />
     <ClInclude Include="src\forward_renderer.h" />
     <ClInclude Include="src\geometry.h" />
     <ClInclude Include="src\imgui\imconfig.h" />

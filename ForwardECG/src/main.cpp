@@ -23,6 +23,7 @@
 #include "imgui/imgui_impl_opengl3.h"
 #include "geometry.h"
 #include "bezier_curve.h"
+#include "filedialog.h"
 
 
 using namespace Eigen;
@@ -626,14 +627,21 @@ private:
 		// dump to csv
 		if (ImGui::Button("Dump to csv"))
 		{
-			bool res = dump_probes_values_to_csv("probes.csv", dipole_pos, dipole_curve, dt, sample_count, probes, probes_values);
-			if (res)
+			// save file dialog
+			std::string file_name = save_file_dialog("probes.csv", "CSV File (.csv)\0*.csv\0All\0*.*\0");
+
+			// dump
+			if (file_name != "")
 			{
-				printf("Successfuly dumped probes to probes.csv\n");
-			}
-			else
-			{
-				printf("Failed to dump probes to csv file\n");
+				bool res = dump_probes_values_to_csv(file_name.c_str(), dipole_pos, dipole_curve, dt, sample_count, probes, probes_values);
+				if (res)
+				{
+					printf("Successfuly dumped probes to \"%s\"\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to dump probes to \"%s\"\n", file_name.c_str());
+				}
 			}
 		}
 
