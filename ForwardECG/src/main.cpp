@@ -519,6 +519,16 @@ private:
 		{
 			torso.vertices[i].value = Q(i);
 		}
+
+		// apply reference probe (to potentials in toso model only not Q)
+		if (reference_probe != -1)
+		{
+			Real reference_value = evaluate_probe(torso, probes[reference_probe]);
+			for (int i = 0; i < torso.vertices.size(); i++)
+			{
+				torso.vertices[i].value -= reference_value;
+			}
+		}
 	}
 
 	void render()
@@ -590,6 +600,10 @@ private:
 		for (int i = 0; i < probes.size(); i++)
 		{
 			glm::vec4 color = { 0, 1, 0, 1 };
+			if (i == reference_probe)
+			{
+				color = { 0, 0, 0, 1 };
+			}
 			if (i == current_selected_probe)
 			{
 				color = { 1, 1, 1, 1 };
@@ -815,6 +829,30 @@ private:
 		{
 			ImGui::SameLine();
 			ImGui::Text("Click to add a probe");
+		}
+		// reset reference probe value
+		if (reference_probe >= probes.size())
+		{
+			reference_probe = -1;
+		}
+		// Reference probe
+		if (ImGui::BeginCombo("Reference probe", reference_probe != -1 ? probes[reference_probe].name.c_str() : "NON"))
+		{
+			// NON
+			if (ImGui::Selectable("NON", reference_probe == -1))
+			{
+				reference_probe = -1;
+			}
+			// probes
+			for (int i = 0; i < probes.size(); i++)
+			{
+				bool is_selected = i == reference_probe; // You can store your selection however you want, outside or inside your objects
+				if (ImGui::Selectable(probes[i].name.c_str(), is_selected))
+					reference_probe = i;
+				if (is_selected)
+					ImGui::SetItemDefaultFocus();
+			}
+			ImGui::EndCombo();
 		}
 		// Import probes locations
 		if (ImGui::Button("Import probes"))
@@ -1084,6 +1122,7 @@ private:
 	bool probes_graph = false;
 	float probes_graph_height = 70;
 	std::vector<Probe> probes;
+	int reference_probe = -1;
 };
 
 
