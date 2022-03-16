@@ -269,6 +269,14 @@ static bool export_curve(const std::string& file_name, const BezierCurve& curve)
 	return true;
 }
 
+template<typename T>
+static void swap(T& a, T& b)
+{
+	T temp = a;
+	a = b;
+	b = temp;
+}
+
 
 class ForwardECGApp
 {
@@ -325,7 +333,7 @@ public:
 
 		// set parameters
 		t = 0;
-		dipole_pos = { 0.2, 0.4, 0.1 };
+		dipole_pos = { 0.07, 0.5, 0.1 };
 		dipole_vec = { 1, 0, 0 };
 		conductivity = 1;
 		sigma_p = 0;
@@ -400,6 +408,10 @@ public:
 			{
 				for (int step = 0; step < steps_per_frame; step++)
 				{
+					// next sample
+					current_sample++;
+					current_sample = current_sample%sample_count;
+
 					// update dipole vector
 					t = current_sample*dt;
 					dipole_vec = dipole_curve.point_at(t);
@@ -413,10 +425,6 @@ public:
 						Real probe_value = evaluate_probe(torso, probes[i]);
 						probes_values(i, current_sample) = probe_value;
 					}
-
-					// next sample
-					current_sample++;
-					current_sample = current_sample%sample_count;
 				}
 			}
 			else
@@ -656,50 +664,56 @@ private:
 			// steps per frame
 			ImGui::SliderInt("steps per frame", &steps_per_frame, 0, 100);
 
-			// curve points
-			glm::vec3 im_curve_point_pos;
-			float im_curve_duration;
-			for (int i = 0; i < dipole_curve.points.size(); i++)
+			if (ImGui::ListBoxHeader("dipole curve", { 0, 200 }))
 			{
-				// point position
-				im_curve_point_pos = eigen2glm(dipole_curve.points[i]);
-				std::string point_name = "p" + std::to_string(i);
-				ImGui::DragFloat3(point_name.c_str(), (float*)&im_curve_point_pos, 0.01f);
-				dipole_curve.points[i] = glm2eigen(im_curve_point_pos);
-				// segment duration
-				if (i != 0 && i%3 == 0)
+				// curve points
+				glm::vec3 im_curve_point_pos;
+				float im_curve_duration;
+				for (int i = 0; i < dipole_curve.points.size(); i++)
 				{
-					int segment_idx = i/3-1;
-					im_curve_duration = dipole_curve.segments_duratoins[segment_idx];
-					ImGui::SameLine();
-					std::string duration_name = "d" + std::to_string(segment_idx);
-					ImGui::InputFloat(duration_name.c_str(), &im_curve_duration);
-					dipole_curve.segments_duratoins[segment_idx] = im_curve_duration;
-				}
-				// tangent point mirror
-				if (i != 0 && i != 1 && i%3 != 0)
-				{
-					ImGui::SameLine();
-					std::string point_mirror_name = "Mirror " + std::to_string(i);
-					if (ImGui::Button(point_mirror_name.c_str()))
+					// point position
+					im_curve_point_pos = eigen2glm(dipole_curve.points[i]);
+					std::string point_name = "p" + std::to_string(i);
+					ImGui::DragFloat3(point_name.c_str(), (float*)&im_curve_point_pos, 0.01f);
+					dipole_curve.points[i] = glm2eigen(im_curve_point_pos);
+					// segment duration
+					if (i != 0 && i%3 == 0)
 					{
-						int pivot_idx = ((i+1)/3)*3;
-						if (i == pivot_idx-1)
+						int segment_idx = i/3-1;
+						im_curve_duration = dipole_curve.segments_duratoins[segment_idx];
+						ImGui::SameLine();
+						std::string duration_name = "d" + std::to_string(segment_idx);
+						ImGui::InputFloat(duration_name.c_str(), &im_curve_duration);
+						dipole_curve.segments_duratoins[segment_idx] = im_curve_duration;
+					}
+					// tangent point mirror
+					if (i != 0 && i != 1 && i%3 != 0)
+					{
+						ImGui::SameLine();
+						std::string point_mirror_name = "Mirror " + std::to_string(i);
+						if (ImGui::Button(point_mirror_name.c_str()))
 						{
-							Eigen::Vector3<Real> new_point = dipole_curve.points[pivot_idx] - (dipole_curve.points[pivot_idx+1]-dipole_curve.points[pivot_idx]);
-							dipole_curve.points[i] = new_point;
-						}
-						else if (i == pivot_idx+1)
-						{
-							Eigen::Vector3<Real> new_point = dipole_curve.points[pivot_idx] - (dipole_curve.points[pivot_idx-1]-dipole_curve.points[pivot_idx]);
-							dipole_curve.points[i] = new_point;
-						}
-						else
-						{
-							printf("Invalid index for curve point mirror operation");
+							int pivot_idx = ((i+1)/3)*3;
+							if (i == pivot_idx-1)
+							{
+								Eigen::Vector3<Real> new_point = dipole_curve.points[pivot_idx] - (dipole_curve.points[pivot_idx+1]-dipole_curve.points[pivot_idx]);
+								dipole_curve.points[i] = new_point;
+							}
+							else if (i == pivot_idx+1)
+							{
+								Eigen::Vector3<Real> new_point = dipole_curve.points[pivot_idx] - (dipole_curve.points[pivot_idx-1]-dipole_curve.points[pivot_idx]);
+								dipole_curve.points[i] = new_point;
+							}
+							else
+							{
+								printf("Invalid index for curve point mirror operation");
+							}
 						}
 					}
+
 				}
+				
+				ImGui::ListBoxFooter();
 			}
 
 			// add and remove point
@@ -733,6 +747,7 @@ private:
 				}
 			}
 			// Export probes locations
+			ImGui::SameLine();
 			if (ImGui::Button("Export curve"))
 			{
 				// open file dialog
@@ -775,7 +790,7 @@ private:
 
 		// probes
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		if (ImGui::ListBoxHeader("Probes", {0, 80}))
+		if (ImGui::ListBoxHeader("Probes", {0, 120}))
 		{
 			for (int i = 0; i < probes.size(); i++)
 			{
@@ -785,6 +800,12 @@ private:
 				{
 					current_selected_probe = i;
 				}
+
+				// value
+				ImGui::SameLine();
+				Real probe_value = probes_values(i, current_sample);
+				std::string item_name = "  " + std::to_string(probe_value);
+				ImGui::Text(item_name.c_str());
 			}
 			ImGui::ListBoxFooter();
 		}
@@ -812,7 +833,7 @@ private:
 				current_selected_probe = -1;
 			}
 		}
-		// Add and Remove probe
+		// Add probe, Remove probe, move up, move down
 		if (ImGui::Button("Add Probe"))
 		{
 			adding_probe = true;
@@ -823,6 +844,32 @@ private:
 			if (current_selected_probe != -1 && current_selected_probe < probes.size())
 			{
 				probes.erase(probes.begin() + current_selected_probe);
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("U")) // up
+		{
+			if (current_selected_probe > 0)
+			{
+				swap(probes[current_selected_probe-1], probes[current_selected_probe]);
+				current_selected_probe--;
+				if (reference_probe == current_selected_probe)
+				{
+					reference_probe++;
+				}
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("D")) // down
+		{
+			if (current_selected_probe < probes.size()-1)
+			{
+				swap(probes[current_selected_probe], probes[current_selected_probe+1]);
+				current_selected_probe++;
+				if (reference_probe == current_selected_probe)
+				{
+					reference_probe--;
+				}
 			}
 		}
 		if (adding_probe)
@@ -874,6 +921,7 @@ private:
 			}
 		}
 		// Export probes locations
+		ImGui::SameLine();
 		if (ImGui::Button("Export probes"))
 		{
 			// open file dialog
@@ -891,17 +939,6 @@ private:
 					printf("Failed to export \"%s\" probes\n", file_name.c_str());
 				}
 			}
-		}
-		// Probe values
-		if (ImGui::ListBoxHeader("Probes Values", { 0, 80 }))
-		{
-			for (int i = 0; i < probes.size(); i++)
-			{
-				Real probe_value = evaluate_probe(torso, probes[i]);
-				std::string item_name = std::to_string(probe_value);
-				ImGui::Text(item_name.c_str());
-			}
-			ImGui::ListBoxFooter();
 		}
 
 
