@@ -169,16 +169,37 @@ layout (location = 1) in float value;
 
 uniform vec4 color_n;
 uniform vec4 color_p;
+uniform float mix_color_hsv; // 0 = RGB, 1 = HSV
 uniform float max_val;
 
 out vec4 FragColor;
 
+vec3 rgb2hsv(vec3 c)
+{
+    vec4 K = vec4(0.0, -1.0 / 3.0, 2.0 / 3.0, -1.0);
+    vec4 p = mix(vec4(c.bg, K.wz), vec4(c.gb, K.xy), step(c.b, c.g));
+    vec4 q = mix(vec4(p.xyw, c.r), vec4(c.r, p.yzx), step(p.x, c.r));
+
+    float d = q.x - min(q.w, q.y);
+    float e = 1.0e-10;
+    return vec3(abs(q.z + (q.w - q.y) / (6.0 * d + e)), d / (q.x + e), q.x);
+}
+
+vec3 hsv2rgb(vec3 c)
+{
+	vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0);
+    vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);
+    return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
+}
+
 void main()
 {
 	float mix_percentage = (value/max_val+1)/2;
-	vec4 color = mix(color_n, color_p, mix_percentage);
-
-	FragColor = color;
+	vec3 color_rgb = mix(color_n.xyz, color_p.xyz, mix_percentage);
+	vec3 color_hsv = hsv2rgb(mix(rgb2hsv(color_n.xyz), rgb2hsv(color_p.xyz), mix_percentage));
+	
+	vec3 color = (1-mix_color_hsv)*color_rgb + mix_color_hsv*color_hsv;
+	FragColor = vec4(color, mix(color_n.a, color_p.a, mix_percentage));
 }
 )";
 
@@ -191,7 +212,7 @@ MeshPlotRenderer::MeshPlotRenderer()
 		{VertexLayoutElement::FLOAT, "value"}
 		});
 	m_view_matrix = glm::mat4(1);
-
+	m_color_mix_type = MIX_HSV;
 	m_color_n = glm::vec4(0, 0, 1, 1);
 	m_color_p = glm::vec4(1, 0, 0, 1);
 	m_max_val = 1;
@@ -214,6 +235,11 @@ void MeshPlotRenderer::set_colors(const glm::vec4& color_p, const glm::vec4& col
 	m_color_n = color_n;
 }
 
+void MeshPlotRenderer::set_color_mix_type(const ColorMixType& color_mix_type)
+{
+	m_color_mix_type = color_mix_type;
+}
+
 void MeshPlotRenderer::set_max_val(float max_val)
 {
 	m_max_val = max_val;
@@ -227,6 +253,7 @@ void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* me
 	m_plot_shader->setMat4(m_plot_shader->getUniformId("model"), transform);
 	m_plot_shader->setVec4(m_plot_shader->getUniformId("color_n"), m_color_n);
 	m_plot_shader->setVec4(m_plot_shader->getUniformId("color_p"), m_color_p);
+	m_plot_shader->setFloat(m_plot_shader->getUniformId("mix_color_hsv"), m_color_mix_type == MIX_RGB ? 0 : 1);
 	m_plot_shader->setFloat(m_plot_shader->getUniformId("max_val"), m_max_val);
 
 	// Drawing.

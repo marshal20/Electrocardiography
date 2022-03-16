@@ -43,6 +43,12 @@ MeshPlot load_mesh_plot(const char* file_name);
 void free_mesh_plot(MeshPlot& mesh_plot);
 
 
+enum ColorMixType
+{
+	MIX_RGB,
+	MIX_HSV
+};
+
 class MeshPlotRenderer
 {
 public:
@@ -51,6 +57,7 @@ public:
 
 	void set_view_projection_matrix(const glm::mat4& view);
 	void set_colors(const glm::vec4& color_p, const glm::vec4& color_n);
+	void set_color_mix_type(const ColorMixType& color_mix_type);
 	void set_max_val(float max_val);
 	void render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh);
 
@@ -59,6 +66,7 @@ private:
 	glVertexLayout* m_vertex_layout;
 	glm::mat4 m_view_matrix;
 	glm::vec4 m_color_p, m_color_n;
+	ColorMixType m_color_mix_type;
 	float m_max_val;
 };
 
