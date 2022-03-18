@@ -41,6 +41,12 @@ struct Probe
 
 static Real evaluate_probe(const MeshPlot& mesh, const Probe& probe)
 {
+	// check that tringle index exists
+	if (probe.triangle_idx >= mesh.faces.size())
+	{
+		return 0;
+	}
+
 	const MeshPlotFace& face = mesh.faces[probe.triangle_idx];
 	Triangle tri = { glm2eigen(mesh.vertices[face.idx[0]].pos),
 					 glm2eigen(mesh.vertices[face.idx[1]].pos),
@@ -319,19 +325,7 @@ public:
 		Renderer3D::init();
 		Renderer3D::setStyle(Renderer3D::Style(true, 2, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
 
-		// torso mesh plot
-		torso = load_mesh_plot("models/torso_model_3.fbx");
-		color_n = { 0, 0, 1, 1 };
-		color_p = { 1, 0, 0, 1 };
-
-		// initialize matrices
-		N = torso.vertices.size();
-		A = MatrixX<Real>(N, N);
-		B = MatrixX<Real>(N, 1);
-		Q = MatrixX<Real>(N, 1);
-		IA_inv = MatrixX<Real>(N, N);
-
-		// set parameters
+		// initialize parameters
 		t = 0;
 		dipole_pos = { 0.07, 0.5, 0.1 };
 		dipole_vec = { 1, 0, 0 };
@@ -339,27 +333,17 @@ public:
 		sigma_p = 0;
 		sigma_n = conductivity;
 
-		//// Debug
-		//Real max_val_x = 0.0;
-		//Real max_val_y = 0.0;
-		//Real max_val_z = 0.0;
-		//for (MeshPlotVertex& vertex : torso.vertices)
-		//{
-		//	max_val_x = rmax(rabs(vertex.pos.x), max_val_x);
-		//	max_val_y = rmax(rabs(vertex.pos.y), max_val_y);
-		//	max_val_z = rmax(rabs(vertex.pos.z), max_val_z);
-		//}
-		//printf("max vertex values: {%f, %f, %f}\n", max_val_x, max_val_y, max_val_z);
-		//printf("vertex count: %d\n", torso.vertices.size());
-
+		// torso mesh plot
+		load_torso_model("models/torso_model_3.fbx");
+		color_n = { 0, 0, 1, 1 };
+		color_p = { 1, 0, 0, 1 };
+		color_probes = { 0, 0.25, 0, 1 };
+		
 		// mesh plot renderer
 		mpr = new MeshPlotRenderer;
 
 		// LookAtCamera
 		camera = default_camera;
-
-		// calculate IA_inv
-		calculate_coefficients_matrix();
 
 		// setup ImGUI
 		ImGui::CreateContext();
@@ -422,7 +406,7 @@ public:
 					// calculate probes values at time point
 					for (int i = 0; i < probes.size(); i++)
 					{
-						Real probe_value = evaluate_probe(torso, probes[i]);
+						Real probe_value = evaluate_probe(*torso, probes[i]);
 						probes_values(i, current_sample) = probe_value;
 					}
 				}
@@ -448,7 +432,10 @@ public:
 		ImGui_ImplOpenGL3_Shutdown();
 		ImGui_ImplGlfw_Shutdown();
 		ImGui::DestroyContext();
-		free_mesh_plot(torso);
+		if (torso)
+		{
+			delete torso;
+		}
 		Renderer2D::cleanup();
 		Renderer3D::cleanup();
 		delete axis_renderer;
@@ -459,23 +446,50 @@ public:
 	}
 
 private:
+	bool load_torso_model(const std::string& model_path)
+	{
+		torso_model_path = model_path;
+
+		MeshPlot* new_torso = load_mesh_plot(model_path.c_str());
+		if (!new_torso)
+		{
+			return false;
+		}
+
+		torso = new_torso;
+
+		// set matrices sizes
+		N = torso->vertices.size();
+		A = MatrixX<Real>(N, N);
+		B = MatrixX<Real>(N, 1);
+		Q = MatrixX<Real>(N, 1);
+		IA_inv = MatrixX<Real>(N, N);
+
+		// calculate IA_inv
+		calculate_coefficients_matrix();
+	}
+
 	void calculate_coefficients_matrix()
 	{
+		// conductivity inside and outside torso
+		sigma_p = 0;
+		sigma_n = conductivity;
+
 		// BEM solver (bounded conductor)
 		// Q = B - AQ
 		// (I+A)Q = B
 		A = MatrixX<Real>::Zero(N, N);
-		for (int i = 0; i < torso.vertices.size(); i++)
+		for (int i = 0; i < torso->vertices.size(); i++)
 		{
-			const MeshPlotVertex& vertex = torso.vertices[i];
+			const MeshPlotVertex& vertex = torso->vertices[i];
 			Vector3<Real> r = glm2eigen(vertex.pos);
 
 			// A
-			for (const MeshPlotFace& face : torso.faces)
+			for (const MeshPlotFace& face : torso->faces)
 			{
-				Vector3<Real> a = glm2eigen(torso.vertices[face.idx[0]].pos);
-				Vector3<Real> b = glm2eigen(torso.vertices[face.idx[1]].pos);
-				Vector3<Real> c = glm2eigen(torso.vertices[face.idx[2]].pos);
+				Vector3<Real> a = glm2eigen(torso->vertices[face.idx[0]].pos);
+				Vector3<Real> b = glm2eigen(torso->vertices[face.idx[1]].pos);
+				Vector3<Real> c = glm2eigen(torso->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
 				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
 
@@ -499,9 +513,9 @@ private:
 		// Q = B - AQ
 		// (I+A)Q = B
 		// (I+A) is constant for the same geometry
-		for (int i = 0; i < torso.vertices.size(); i++)
+		for (int i = 0; i < torso->vertices.size(); i++)
 		{
-			const MeshPlotVertex& vertex = torso.vertices[i];
+			const MeshPlotVertex& vertex = torso->vertices[i];
 			Vector3<Real> r = glm2eigen(vertex.pos);
 
 			// B
@@ -523,18 +537,18 @@ private:
 		//}
 
 		// update torso potentials
-		for (int i = 0; i < torso.vertices.size(); i++)
+		for (int i = 0; i < torso->vertices.size(); i++)
 		{
-			torso.vertices[i].value = Q(i);
+			torso->vertices[i].value = Q(i);
 		}
 
 		// apply reference probe (to potentials in toso model only not Q)
 		if (reference_probe != -1)
 		{
-			Real reference_value = evaluate_probe(torso, probes[reference_probe]);
-			for (int i = 0; i < torso.vertices.size(); i++)
+			Real reference_value = evaluate_probe(*torso, probes[reference_probe]);
+			for (int i = 0; i < torso->vertices.size(); i++)
 			{
-				torso.vertices[i].value -= reference_value;
+				torso->vertices[i].value -= reference_value;
 			}
 		}
 	}
@@ -543,7 +557,7 @@ private:
 	{
 		// calculate maximum value
 		Real max_abs = 1e-6;
-		for (MeshPlotVertex& vertex : torso.vertices)
+		for (MeshPlotVertex& vertex : torso->vertices)
 		{
 			max_abs = rmax(rabs(vertex.value), max_abs);
 		}
@@ -551,7 +565,7 @@ private:
 		//printf("max_abs : %f\n", max_abs);
 
 		// update torso potential values at GPU
-		torso.update_gpu_buffers();
+		torso->update_gpu_buffers();
 
 
 		// clear buffers
@@ -568,7 +582,7 @@ private:
 		mpr->set_colors(color_p, color_n);
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
 		mpr->set_max_val(max_abs);
-		mpr->render_mesh_plot(glm::mat4(1), &torso);
+		mpr->render_mesh_plot(glm::mat4(1), torso);
 
 		// render dipole
 		const Real dipole_vector_scale = 0.5;
@@ -607,7 +621,7 @@ private:
 		// render probes
 		for (int i = 0; i < probes.size(); i++)
 		{
-			glm::vec4 color = { 0, 1, 0, 1 };
+			glm::vec4 color = color_probes;
 			if (i == reference_probe)
 			{
 				color = { 0, 0, 0, 1 };
@@ -642,7 +656,43 @@ private:
 
 		ImGui::Begin("Controls");
 
+		// Geometry
+		ImGui::Text("Geometry");
+		// torso model
+		ImGui::Text("Torso Model Path: %s", torso_model_path.c_str());
+		ImGui::SameLine();
+		if (ImGui::Button("..."))
+		{
+			// save file dialog
+			std::string file_name = open_file_dialog("", "All\0*.*\0");
+
+			// load torso model
+			if (file_name != "")
+			{
+				if (load_torso_model(file_name))
+				{
+					printf("Loaded \"%s\" torso model\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to load \"%s\" torso model\n", file_name.c_str());
+				}
+			}
+		}
+		// torso conductivity
+		float im_conductivity = conductivity;
+		ImGui::InputFloat("Torso Conductivity", &im_conductivity, 0.01, 10);
+		conductivity = im_conductivity;
+		// recalculate coefficients matrix
+		if (ImGui::Button("Recalculate Coefficients Matrix"))
+		{
+			calculate_coefficients_matrix();
+		}
+
+
 		// dipole position and vector
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Dipole");
 		glm::vec3 im_dipole_pos = eigen2glm(dipole_pos);
 		glm::vec3 im_dipole_vec = eigen2glm(dipole_vec);
 		ImGui::DragFloat3("Dipole position", (float*)&im_dipole_pos, 0.01f);
@@ -652,6 +702,7 @@ private:
 
 		// dipole curve
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Dipole Vector Curve");
 		ImGui::Checkbox("Use curve for dipole vector", &use_dipole_curve);
 		ImGui::Text("Time: %.4f s", t);
 		if (use_dipole_curve)
@@ -730,10 +781,10 @@ private:
 			// Import curve locations
 			if (ImGui::Button("Import curve"))
 			{
-				// save file dialog
+				// open file dialog
 				std::string file_name = open_file_dialog("dipole_vector.curve", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
 
-				// dump
+				// import
 				if (file_name != "")
 				{
 					if (import_curve(file_name, dipole_curve))
@@ -750,10 +801,10 @@ private:
 			ImGui::SameLine();
 			if (ImGui::Button("Export curve"))
 			{
-				// open file dialog
+				// save file dialog
 				std::string file_name = save_file_dialog("dipole_vector.curve", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
 
-				// dump
+				// export
 				if (file_name != "")
 				{
 					if (export_curve(file_name, dipole_curve))
@@ -768,17 +819,13 @@ private:
 			}
 		}
 
-		//// conductivity
-		// ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		//float im_conductivity = conductivity;
-		//ImGui::InputFloat("Conductivity", &im_conductivity, 0.01, 10);
-		//conductivity = im_conductivity;
 
 		// mesh plot colors
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Text("Rendering options");
 		ImGui::ColorEdit4("Negative color", (float*)&color_n);
 		ImGui::ColorEdit4("Positive color", (float*)&color_p);
+		ImGui::ColorEdit4("Probe color", (float*)&color_probes);
 		if (use_dipole_curve)
 		{
 			ImGui::Checkbox("Render dipole curve", &render_dipole_curve);
@@ -824,7 +871,7 @@ private:
 
 			ImGui::Text("\tTriangle: %d", probe.triangle_idx);
 			ImGui::Text("\tPoint: {%.3lf, %.3lf, %.3lf}", probe.point.x(), probe.point.y(), probe.point.z());
-			ImGui::Text("\tValue: %.3lf", evaluate_probe(torso, probe));
+			ImGui::Text("\tValue: %.3lf", evaluate_probe(*torso, probe));
 
 			ImGui::End();
 
@@ -904,10 +951,10 @@ private:
 		// Import probes locations
 		if (ImGui::Button("Import probes"))
 		{
-			// save file dialog
+			// open file dialog
 			std::string file_name = open_file_dialog("locations.probes", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
 
-			// dump
+			// import
 			if (file_name != "")
 			{
 				if (import_probes(file_name, probes))
@@ -924,10 +971,10 @@ private:
 		ImGui::SameLine();
 		if (ImGui::Button("Export probes"))
 		{
-			// open file dialog
+			// save file dialog
 			std::string file_name = save_file_dialog("locations.probes", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
 
-			// dump
+			// export
 			if (file_name != "")
 			{
 				if (export_probes(file_name, probes))
@@ -973,7 +1020,7 @@ private:
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		Real max_val = -INFINITY;
 		Real min_val = INFINITY;
-		for (MeshPlotVertex& vertex : torso.vertices)
+		for (MeshPlotVertex& vertex : torso->vertices)
 		{
 			max_val = rmax(vertex.value, max_val);
 			min_val = rmin(vertex.value, min_val);
@@ -1102,7 +1149,7 @@ private:
 
 			Real t;
 			int tri_idx;
-			if (ray_mesh_intersect(torso, ray, t, tri_idx))
+			if (ray_mesh_intersect(*torso, ray, t, tri_idx))
 			{
 				if (Input::isButtonDown(GLFW_MOUSE_BUTTON_LEFT))
 				{
@@ -1119,11 +1166,13 @@ private:
 	GLFWwindow* window;
 	int width, height;
 	glGraphicsDevice* gldev;
-	MeshPlot torso;
+	std::string torso_model_path;
+	MeshPlot* torso;
 	unsigned int N;
 	AxisRenderer* axis_renderer;
 	MeshPlotRenderer* mpr;
 	glm::vec4 color_n, color_p;
+	glm::vec4 color_probes;
 	LookAtCamera camera;
 
 	Real conductivity;

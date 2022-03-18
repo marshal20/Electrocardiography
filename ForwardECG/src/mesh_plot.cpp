@@ -75,14 +75,24 @@ static void process_node(aiNode* node, const aiScene* scene, MeshPlot& mesh_plot
 }
 
 MeshPlot::MeshPlot() :
-	faces_count(0)
+	faces_count(0),
+	vertex_buffer(nullptr),
+	index_buffer(nullptr)
 {
 
 }
 
 MeshPlot::~MeshPlot()
 {
+	if (vertex_buffer)
+	{
+		delete vertex_buffer;
+	}
 
+	if (index_buffer)
+	{
+		delete index_buffer;
+	}
 }
 
 void MeshPlot::create_gpu_buffers()
@@ -95,13 +105,18 @@ void MeshPlot::create_gpu_buffers()
 void MeshPlot::update_gpu_buffers()
 {
 	// update buffers into GPU.
-	vertex_buffer->update(0, vertices.size() * sizeof(MeshPlotVertex), &vertices[0]);
-	index_buffer->update(0, faces_count * 3 * sizeof(int), &faces[0]);
+	if (vertex_buffer)
+	{
+		vertex_buffer->update(0, vertices.size() * sizeof(MeshPlotVertex), &vertices[0]);
+	}
+	if (index_buffer)
+	{
+		index_buffer->update(0, faces_count * 3 * sizeof(int), &faces[0]);
+	}
 }
 
-MeshPlot load_mesh_plot(const char* file_name)
+MeshPlot* load_mesh_plot(const char* file_name)
 {
-	MeshPlot mesh;
 	Assimp::Importer importer;
 	importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_NORMALS | aiComponent_TANGENTS_AND_BITANGENTS); // remove normals and tangents
 	const aiScene* scene = importer.ReadFile(file_name,
@@ -114,27 +129,16 @@ MeshPlot load_mesh_plot(const char* file_name)
 	if (!scene)
 	{
 		printf("Assimp importer error: %s\n", importer.GetErrorString());
-		assert(false);
+		return nullptr;
 	}
 
-	process_node(scene->mRootNode, scene, mesh);
-	mesh.create_gpu_buffers();
-	mesh.update_gpu_buffers();
+	MeshPlot* mesh = new MeshPlot;
+
+	process_node(scene->mRootNode, scene, *mesh);
+	mesh->create_gpu_buffers();
+	mesh->update_gpu_buffers();
 
 	return mesh;
-}
-
-void free_mesh_plot(MeshPlot& mesh_plot)
-{
-	if (mesh_plot.vertex_buffer)
-	{
-		delete mesh_plot.vertex_buffer;
-	}
-
-	if (mesh_plot.index_buffer)
-	{
-		delete mesh_plot.index_buffer;
-	}
 }
 
 
@@ -247,6 +251,12 @@ void MeshPlotRenderer::set_max_val(float max_val)
 
 void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh_plot)
 {
+	// check for vertex and index buffer
+	if (!mesh_plot->vertex_buffer || !mesh_plot->index_buffer)
+	{
+		return;
+	}
+
 	m_plot_shader->bind();
 	// Transform.
 	m_plot_shader->setMat4(m_plot_shader->getUniformId("view_proj"), m_view_matrix);
