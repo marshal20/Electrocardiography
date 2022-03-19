@@ -180,6 +180,7 @@
     <ClCompile Include="src\model.cpp" />
     <ClCompile Include="src\network\socket.cpp" />
     <ClCompile Include="src\network\sockimpl.cpp" />
+    <ClCompile Include="src\network\serializer.cpp" />
     <ClCompile Include="src\network\utils.cpp" />
     <ClCompile Include="src\opengl\gl_framebuffer.cpp" />
     <ClCompile Include="src\opengl\gl_graphics_device.cpp" />
@@ -218,6 +219,7 @@
     <ClInclude Include="src\model.h" />
     <ClInclude Include="src\network\socket.h" />
     <ClInclude Include="src\network\sockimpl.h" />
+    <ClInclude Include="src\network\serializer.h" />
     <ClInclude Include="src\network\utils.h" />
     <ClInclude Include="src\opengl\definitions.h" />
     <ClInclude Include="src\opengl\gl_framebuffer.h" />
