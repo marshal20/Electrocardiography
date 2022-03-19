@@ -24,6 +24,8 @@
 #include "geometry.h"
 #include "bezier_curve.h"
 #include "filedialog.h"
+#include "network/server.h"
+#include <Windows.h>
 
 
 using namespace Eigen;
@@ -334,7 +336,8 @@ public:
 		sigma_n = conductivity;
 
 		// torso mesh plot
-		load_torso_model("models/torso_model_3.fbx");
+		torso = new MeshPlot();
+		//load_torso_model("models/torso_model_3.fbx");
 		color_n = { 0, 0, 1, 1 };
 		color_p = { 1, 0, 0, 1 };
 		color_probes = { 0, 0.25, 0, 1 };
@@ -352,6 +355,13 @@ public:
 		ImGui::StyleColorsDark();
 		ImGui_ImplGlfw_InitForOpenGL(window, true);
 		ImGui_ImplOpenGL3_Init("#version 130");
+
+		// setup server
+		initialize_socket();
+		if (!server.start(ADDRESS_LOCALHOST, 1234))
+		{
+			printf("Failed to start the server\n");
+		}
 
 		return 0;
 	}
@@ -426,6 +436,9 @@ public:
 			// poll events
 			Input::newFrame();
 			glfwPollEvents();
+
+			// handle server requests
+			handle_server_requests();
 		}
 
 		// cleanup
@@ -443,6 +456,7 @@ public:
 		delete gldev;
 		glfwDestroyWindow(window);
 		glfwTerminate();
+		server.stop();
 	}
 
 private:
@@ -467,6 +481,8 @@ private:
 
 		// calculate IA_inv
 		calculate_coefficients_matrix();
+
+		return true;
 	}
 
 	void calculate_coefficients_matrix()
@@ -1162,12 +1178,30 @@ private:
 		}
 	}
 
+	void handle_server_requests()
+	{
+		Address request_addr; Port request_port;
+		std::vector<uint8_t> request_bytes;
+
+		if (server.poll_request(request_bytes, &request_addr, &request_port))
+		{
+			// handle request
+			printf("Got request from: %s:%d\n%s\n", request_addr.to_string().c_str(), request_port, (const char*)&request_bytes[0]);
+
+			// a simple echo
+			if (!server.push_response(request_bytes))
+			{
+				printf("Failed to push response\n");
+			}
+		}
+	}
+
 private:
 	GLFWwindow* window;
 	int width, height;
 	glGraphicsDevice* gldev;
 	std::string torso_model_path;
-	MeshPlot* torso;
+	MeshPlot* torso = NULL;
 	unsigned int N;
 	AxisRenderer* axis_renderer;
 	MeshPlotRenderer* mpr;
@@ -1209,6 +1243,9 @@ private:
 	float probes_graph_height = 70;
 	std::vector<Probe> probes;
 	int reference_probe = -1;
+
+	// server
+	Server server;
 };
 
 

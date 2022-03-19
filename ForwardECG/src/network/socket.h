@@ -53,7 +53,7 @@ public:
 	Socket(Type type);
 	~Socket();
 
-	bool is_valid_const() const;
+	bool is_valid() const;
 	operator bool() const;
 
 	bool shutdown(How how);

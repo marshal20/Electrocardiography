@@ -85,7 +85,7 @@ Eigen::Vector3<Real> BezierCurve::point_at(const Real t) const
 	Real t_begin = 0;
 	for (const Real seg_duration : segments_duratoins)
 	{
-		if (t >= t_begin && t < t_begin+seg_duration)
+		if (t >= t_begin && t <= t_begin+seg_duration)
 		{
 			break;
 		}

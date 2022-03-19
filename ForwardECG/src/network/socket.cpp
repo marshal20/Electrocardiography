@@ -121,19 +121,22 @@ Socket::~Socket()
 
 }
 
-bool Socket::is_valid_const() const
+bool Socket::is_valid() const
 {
 	return (m_sock == -1) ? false : true;
 }
 
 Socket::operator bool() const
 {
-	return is_valid_const();
+	return is_valid();
 }
 
 bool Socket::shutdown(How how)
 {
-	if (m_sock == -1) return;
+	if (m_sock == -1)
+	{
+		return false;
+	}
 
 	int how_pram = 0;
 	switch (how)
@@ -154,7 +157,10 @@ bool Socket::shutdown(How how)
 
 bool Socket::close()
 {
-	if (m_sock == -1) return;
+	if (m_sock == -1)
+	{
+		return false;
+	}
 	if (::close_impl(m_sock) == -1)
 	{
 		return false;
@@ -204,7 +210,7 @@ bool Socket::bind(const Address& address, const Port port)
 	return true;
 }
 
-bool Socket::listen(int prelog = 10)
+bool Socket::listen(int prelog)
 {
 	if (::listen(m_sock, prelog) == -1)
 	{
@@ -239,7 +245,7 @@ int Socket::recv(char* buff, int len)
 		return -1;
 	}
 
-	m_monitor.recv += recieved;
+	m_stats.recv += recieved;
 	return recieved;
 }
 
@@ -251,7 +257,7 @@ int Socket::send(const char* buff, int len)
 		return -1;
 	}
 
-	m_monitor.sent += sent;
+	m_stats.sent += sent;
 	return sent;
 }
 
