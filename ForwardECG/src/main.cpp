@@ -25,7 +25,7 @@
 #include "bezier_curve.h"
 #include "filedialog.h"
 #include "network/server.h"
-#include <Windows.h>
+#include "network/serializer.h"
 
 
 using namespace Eigen;
@@ -286,6 +286,26 @@ static void swap(T& a, T& b)
 }
 
 
+enum RequestType
+{
+	REQUEST_GET_VALUES = 1,
+	REQUEST_SET_DIPOLE_VECTOR = 2
+};
+
+static std::string request_type_to_string(const RequestType req_type)
+{
+	switch (req_type)
+	{
+	case REQUEST_GET_VALUES:
+		return "REQUEST_GET_VALUES";
+	case REQUEST_SET_DIPOLE_VECTOR:
+		return "REQUEST_SET_DIPOLE_VECTOR";
+	default:
+		return "UNKNOWN";
+	}
+}
+
+
 class ForwardECGApp
 {
 public:
@@ -337,7 +357,7 @@ public:
 
 		// torso mesh plot
 		torso = new MeshPlot();
-		//load_torso_model("models/torso_model_3.fbx");
+		load_torso_model("models/torso_model_3.fbx");
 		color_n = { 0, 0, 1, 1 };
 		color_p = { 1, 0, 0, 1 };
 		color_probes = { 0, 0.25, 0, 1 };
@@ -1186,10 +1206,73 @@ private:
 		if (server.poll_request(request_bytes, &request_addr, &request_port))
 		{
 			// handle request
-			printf("Got request from: %s:%d\n%s\n", request_addr.to_string().c_str(), request_port, (const char*)&request_bytes[0]);
+			Deserializer des(request_bytes);
+			Serializer ser;
 
-			// a simple echo
-			if (!server.push_response(request_bytes))
+			// handle message
+			uint32_t request_type = des.parse_u32();
+			printf("Recieved %s (%d) request, request byte size: %llu\n", request_type_to_string((RequestType)request_type).c_str(), request_type, request_bytes.size()); // debug
+			if (request_type == REQUEST_GET_VALUES)
+			{
+				// row and columns count
+				ser.push_u32(sample_count + 1); // row_count = sample_count + 1 row for the names
+				ser.push_u32(probes.size() + 2 + 6); // col_count = sample idx + time + dipole_posx, dipole_posy, dipole_posz + dipole_vecx, dipole_vecy, dipole_vecz + probes_values
+
+				// names row
+				ser.push_string("sample");
+				ser.push_string("time");
+				ser.push_string("dipole_posx");
+				ser.push_string("dipole_posy");
+				ser.push_string("dipole_posz");
+				ser.push_string("dipole_vecx");
+				ser.push_string("dipole_vecy");
+				ser.push_string("dipole_vecz");
+				for (int i = 0; i < probes_values.rows(); i++)
+				{
+					ser.push_string(probes[i].name);
+				}
+
+				// values (row major)
+				for (int i = 0; i < sample_count; i++)
+				{
+					Real time = i * dt;
+					ser.push_double(i); // sample
+					ser.push_double(time); // time
+					// dipole_pos
+					ser.push_double(dipole_pos.x());
+					ser.push_double(dipole_pos.y());
+					ser.push_double(dipole_pos.z());
+					// dipole_vec
+					Eigen::Vector3<Real> dipole_vec_current = dipole_curve.point_at(time);
+					ser.push_double(dipole_vec_current.x());
+					ser.push_double(dipole_vec_current.y());
+					ser.push_double(dipole_vec_current.z());
+
+					// probes values
+					for (int j = 0; j < probes.size(); j++)
+					{
+						ser.push_double(probes_values(j, i));
+					}
+				}
+			}
+			else if (request_type == REQUEST_SET_DIPOLE_VECTOR)
+			{
+				Eigen::Vector3<Real> new_dipole_vec;
+				new_dipole_vec.x() = des.parse_double();
+				new_dipole_vec.y() = des.parse_double();
+				new_dipole_vec.z() = des.parse_double();
+				dipole_vec = new_dipole_vec;
+				use_dipole_curve = false;
+				ser.push_u8(1); // return true acknowledgement
+			}
+			else
+			{
+				printf("Unknown request\n");
+			}
+
+			// send response
+			printf("Response size: %llu\n", ser.get_data().size());
+			if (!server.push_response(ser.get_data()))
 			{
 				printf("Failed to push response\n");
 			}

@@ -302,7 +302,7 @@ void Deserializer::parse_bytes(uint8_t* buffer, const size_t size)
 
 size_t Deserializer::remaining_size() const
 {
-	if (m_data.size() >= m_pointer)
+	if (m_pointer >= m_data.size())
 	{
 		return 0;
 	}

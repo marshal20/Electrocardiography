@@ -14,6 +14,7 @@
 
 class Serializer
 {
+public:
 	Serializer();
 	~Serializer();
 
@@ -47,6 +48,7 @@ private:
 
 class Deserializer
 {
+public:
 	Deserializer(const std::vector<uint8_t>& data);
 	Deserializer(const uint8_t* buffer, const size_t size);
 	~Deserializer();
