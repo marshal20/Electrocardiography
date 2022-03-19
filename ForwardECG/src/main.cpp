@@ -1232,6 +1232,15 @@ private:
 					ser.push_string(probes[i].name);
 				}
 
+				//// debug
+				//for (int j = 0; j < sample_count; j++)
+				//{
+				//	for (int i = 0; i < probes.size() + 2 + 6; i++)
+				//	{
+				//		ser.push_double(j*sample_count + i);
+				//	}
+				//}
+
 				// values (row major)
 				for (int i = 0; i < sample_count; i++)
 				{

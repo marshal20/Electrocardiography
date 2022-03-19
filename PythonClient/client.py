@@ -46,15 +46,18 @@ class Client:
         cols_count = des.parse_u32()
         
         # parse 2D array
+        arr = []
         # parse name rows
-        arr = [[""]*cols_count]
+        names = [];
         for i in range(cols_count):
-            arr[0][i] = des.parse_string()
+            names.extend([des.parse_string()])
+        arr.extend([names])
         # parse values rows
-        arr.extend([[0]*cols_count]*(rows_count-1))
         for i in range(1, rows_count):
+            new_row = [0]*cols_count
             for j in range(cols_count):
-                arr[i][j] = des.parse_double()
+                new_row[j] = des.parse_double()
+            arr.extend([new_row])
         
         return arr
     
