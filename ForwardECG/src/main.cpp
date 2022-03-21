@@ -26,6 +26,7 @@
 #include "filedialog.h"
 #include "network/server.h"
 #include "network/serializer.h"
+#include "timer.h"
 
 
 using namespace Eigen;
@@ -392,6 +393,7 @@ public:
 		glfwSwapInterval(1);
 
 		// main loop
+		timer.start();
 		while (!glfwWindowShouldClose(window))
 		{
 			// handle window size change
@@ -400,6 +402,11 @@ public:
 			gldev->viewport(0, 0, width, height);
 			float aspect = (float)width / (float)height;
 			camera.aspect = aspect;
+
+			// timer
+			timer_dt = timer.elapsed_seconds();
+			timer_time += timer_dt;
+			timer.start();
 
 			// input
 			handle_input();
@@ -411,6 +418,14 @@ public:
 			//t += 0.01;
 			//dipole_vec = { cos(-t), sin(-t), 0 };
 			//dipole_vec = 10*dipole_vec;
+
+
+			// animate camera rotation
+			if (camera_rotate)
+			{
+				camera_angle += timer_dt*camera_rotation_speed*2*PI;
+				camera.eye = camera.look_at + glm::vec3(camera_eye_radius*sin(camera_angle), 0, camera_eye_radius*cos(camera_angle));
+			}
 
 
 			// update dipoles_values size
@@ -856,9 +871,14 @@ private:
 		}
 
 
-		// mesh plot colors
+		// rendering options
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Text("Rendering options");
+		if (ImGui::Checkbox("Rotate Camera", &camera_rotate))
+		{
+			camera_eye_radius = glm::length(camera.eye-camera.look_at);
+		}
+		ImGui::SliderFloat("Rotation Speed (RPS)", &camera_rotation_speed, -2, 2);
 		ImGui::ColorEdit4("Negative color", (float*)&color_n);
 		ImGui::ColorEdit4("Positive color", (float*)&color_p);
 		ImGui::ColorEdit4("Probe color", (float*)&color_probes);
@@ -1066,7 +1086,7 @@ private:
 
 		// frame rate and frame time
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms)", ImGui::GetIO().Framerate, 1000.0f/ImGui::GetIO().Framerate);
+		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms), elapsed: %.2f", 1/timer_dt, 1000*timer_dt, timer_time);
 		
 		ImGui::End();
 
@@ -1338,6 +1358,17 @@ private:
 
 	// server
 	Server server;
+
+	// animation
+	Timer timer;
+	Real timer_time = 0;
+	Real timer_dt = 0;
+	// rotation
+	bool camera_rotate = false;
+	Real camera_eye_radius = 1;
+	Real camera_angle = 0;
+	float camera_rotation_speed = 1; // RPS
+
 };
 
 

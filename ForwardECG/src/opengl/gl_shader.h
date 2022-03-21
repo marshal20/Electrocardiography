@@ -24,6 +24,15 @@ public:
 	void setMat3(UniformId id, const glm::mat3& val);
 	void setMat4(UniformId id, const glm::mat4& val);
 
+	void setFloatName(const char* name, float val);
+	void setIntName(const char* name, int val);
+	void setVec2Name(const char* name, const glm::vec2& val);
+	void setVec3Name(const char* name, const glm::vec3& val);
+	void setVec4Name(const char* name, const glm::vec4& val);
+	void setMat2Name(const char* name, const glm::mat2& val);
+	void setMat3Name(const char* name, const glm::mat3& val);
+	void setMat4Name(const char* name, const glm::mat4& val);
+
 private:
 	GLuint m_id;
 };

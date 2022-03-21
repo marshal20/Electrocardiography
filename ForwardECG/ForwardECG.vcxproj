@@ -195,6 +195,7 @@
     <ClCompile Include="src\renderer2d.cpp" />
     <ClCompile Include="src\renderer3d.cpp" />
     <ClCompile Include="src\stb\stb_image.c" />
+    <ClCompile Include="src\timer.cpp" />
     <ClCompile Include="src\transform.cpp" />
     <ClCompile Include="src\window.cpp" />
   </ItemGroup>
@@ -237,6 +238,7 @@
     <ClInclude Include="src\renderer2d.h" />
     <ClInclude Include="src\renderer3d.h" />
     <ClInclude Include="src\stb\stb_image.h" />
+    <ClInclude Include="src\timer.h" />
     <ClInclude Include="src\transform.h" />
     <ClInclude Include="src\window.h" />
   </ItemGroup>

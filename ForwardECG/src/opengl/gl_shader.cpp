@@ -85,7 +85,13 @@ void glShader::unbind()
 
 UniformId glShader::getUniformId(const char* name)
 {
-	return glGetUniformLocation(m_id, name);
+	UniformId id = glGetUniformLocation(m_id, name);
+	if (id == -1)
+	{
+		printf("Warning: Couldn't find %s uniform\n", name);
+	}
+
+	return id;
 }
 
 void glShader::setFloat(UniformId id, float val)
@@ -126,5 +132,46 @@ void glShader::setMat3(UniformId id, const glm::mat3& val)
 void glShader::setMat4(UniformId id, const glm::mat4& val)
 {
 	glProgramUniformMatrix4fv(m_id, id, 1, GL_FALSE, (const GLfloat*)& val);
+}
+
+
+void glShader::setFloatName(const char* name, float val)
+{
+	setFloat(getUniformId(name), val);
+}
+
+void glShader::setIntName(const char* name, int val)
+{
+	setInt(getUniformId(name), val);
+}
+
+void glShader::setVec2Name(const char* name, const glm::vec2& val)
+{
+	setVec2(getUniformId(name), val);
+}
+
+void glShader::setVec3Name(const char* name, const glm::vec3& val)
+{
+	setVec3(getUniformId(name), val);
+}
+
+void glShader::setVec4Name(const char* name, const glm::vec4& val)
+{
+	setVec4(getUniformId(name), val);
+}
+
+void glShader::setMat2Name(const char* name, const glm::mat2& val)
+{
+	setMat2(getUniformId(name), val);
+}
+
+void glShader::setMat3Name(const char* name, const glm::mat3& val)
+{
+	setMat3(getUniformId(name), val);
+}
+
+void glShader::setMat4Name(const char* name, const glm::mat4& val)
+{
+	setMat4(getUniformId(name), val);
 }
 

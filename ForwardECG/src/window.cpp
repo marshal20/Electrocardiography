@@ -8,21 +8,22 @@ static void keyCallback(GLFWwindow* window, int key, int scancode, int action, i
 static void mouseCallback(GLFWwindow* window, int key, int scancode, int action);
 static void cursorPosCallback(GLFWwindow * window, double xpos, double ypos);
 static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset);
+static void glfw_error_handler(int error, const char * description);
 
 GLFWwindow* createOpenglWindow(int width, int height, const char* title)
 {
-	GLFWwindow* window;
+	// set error callback
+	glfwSetErrorCallback(glfw_error_handler);
+
 	// Initialize glfw.
 	if (!glfwInit())
 		return NULL;
-	glfwWindowHint(GLFW_OPENGL_API, GLFW_OPENGL_API);
+
+	//glfwWindowHint(GLFW_OPENGL_API, GLFW_OPENGL_API);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
-	window = glfwCreateWindow(width, height, title, NULL, NULL);
-	if (!window)
-		return NULL;
-	return window;
+	return glfwCreateWindow(width, height, title, NULL, NULL);
 }
 
 glGraphicsDevice* createOpenglDevice(GLFWwindow* window)
@@ -64,3 +65,7 @@ static void scrollCallback(GLFWwindow* window, double xoffset, double yoffset)
 	Input::scrollCallback(xoffset, yoffset);
 }
 
+void glfw_error_handler(int error, const char* description)
+{
+	printf("GLFW error 0x%08X: %s\n", error, description);
+}
