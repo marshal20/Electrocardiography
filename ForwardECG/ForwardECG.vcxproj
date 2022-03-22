@@ -192,6 +192,7 @@
     <ClCompile Include="src\opengl\gl_uniform_buffer.cpp" />
     <ClCompile Include="src\opengl\gl_vertex_buffer.cpp" />
     <ClCompile Include="src\opengl\gl_vertex_layout.cpp" />
+    <ClCompile Include="src\random.cpp" />
     <ClCompile Include="src\renderer2d.cpp" />
     <ClCompile Include="src\renderer3d.cpp" />
     <ClCompile Include="src\stb\stb_image.c" />
@@ -235,6 +236,7 @@
     <ClInclude Include="src\opengl\gl_uniform_buffer.h" />
     <ClInclude Include="src\opengl\gl_vertex_buffer.h" />
     <ClInclude Include="src\opengl\gl_vertex_layout.h" />
+    <ClInclude Include="src\random.h" />
     <ClInclude Include="src\renderer2d.h" />
     <ClInclude Include="src\renderer3d.h" />
     <ClInclude Include="src\stb\stb_image.h" />

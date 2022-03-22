@@ -27,6 +27,7 @@
 #include "network/server.h"
 #include "network/serializer.h"
 #include "timer.h"
+#include "random.h"
 
 
 using namespace Eigen;
@@ -290,7 +291,10 @@ static void swap(T& a, T& b)
 enum RequestType
 {
 	REQUEST_GET_VALUES = 1,
-	REQUEST_SET_DIPOLE_VECTOR = 2
+	REQUEST_SET_DIPOLE_VECTOR = 2,
+	REQUEST_GET_PROBES_NAMES = 3,
+	REQUEST_CALCULATE_VALUES_FOR_VECTOR = 4,
+	REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS = 5,
 };
 
 static std::string request_type_to_string(const RequestType req_type)
@@ -301,6 +305,12 @@ static std::string request_type_to_string(const RequestType req_type)
 		return "REQUEST_GET_VALUES";
 	case REQUEST_SET_DIPOLE_VECTOR:
 		return "REQUEST_SET_DIPOLE_VECTOR";
+	case REQUEST_GET_PROBES_NAMES:
+		return "REQUEST_GET_PROBES_NAMES";
+	case REQUEST_CALCULATE_VALUES_FOR_VECTOR:
+		return "REQUEST_CALCULATE_VALUES_FOR_VECTOR";
+	case REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS:
+		return "REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS";
 	default:
 		return "UNKNOWN";
 	}
@@ -795,7 +805,7 @@ private:
 		{
 			// dt
 			float im_dt = dt;
-			ImGui::SliderFloat("time step", &im_dt, 0.001, 0.1);
+			ImGui::SliderFloat("time step", &im_dt, 0.000001, 0.5);
 			dt = im_dt;
 
 			// steps per frame
@@ -941,7 +951,7 @@ private:
 
 				// value
 				ImGui::SameLine();
-				Real probe_value = probes_values(i, current_sample);
+				Real probe_value = evaluate_probe(*torso, probes[i]);
 				std::string item_name = "  " + std::to_string(probe_value);
 				ImGui::Text(item_name.c_str());
 			}
@@ -1328,6 +1338,61 @@ private:
 				use_dipole_curve = false;
 				ser.push_u8(1); // return true acknowledgement
 			}
+			else if (request_type == REQUEST_GET_PROBES_NAMES)
+			{
+				ser.push_u32(probes.size()); // count of probes
+				for (int i = 0; i < probes.size(); i++)
+				{
+					ser.push_string(probes[i].name);
+				}
+			}
+			else if (request_type == REQUEST_CALCULATE_VALUES_FOR_VECTOR)
+			{
+				Eigen::Vector3<Real> new_dipole_vec;
+				new_dipole_vec.x() = des.parse_double();
+				new_dipole_vec.y() = des.parse_double();
+				new_dipole_vec.z() = des.parse_double();
+				dipole_vec = new_dipole_vec;
+				calculate_potentials();
+
+				ser.push_u32(3 + probes.size()); // vector x, y, z and count of probes
+				// dipole vector
+				ser.push_double(dipole_vec.x());
+				ser.push_double(dipole_vec.y());
+				ser.push_double(dipole_vec.z());
+				// probes values
+				for (int i = 0; i < probes.size(); i++)
+				{
+					ser.push_double(evaluate_probe(*torso, probes[i]));
+				}
+			}
+			else if (request_type == REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS)
+			{
+				uint32_t random_samples_count = des.parse_u32(); // random samples count
+				Real maximum_radius = des.parse_double();
+
+				ser.push_u32(3 + probes.size()); // vector x, y, z and count of probes
+				Timer generating_timer;
+				generating_timer.start();
+				Random rnd;
+				for (uint32_t i = 0; i < random_samples_count; i++)
+				{
+					dipole_vec = rnd.next_vector3(maximum_radius);
+					calculate_potentials();
+
+					// dipole vector
+					ser.push_double(dipole_vec.x());
+					ser.push_double(dipole_vec.y());
+					ser.push_double(dipole_vec.z());
+
+					// probes values
+					for (int i = 0; i < probes.size(); i++)
+					{
+						ser.push_double(evaluate_probe(*torso, probes[i]));
+					}
+				}
+				printf("Generated %u random vector values in %.3f ms\n", random_samples_count, 1000*generating_timer.elapsed_seconds());
+			}
 			else
 			{
 				printf("Unknown request\n");
@@ -1340,10 +1405,13 @@ private:
 			}
 
 			// log request
-			printf("Request from (%s:%d):\n \tID: %s (%d)\n \tRequest size: %zu\n \tResponse size: %zu\n",
+			printf("Request from (%s:%d):\n \tIndex: %d\n \tRequest ID: %s (%d)\n \tRequest size: %u bytes\n \tResponse size: %u bytes\n\n",
 				request_addr.to_string().c_str(), request_port,
+				server_request_counter,
 				request_type_to_string((RequestType)request_type).c_str(), request_type, 
 				request_bytes.size(), ser.get_data().size());
+
+			server_request_counter++;
 		}
 	}
 
@@ -1399,6 +1467,7 @@ private:
 	Server server;
 	int server_address_select = 1;
 	int server_port = 1234;
+	int server_request_counter = 0;
 
 	// animation
 	Timer timer;
