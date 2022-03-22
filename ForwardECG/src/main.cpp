@@ -379,7 +379,7 @@ public:
 
 		// setup server
 		initialize_socket();
-		if (!server.start(ADDRESS_LOCALHOST, 1234))
+		if (!server.start((server_address_select == 0) ? ADDRESS_LOCALHOST : ADDRESS_THISHOST, server_port))
 		{
 			printf("Failed to start the server\n");
 		}
@@ -740,6 +740,41 @@ private:
 			calculate_coefficients_matrix();
 		}
 
+		// server
+		//server_address_select
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Server");
+		static const char* binding_items_names[] = { "LocalHost", "ThisHost" };
+		if (!server.is_running())
+		{
+			//ImGui::ListBox("Binding Address", &server_address_select, binding_items_names, 2);
+			ImGui::Combo("Binding Address", &server_address_select, "LocalHost\0ThisHost\0", 2);
+			if (ImGui::InputInt("Binding Port", &server_port))
+			{
+				server_port = clamp_value(server_port, 1, 0xFFFF);
+			}
+			if (ImGui::Button("Start Server"))
+			{
+				Address addr = (server_address_select == 0) ? ADDRESS_LOCALHOST : ADDRESS_THISHOST;
+				if (!server.start(addr, server_port))
+				{
+					printf("Failed to start the server %s:%d\n", addr.to_string().c_str(), server_port);
+				}
+			}
+		}
+		else
+		{
+			ImGui::Text("Binding Address: %s", binding_items_names[server_address_select]);
+			ImGui::Text("Binding Port: %d", server_port);
+			if (ImGui::Button("Stop Server"))
+			{
+				if (!server.stop())
+				{
+					printf("Failed to stop the server\n");
+				}
+			}
+		}
+
 
 		// dipole position and vector
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -878,7 +913,7 @@ private:
 		{
 			camera_eye_radius = glm::length(camera.eye-camera.look_at);
 		}
-		ImGui::SliderFloat("Rotation Speed (RPS)", &camera_rotation_speed, -2, 2);
+		ImGui::SliderFloat("Rotation Speed (Hz)", &camera_rotation_speed, -2, 2);
 		ImGui::ColorEdit4("Negative color", (float*)&color_n);
 		ImGui::ColorEdit4("Positive color", (float*)&color_p);
 		ImGui::ColorEdit4("Probe color", (float*)&color_probes);
@@ -1086,7 +1121,7 @@ private:
 
 		// frame rate and frame time
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms), elapsed: %.2f", 1/timer_dt, 1000*timer_dt, timer_time);
+		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms), elapsed: %.2f s", 1/timer_dt, 1000*timer_dt, timer_time);
 		
 		ImGui::End();
 
@@ -1231,7 +1266,6 @@ private:
 
 			// handle message
 			uint32_t request_type = des.parse_u32();
-			printf("Recieved %s (%d) request, request byte size: %llu\n", request_type_to_string((RequestType)request_type).c_str(), request_type, request_bytes.size()); // debug
 			if (request_type == REQUEST_GET_VALUES)
 			{
 				// row and columns count
@@ -1300,11 +1334,16 @@ private:
 			}
 
 			// send response
-			printf("Response size: %llu\n", ser.get_data().size());
 			if (!server.push_response(ser.get_data()))
 			{
 				printf("Failed to push response\n");
 			}
+
+			// log request
+			printf("Request from (%s:%d):\n \tID: %s (%d)\n \tRequest size: %zu\n \tResponse size: %zu\n",
+				request_addr.to_string().c_str(), request_port,
+				request_type_to_string((RequestType)request_type).c_str(), request_type, 
+				request_bytes.size(), ser.get_data().size());
 		}
 	}
 
@@ -1358,6 +1397,8 @@ private:
 
 	// server
 	Server server;
+	int server_address_select = 1;
+	int server_port = 1234;
 
 	// animation
 	Timer timer;

@@ -40,6 +40,7 @@ bool Server::start(const Address addr, const Port port)
 	// start server thread
 	m_server_thread = std::thread(std::bind(&Server::server_thread_routine, this));
 	m_server_thread.detach();
+	m_is_running = true;
 
 	return true;
 }
@@ -52,12 +53,20 @@ bool Server::stop()
 	}
 
 	m_exit_thread_semaphore.notify();
+	m_sock.close();
+	m_sock = Socket();
 	if (m_server_thread.joinable())
 	{
 		m_server_thread.join();
 	}
 	return true;
 }
+
+bool Server::is_running() const
+{
+	return m_is_running;
+}
+
 
 bool Server::poll_request(std::vector<uint8_t>& request_bytes, Address* req_address, Port* req_port)
 {
@@ -90,26 +99,6 @@ bool Server::push_response(const std::vector<uint8_t>& response_bytes)
 
 void Server::server_thread_routine()
 {
-	//// simple echo
-	//{
-	//	// Accept the new connection
-	//	Socket new_sock;
-	//	Address new_addr;
-	//	Port new_port;
-	//	new_sock = m_sock.accept(new_addr, new_port);
-
-	//	char buff[1024];
-	//	int currec;
-	//	while ((currec = new_sock.recv(buff, sizeof(buff))) != 0)
-	//	{
-	//		new_sock.send(buff, currec);
-	//	}
-
-	//	return;
-	//}
-	
-	//printf("Server thread\n");
-
 	while (true)
 	{
 		// wait for exit signal
@@ -124,6 +113,10 @@ void Server::server_thread_routine()
 		Address new_addr;
 		Port new_port;
 		new_sock = m_sock.accept(new_addr, new_port);
+		if (!new_sock.is_valid())
+		{
+			break;
+		}
 
 
 		// handle request
@@ -155,7 +148,11 @@ void Server::server_thread_routine()
 
 	}
 
-	m_sock.close();
-	m_sock = Socket();
+	if (m_sock.is_valid())
+	{
+		m_sock.close();
+		m_sock = Socket();
+	}
+	m_is_running = false;
 }
 

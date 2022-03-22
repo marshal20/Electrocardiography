@@ -16,4 +16,20 @@ Eigen::Vector3<Real> glm2eigen(const glm::vec3& v3);
 glm::vec3 eigen2glm(const Eigen::Vector3<Real>& v3);
 
 
+template<typename T>
+T clamp_value(T value, T min, T max)
+{
+	if (value < min)
+	{
+		return min;
+	}
+	else if (value > max)
+	{
+		return max;
+	}
+
+	return value;
+}
+
+
 Eigen::Vector3<Real> rodrigues_rotate(const Eigen::Vector3<Real>& v, const Eigen::Vector3<Real>& axis, Real theta);
