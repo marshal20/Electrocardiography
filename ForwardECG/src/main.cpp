@@ -336,6 +336,7 @@ public:
 		window = createOpenglWindow(800, 600, "ForwardECG");
 		if (!window)
 		{
+			printf("Couldn't create a window\n");
 			glfwTerminate();
 			return -1;
 		}
@@ -343,6 +344,11 @@ public:
 		// main device and input
 		hookInputCallbacks(window);
 		gldev = createOpenglDevice(window);
+		if (!gldev)
+		{
+			printf("Couldn't create an OpenGL context\n");
+			return -1;
+		}
 		gdevSet(gldev);
 
 		// axis renderer
