@@ -29,7 +29,10 @@ glUniformBuffer* glUniformBuffer::create(unsigned int size, Usage usage, const v
 void glUniformBuffer::update(unsigned offset, unsigned size, const void* data)
 {
 	assert((offset + size) <= m_size);
-	glNamedBufferSubData(m_id, offset, size, data);
+
+	glBindBuffer(GL_UNIFORM_BUFFER, m_id);
+	glBufferSubData(GL_UNIFORM_BUFFER, offset, size, data);
+	glBindBuffer(GL_UNIFORM_BUFFER, 0);
 }
 
 void glUniformBuffer::bind(unsigned index)

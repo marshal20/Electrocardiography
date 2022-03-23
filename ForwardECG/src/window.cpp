@@ -1,5 +1,5 @@
 #include "window.h"
-#include <glad/glad.h>
+#include "opengl/gl_headers.h"
 #include <GLFW/glfw3.h>
 #include "input.h"
 #include "opengl/gl_graphics_device.h"
@@ -21,8 +21,8 @@ GLFWwindow* createOpenglWindow(int width, int height, const char* title)
 
 	//glfwWindowHint(GLFW_OPENGL_API, GLFW_OPENGL_API);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
-	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	return glfwCreateWindow(width, height, title, NULL, NULL);
 }
 

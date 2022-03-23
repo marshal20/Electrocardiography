@@ -13,13 +13,13 @@
 
 
 static const char* diffuse_vert = R"(
-#version 450 core
+#version 330 core
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 tex_coords;
 
-layout (location = 0) uniform mat4 view_proj;
-layout (location = 1) uniform mat4 model;
+uniform mat4 view_proj;
+uniform mat4 model;
 
 layout (location = 0) out vec3 frag_position;
 layout (location = 1) out vec3 normal_out;
@@ -34,31 +34,31 @@ void main()
 }
 )";
 static const char* diffuse_frag = R"(
-#version 450 core
+#version 330 core
 layout (location = 0) in vec3 frag_position;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 tex_coords;
 
 // Material.
-layout(location = 2) uniform vec3 diffuse_color;
-layout(location = 3) uniform int sample_diffuse;
-layout(binding = 0) uniform sampler2D diffuse_tex;
-layout(location = 4) uniform float ambient_value;
-layout(location = 5) uniform float specular_strength;
-layout(location = 6) uniform float shininess;
+uniform vec3 diffuse_color;
+uniform int sample_diffuse;
+uniform sampler2D diffuse_tex;
+uniform float ambient_value;
+uniform float specular_strength;
+uniform float shininess;
 
 // Point light.
-layout(location = 10) uniform vec3 light_position;
-layout(location = 11) uniform vec3 light_color;
-layout(location = 12) uniform vec3 view_pos;
+uniform vec3 light_position;
+uniform vec3 light_color;
+uniform vec3 view_pos;
 
 out vec4 FragColor;
 
 void main()
 {
-	const vec3 light_dir = normalize(light_position - frag_position);
-	const vec3 view_dir = normalize(view_pos - frag_position);
-	const vec3 reflect_dir = normalize(reflect(-light_dir, normal));	
+	vec3 light_dir = normalize(light_position - frag_position);
+	vec3 view_dir = normalize(view_pos - frag_position);
+	vec3 reflect_dir = normalize(reflect(-light_dir, normal));	
 
 	vec3 diff_color = diffuse_color;
 	if(sample_diffuse == 1)
@@ -115,26 +115,26 @@ void ForwardRenderer::renderMesh(const glm::mat4& transform, Mesh* mesh)
 
 	m_diffuse_shader->bind();
 	// Transform.
-	m_diffuse_shader->setMat4(0, m_view_matrix);
-	m_diffuse_shader->setMat4(1, transform);
+	m_diffuse_shader->setMat4("view_proj", m_view_matrix);
+	m_diffuse_shader->setMat4("model", transform);
 	// Material.
-	m_diffuse_shader->setVec3(2, mesh->material.diffuse_color);
+	m_diffuse_shader->setVec3("diffuse_color", mesh->material.diffuse_color);
 	if (mesh->material.diffuse_tex)
 	{
-		mesh->material.diffuse_tex->bind(0);
-		m_diffuse_shader->setInt(3, 1);
+		m_diffuse_shader->setInt("sample_diffuse", 1);
+		mesh->material.diffuse_tex->bind(1);
 	}
 	else
 	{
-		m_diffuse_shader->setInt(3, 0);
+		m_diffuse_shader->setInt("sample_diffuse", 0);
 	}
-	m_diffuse_shader->setFloat(4, mesh->material.ambient);
-	m_diffuse_shader->setFloat(5, mesh->material.specular);
-	m_diffuse_shader->setFloat(6, mesh->material.shininess);
+	m_diffuse_shader->setFloat("ambient_value", mesh->material.ambient);
+	m_diffuse_shader->setFloat("specular_strength", mesh->material.specular);
+	m_diffuse_shader->setFloat("shininess", mesh->material.shininess);
 	// Light.
-	m_diffuse_shader->setVec3(m_diffuse_shader->getUniformId("light_position"), light_posision);
-	m_diffuse_shader->setVec3(m_diffuse_shader->getUniformId("light_color"), light_color);
-	m_diffuse_shader->setVec3(m_diffuse_shader->getUniformId("view_pos"), view_pos);
+	m_diffuse_shader->setVec3("light_position", light_posision);
+	m_diffuse_shader->setVec3("light_color", light_color);
+	m_diffuse_shader->setVec3("view_pos", view_pos);
 	
 	// Drawing.
 	mesh->vertex_buffer->bind();

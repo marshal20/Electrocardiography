@@ -1,5 +1,5 @@
 #include "gl_vertex_buffer.h"
-#include <glad/glad.h>
+#include "gl_headers.h"
 #include <assert.h>
 
 
@@ -35,7 +35,10 @@ glVertexBuffer::~glVertexBuffer()
 void glVertexBuffer::update(unsigned offset, unsigned size, const void* data)
 {
 	assert((offset + size) <= m_size);
-	glNamedBufferSubData(m_id, offset, size, data);
+
+	glBindBuffer(GL_ARRAY_BUFFER, m_id);
+	glBufferSubData(GL_ARRAY_BUFFER, offset, size, data);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 void glVertexBuffer::bind()

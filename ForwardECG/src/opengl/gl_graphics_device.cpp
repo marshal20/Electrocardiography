@@ -1,4 +1,4 @@
-#include <glad/glad.h>
+#include "gl_headers.h"
 #include <GLFW/glfw3.h>
 #include <assert.h>
 #include "gl_graphics_device.h"
@@ -73,17 +73,27 @@ static GLenum index_type_to_glenum(IndexType i_type)
 
 glGraphicsDevice* glGraphicsDevice::create(GLFWwindow* window)
 {
+	glfwMakeContextCurrent(window);
+
+	// Initialize gl3w
+	if (gl3wInit2(glfwGetProcAddress))
+	{
+		printf("Error: Failed to initialize gl3w\n");
+		return NULL;
+	}
+
+	// check OpenGL version
+	if (!gl3wIsSupported(3, 3))
+	{
+		printf("Error: OpenGL 3.3 isn't supported on this system\n");
+		return NULL;
+	}
+
+	// create new graphics device
 	glGraphicsDevice* created = new glGraphicsDevice();
 	created->m_width = 0;
 	created->m_height = 0;
 
-	glfwMakeContextCurrent(window);
-	// Initialize glad.
-	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
-	{
-		delete created;
-		return NULL;
-	}
 	// Create a dummy VAO.
 	glGenVertexArrays(1, &created->m_dummy_vao);
 	glBindVertexArray(created->m_dummy_vao);

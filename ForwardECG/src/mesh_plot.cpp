@@ -148,28 +148,25 @@ MeshPlot* load_mesh_plot(const char* file_name)
 
 
 static const char* plot_vert = R"(
-#version 450 core
+#version 330 core
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in float value;
 
-layout (location = 0) uniform mat4 view_proj;
-layout (location = 1) uniform mat4 model;
+uniform mat4 projection;
+uniform mat4 model;
 
-layout (location = 0) out vec3 frag_position;
-layout (location = 1) out float value_out;
+layout (location = 0) out float value_out;
 
 void main()
 {
 	value_out = value;
-	frag_position = (model*vec4(pos, 1.0)).xyz;
-	gl_Position = view_proj*model*vec4(pos, 1.0); // w = 1 for points, w = 0 for vectors.
+	gl_Position = projection*model*vec4(pos, 1.0); // w = 1 for points, w = 0 for vectors.
 }
 )";
 static const char* plot_frag = R"(
-#version 450 core
-layout (location = 0) in vec3 frag_position;
-layout (location = 1) in float value;
+#version 330 core
+layout (location = 0) in float value;
 
 uniform vec4 color_n;
 uniform vec4 color_p;
@@ -259,12 +256,12 @@ void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* me
 
 	m_plot_shader->bind();
 	// Transform.
-	m_plot_shader->setMat4(m_plot_shader->getUniformId("view_proj"), m_view_matrix);
-	m_plot_shader->setMat4(m_plot_shader->getUniformId("model"), transform);
-	m_plot_shader->setVec4(m_plot_shader->getUniformId("color_n"), m_color_n);
-	m_plot_shader->setVec4(m_plot_shader->getUniformId("color_p"), m_color_p);
-	m_plot_shader->setFloat(m_plot_shader->getUniformId("mix_color_hsv"), m_color_mix_type == MIX_RGB ? 0 : 1);
-	m_plot_shader->setFloat(m_plot_shader->getUniformId("max_val"), m_max_val);
+	m_plot_shader->setMat4("projection", m_view_matrix);
+	m_plot_shader->setMat4("model", transform);
+	m_plot_shader->setVec4("color_n", m_color_n);
+	m_plot_shader->setVec4("color_p", m_color_p);
+	m_plot_shader->setFloat("mix_color_hsv", m_color_mix_type == MIX_RGB ? 0 : 1);
+	m_plot_shader->setFloat("max_val", m_max_val);
 
 	// Drawing.
 	mesh_plot->vertex_buffer->bind();

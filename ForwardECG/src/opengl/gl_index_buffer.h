@@ -1,5 +1,5 @@
 #pragma once
-#include <glad/glad.h>
+#include "gl_headers.h"
 #include "definitions.h"
 
 class glIndexBuffer

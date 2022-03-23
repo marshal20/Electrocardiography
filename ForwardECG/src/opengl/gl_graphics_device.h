@@ -1,5 +1,5 @@
 #pragma once
-#include <glad/glad.h>
+#include "gl_headers.h"
 #include "definitions.h"
 #include "gl_shader.h"
 #include "gl_texture.h"

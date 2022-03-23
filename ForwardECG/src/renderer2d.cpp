@@ -13,11 +13,11 @@
 
 // Simple shader.
 static const char* simple_vert = R"(
-#version 450 core
+#version 330 core
 layout (location = 0) in vec2 pos;
 
-layout (location = 0) uniform mat4 projection;
-layout (location = 1) uniform mat4 model;
+uniform mat4 projection;
+uniform mat4 model;
 
 void main()
 {
@@ -25,9 +25,9 @@ void main()
 }
 )";
 static const char* simple_frag = R"(
-#version 450 core
+#version 330 core
 
-layout(location = 2) uniform vec4 color;
+uniform vec4 color;
 
 out vec4 FragColor;
 
@@ -39,33 +39,33 @@ void main()
 
 // Sprite shader.
 static const char* sprite_vert = R"(
-#version 450 core
+#version 330 core
 layout (location = 0) in vec2 pos;
-layout (location = 1) in vec2 uv;
+layout (location = 1) in vec2 uv_in;
 
-layout (location = 0) uniform mat4 projection;
-layout (location = 1) uniform mat4 model;
+uniform mat4 projection;
+uniform mat4 model;
 
-layout(location = 0) out vec2 out_uv;
+layout(location = 0) out vec2 uv;
 
 void main()
 {
-	out_uv = uv;
+	uv = uv_in;
 	gl_Position = projection*model*vec4(pos, 0.0, 1.0); // w = 1 for points, w = 0 for vectors.
 }
 )";
 static const char* sprite_frag = R"(
-#version 450 core
+#version 330 core
 layout(location = 0) in vec2 uv;
 
-layout(location = 2) uniform vec4 color;
-layout(binding = 0) uniform sampler2D texture;
+uniform vec4 color;
+uniform sampler2D texture;
 
 out vec4 FragColor;
 
 void main()
 {
-	FragColor = color*texture2D(texture, uv);
+	FragColor = (color*texture2D(texture, uv));
 }
 )";
 
@@ -92,6 +92,7 @@ static glVertexBuffer* circle_vertex_buffer;
 static glVertexBuffer* sprite_vertex_buffer;
 static glShader* sprite_shader;
 static glVertexLayout* sprite_layout;
+static bool renderer2d_is_initialized = false;
 
 static void createCircle(int segments, Vertex* vertices)
 {
@@ -105,6 +106,13 @@ static void createCircle(int segments, Vertex* vertices)
 
 void Renderer2D::init()
 {
+	// check for double initialization
+	if (renderer2d_is_initialized)
+	{
+		return;
+	}
+	renderer2d_is_initialized = true;
+
 	// Initialize vertex buffer.
 	vertex_buffer = gdevGet()->createVertexBuffer(MAX_VERTICES * sizeof(Vertex), USAGE_DYNAMIC);
 	// Initialize circle.
@@ -119,8 +127,8 @@ void Renderer2D::init()
 		{VertexLayoutElement::VEC2, "pos" }
 		});
 	simple_shader->bind();
-	simple_shader->setMat4(0, glm::mat4(1));
-	simple_shader->setMat4(1, glm::mat4(1));
+	simple_shader->setMat4("projection", glm::mat4(1));
+	simple_shader->setMat4("model", glm::mat4(1));
 	// Sprite variables.
 	SpriteVertex v[6] =
 	{
@@ -143,13 +151,17 @@ void Renderer2D::init()
 
 void Renderer2D::cleanup()
 {
-	delete vertex_buffer;
-	delete circle_vertex_buffer;
-	delete simple_shader;
-	delete simple_layout;
-	delete sprite_vertex_buffer;
-	delete sprite_shader;
-	delete sprite_layout;
+	if (renderer2d_is_initialized)
+	{
+		delete vertex_buffer;
+		delete circle_vertex_buffer;
+		delete simple_shader;
+		delete simple_layout;
+		delete sprite_vertex_buffer;
+		delete sprite_shader;
+		delete sprite_layout;
+		renderer2d_is_initialized = false;
+	}
 }
 
 void Renderer2D::setProjection(const glm::mat4 & proj)
@@ -172,7 +184,7 @@ static void bind_global_buffers()
 	// Bind shader.
 	simple_shader->bind();
 	// Projection.
-	simple_shader->setMat4(0, projection);
+	simple_shader->setMat4("projection", projection);
 	// Bind buffer.
 	vertex_buffer->bind();
 	simple_layout->bind();
@@ -184,13 +196,14 @@ void Renderer2D::drawLine(const glm::vec2 & p1, const glm::vec2 & p2)
 		{ p1 },
 		{ p2 }
 	};
-	bind_global_buffers();
 	// Update buffer.
 	vertex_buffer->update(0, sizeof(line), line);
+
+	bind_global_buffers();
 	// Draw command.
 	if (style.stroke)
 	{
-		simple_shader->setVec4(2, style.stroke_color);
+		simple_shader->setVec4("color", style.stroke_color);
 		glLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, 2);
 	}
@@ -203,18 +216,19 @@ void Renderer2D::drawTriangle(const glm::vec2 & p1, const glm::vec2 & p2, const 
 	{ p2 },
 	{ p3 }
 	};
-	bind_global_buffers();
 	// Update buffer.
 	vertex_buffer->update(0, sizeof(triangle), triangle);
+
+	bind_global_buffers();
 	// Draw command.
 	if (style.fill)
 	{
-		simple_shader->setVec4(2, style.fill_color);
+		simple_shader->setVec4("color", style.fill_color);
 		gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_FAN, 0, 3);
 	}
 	if (style.stroke)
 	{
-		simple_shader->setVec4(2, style.stroke_color);
+		simple_shader->setVec4("color", style.stroke_color);
 		glLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, 3);
 	}
@@ -227,21 +241,22 @@ void Renderer2D::drawRect(const glm::vec2 & p1, const glm::vec2 & p2)
 
 void Renderer2D::drawQuad(const glm::vec2 & p1, const glm::vec2 & p2, const glm::vec2 & p3, const glm::vec2 & p4)
 {
-	Vertex triangle[4] = {
+	Vertex quad[4] = {
 		{ p1 }, { p2 }, { p3 }, {p4}
 	};
-	bind_global_buffers();
 	// Update buffer.
-	vertex_buffer->update(0, sizeof(triangle), triangle);
+	vertex_buffer->update(0, sizeof(quad), quad);
+
+	bind_global_buffers();
 	// Draw command.
 	if (style.fill)
 	{
-		simple_shader->setVec4(2, style.fill_color);
+		simple_shader->setVec4("color", style.fill_color);
 		gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_FAN, 0, 4);
 	}
 	if (style.stroke)
 	{
-		simple_shader->setVec4(2, style.stroke_color);
+		simple_shader->setVec4("color", style.stroke_color);
 		glLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, 4);
 	}
@@ -252,18 +267,19 @@ void Renderer2D::drawPolygon(const glm::vec2 * points, int count)
 	count = (count <= MAX_VERTICES) ? count : MAX_VERTICES;
 	for (int i = 0; i < count; i++)
 		vertices[i] = { points[i] };
-	bind_global_buffers();
 	// Update buffer.
 	vertex_buffer->update(0, count * sizeof(Vertex), vertices);
+
+	bind_global_buffers();
 	// Draw command.
 	if (style.fill)
 	{
-		simple_shader->setVec4(2, style.fill_color);
+		simple_shader->setVec4("color", style.fill_color);
 		gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_FAN, 0, count);
 	}
 	if (style.stroke)
 	{
-		simple_shader->setVec4(2, style.stroke_color);
+		simple_shader->setVec4("color", style.stroke_color);
 		glLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, count);
 	}
@@ -277,26 +293,25 @@ void Renderer2D::drawCircle(const glm::vec2 & p, float r)
 void Renderer2D::drawEllipse(const glm::vec2 & p, float rx, float ry)
 {
 	simple_shader->bind();
-	simple_shader->setMat4(0, projection);
+	simple_shader->setMat4("projection", projection);
 	glm::mat4 model = translate({ p, 0 }) * scale({ rx, ry, 1 });
-	simple_shader->setMat4(1, model);
+	simple_shader->setMat4("model", model);
 	circle_vertex_buffer->bind();
 	simple_layout->bind();
 	// Draw command.
 	if (style.fill)
 	{
-		simple_shader->setVec4(2, style.fill_color);
+		simple_shader->setVec4("color", style.fill_color);
 		gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_FAN, 0, circle_segments);
 	}
 	if (style.stroke)
 	{
-		simple_shader->setVec4(2, style.stroke_color);
+		simple_shader->setVec4("color", style.stroke_color);
 		glLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, circle_segments);
 	}
 	// Reset model matrix.
-	model = glm::mat4(1);
-	simple_shader->setMat4(1, glm::mat4(1));
+	simple_shader->setMat4("model", glm::mat4(1));
 }
 
 void Renderer2D::drawSprite(const Sprite & sprite)
@@ -304,11 +319,11 @@ void Renderer2D::drawSprite(const Sprite & sprite)
 	glm::mat4 model = translate({ sprite.position, 0 }) * scale({ sprite.size / 2.0f, 1 });
 	// Bind shader.
 	sprite_shader->bind();
-	sprite_shader->setMat4(0, projection);
-	sprite_shader->setMat4(1, model);
-	sprite_shader->setVec4(2, sprite.color);
+	sprite_shader->setMat4("projection", projection);
+	sprite_shader->setMat4("model", model);
+	sprite_shader->setVec4("color", sprite.color);
 	// Texture.
-	//sprite_shader->set_int(2, 0);
+	sprite_shader->setInt("texture", 0);
 	sprite.texture->bind(0);
 	// Bind buffers.
 	sprite_vertex_buffer->bind();
@@ -322,11 +337,11 @@ void Renderer2D::drawTexture(const glm::vec2& position, const glm::vec2& size, g
 	glm::mat4 model = translate({ position, 0 }) * scale({ size / 2.0f, 1 });
 	// Bind shader.
 	sprite_shader->bind();
-	sprite_shader->setMat4(0, projection);
-	sprite_shader->setMat4(1, model);
-	sprite_shader->setVec4(2, {1, 1, 1, 1});
+	sprite_shader->setMat4("projection", projection);
+	sprite_shader->setMat4("model", model);
+	sprite_shader->setVec4("color", { 1, 1, 1, 1 });
 	// Texture.
-	//sprite_shader->set_int(2, 0);
+	sprite_shader->setInt("texture", 0);
 	texture->bind(0);
 	// Bind buffers.
 	sprite_vertex_buffer->bind();

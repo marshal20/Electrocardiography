@@ -3,7 +3,7 @@
 #include <math.h>
 #include <vector>
 #include <thread>
-#include <glad/glad.h>
+#include "opengl/gl_headers.h"
 #include <GLFW/glfw3.h>
 #include "window.h"
 #include "input.h"
@@ -391,7 +391,7 @@ public:
 		io.IniFilename = NULL;
 		ImGui::StyleColorsDark();
 		ImGui_ImplGlfw_InitForOpenGL(window, true);
-		ImGui_ImplOpenGL3_Init("#version 130");
+		ImGui_ImplOpenGL3_Init("#version 330 core");
 
 		// setup server
 		initialize_socket();
@@ -636,7 +636,7 @@ private:
 
 
 		// clear buffers
-		gldev->clearColorBuffer(0.1, 0.05, 0.1, 1);
+		gldev->clearColorBuffer(color_background.r, color_background.g, color_background.b, color_background.a);
 		gldev->depthTest(STATE_ENABLED);
 		gldev->depthFunc(COMPARISON_LESS);
 		gldev->clearDepthBuffer(1.0);
@@ -924,21 +924,22 @@ private:
 
 		// rendering options
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Rendering options");
+		ImGui::Text("Rendering Options");
 		if (ImGui::Checkbox("Rotate Camera", &camera_rotate))
 		{
 			camera_eye_radius = glm::length(camera.eye-camera.look_at);
 		}
 		ImGui::SliderFloat("Rotation Speed (Hz)", &camera_rotation_speed, -2, 2);
-		ImGui::ColorEdit4("Negative color", (float*)&color_n);
-		ImGui::ColorEdit4("Positive color", (float*)&color_p);
-		ImGui::ColorEdit4("Probe color", (float*)&color_probes);
+		ImGui::ColorEdit4("Background Color", (float*)&color_background);
+		ImGui::ColorEdit4("Negative Color", (float*)&color_n);
+		ImGui::ColorEdit4("Positive Color", (float*)&color_p);
+		ImGui::ColorEdit4("Probe Color", (float*)&color_probes);
 		if (use_dipole_curve)
 		{
-			ImGui::Checkbox("Render dipole curve", &render_dipole_curve);
+			ImGui::Checkbox("Render Dipole Curve", &render_dipole_curve);
 			if (render_dipole_curve)
 			{
-				ImGui::Checkbox("Render dipole curve lines", &render_dipole_curve_lines);
+				ImGui::Checkbox("Render Dipole Curve Lines", &render_dipole_curve_lines);
 			}
 		}
 
@@ -1430,6 +1431,7 @@ private:
 	unsigned int N;
 	AxisRenderer* axis_renderer;
 	MeshPlotRenderer* mpr;
+	glm::vec4 color_background = { 0.1, 0.05, 0.1, 1 };
 	glm::vec4 color_n, color_p;
 	glm::vec4 color_probes;
 	LookAtCamera camera;

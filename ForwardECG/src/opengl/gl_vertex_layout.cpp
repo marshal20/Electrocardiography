@@ -1,5 +1,5 @@
 #include "gl_vertex_layout.h"
-#include <glad/glad.h>
+#include "gl_headers.h"
 #include <assert.h>
 #include <glm/glm.hpp>
 

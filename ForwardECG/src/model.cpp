@@ -1,9 +1,9 @@
 #include "model.h"
-#include "main_dev.h"
-#include "opengl/gl_texture.h"
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
+#include "main_dev.h"
+#include "opengl/gl_texture.h"
 #include <glm/glm.hpp>
 #include "forward_renderer.h"
 #include "stb/stb_image.h"

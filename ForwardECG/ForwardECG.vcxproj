@@ -96,7 +96,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)gl3w\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -113,7 +113,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)gl3w\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -130,7 +130,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN64\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)gl3w\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN64\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -147,7 +147,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
-      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)glad\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN64\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)gl3w\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN64\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -230,6 +230,7 @@
     <ClInclude Include="src\opengl\definitions.h" />
     <ClInclude Include="src\opengl\gl_framebuffer.h" />
     <ClInclude Include="src\opengl\gl_graphics_device.h" />
+    <ClInclude Include="src\opengl\gl_headers.h" />
     <ClInclude Include="src\opengl\gl_index_buffer.h" />
     <ClInclude Include="src\opengl\gl_shader.h" />
     <ClInclude Include="src\opengl\gl_texture.h" />
@@ -245,8 +246,8 @@
     <ClInclude Include="src\window.h" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\glad\glad.vcxproj">
-      <Project>{7e82ce06-bd7b-45d0-9405-f09d495cf493}</Project>
+    <ProjectReference Include="..\gl3w\gl3w.vcxproj">
+      <Project>{309a270d-81bd-48e7-83dd-02dc37936428}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

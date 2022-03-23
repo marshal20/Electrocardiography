@@ -1,5 +1,5 @@
 #include "gl_shader.h"
-#include <glad/glad.h>
+#include "gl_headers.h"
 #include <vector>
 
 
@@ -18,7 +18,7 @@ static bool compile_shader(GLuint id, const char* source)
 		std::vector<GLchar> infoLog(maxLength);
 		glGetShaderInfoLog(id, maxLength, &maxLength, &infoLog[0]);
 		// Log error.
-		printf("%s\n", &infoLog[0]);
+		printf("Failed to compile shader: \n%s\nError: %s\n", source, &infoLog[0]);
 		glDeleteShader(id);
 		return false;
 	}
@@ -53,13 +53,13 @@ glShader* glShader::create(const char* vertex_src, const char* fragment_src)
 		std::vector<GLchar> infoLog(maxLength);
 		glGetProgramInfoLog(created->m_id, maxLength, &maxLength, &infoLog[0]);
 		// Log error.
-		printf("%s\n", &infoLog[0]);
+		printf("Couldn't link program: \n%s\n", &infoLog[0]);
 		assert(0);
 		glDeleteProgram(created->m_id);
 		glDeleteShader(vertex_shader);
 		glDeleteShader(fragment_shader);
 		assert(0);
-		return 0;
+		return NULL;
 	}
 
 	glDetachShader(created->m_id, vertex_shader);
@@ -94,84 +94,84 @@ UniformId glShader::getUniformId(const char* name)
 	return id;
 }
 
-void glShader::setFloat(UniformId id, float val)
+void glShader::setFloatId(UniformId id, float val)
 {
 	glProgramUniform1f(m_id, id, val);
 }
 
-void glShader::setInt(UniformId id, int val)
+void glShader::setIntId(UniformId id, int val)
 {
 	glProgramUniform1i(m_id, id, val);
 }
 
-void glShader::setVec2(UniformId id, const glm::vec2& val)
+void glShader::setVec2Id(UniformId id, const glm::vec2& val)
 {
 	glProgramUniform2fv(m_id, id, 1, (const GLfloat*)&val);
 }
 
-void glShader::setVec3(UniformId id, const glm::vec3& val)
+void glShader::setVec3Id(UniformId id, const glm::vec3& val)
 {
 	glProgramUniform3fv(m_id, id, 1, (const GLfloat*)& val);
 }
 
-void glShader::setVec4(UniformId id, const glm::vec4& val)
+void glShader::setVec4Id(UniformId id, const glm::vec4& val)
 {
 	glProgramUniform4fv(m_id, id, 1, (const GLfloat*)& val);
 }
 
-void glShader::setMat2(UniformId id, const glm::mat2& val)
+void glShader::setMat2Id(UniformId id, const glm::mat2& val)
 {
 	glProgramUniformMatrix2fv(m_id, id, 1, GL_FALSE, (const GLfloat*)& val);
 }
 
-void glShader::setMat3(UniformId id, const glm::mat3& val)
+void glShader::setMat3Id(UniformId id, const glm::mat3& val)
 {
 	glProgramUniformMatrix3fv(m_id, id, 1, GL_FALSE, (const GLfloat*)& val);
 }
 
-void glShader::setMat4(UniformId id, const glm::mat4& val)
+void glShader::setMat4Id(UniformId id, const glm::mat4& val)
 {
 	glProgramUniformMatrix4fv(m_id, id, 1, GL_FALSE, (const GLfloat*)& val);
 }
 
 
-void glShader::setFloatName(const char* name, float val)
+void glShader::setFloat(const char* name, float val)
 {
-	setFloat(getUniformId(name), val);
+	setFloatId(getUniformId(name), val);
 }
 
-void glShader::setIntName(const char* name, int val)
+void glShader::setInt(const char* name, int val)
 {
-	setInt(getUniformId(name), val);
+	setIntId(getUniformId(name), val);
 }
 
-void glShader::setVec2Name(const char* name, const glm::vec2& val)
+void glShader::setVec2(const char* name, const glm::vec2& val)
 {
-	setVec2(getUniformId(name), val);
+	setVec2Id(getUniformId(name), val);
 }
 
-void glShader::setVec3Name(const char* name, const glm::vec3& val)
+void glShader::setVec3(const char* name, const glm::vec3& val)
 {
-	setVec3(getUniformId(name), val);
+	setVec3Id(getUniformId(name), val);
 }
 
-void glShader::setVec4Name(const char* name, const glm::vec4& val)
+void glShader::setVec4(const char* name, const glm::vec4& val)
 {
-	setVec4(getUniformId(name), val);
+	setVec4Id(getUniformId(name), val);
 }
 
-void glShader::setMat2Name(const char* name, const glm::mat2& val)
+void glShader::setMat2(const char* name, const glm::mat2& val)
 {
-	setMat2(getUniformId(name), val);
+	setMat2Id(getUniformId(name), val);
 }
 
-void glShader::setMat3Name(const char* name, const glm::mat3& val)
+void glShader::setMat3(const char* name, const glm::mat3& val)
 {
-	setMat3(getUniformId(name), val);
+	setMat3Id(getUniformId(name), val);
 }
 
-void glShader::setMat4Name(const char* name, const glm::mat4& val)
+void glShader::setMat4(const char* name, const glm::mat4& val)
 {
-	setMat4(getUniformId(name), val);
+	setMat4Id(getUniformId(name), val);
 }
 
