@@ -14,7 +14,7 @@ Server::~Server()
 
 bool Server::start(const Address addr, const Port port)
 {
-	// socket already been created
+	// check if socket is running
 	if (m_sock.is_valid())
 	{
 		return false;
@@ -52,7 +52,6 @@ bool Server::stop()
 		return false;
 	}
 
-	m_exit_thread_semaphore.notify();
 	m_sock.close();
 	m_sock = Socket();
 	if (m_server_thread.joinable())
@@ -101,13 +100,6 @@ void Server::server_thread_routine()
 {
 	while (true)
 	{
-		// wait for exit signal
-		if (m_exit_thread_semaphore.wait(0) == WAIT_RESULT_NO_TIMEOUT)
-		{
-			//printf("Server thread exited\n");
-			break;
-		}
-
 		// Accept the new connection
 		Socket new_sock;
 		Address new_addr;
@@ -115,9 +107,9 @@ void Server::server_thread_routine()
 		new_sock = m_sock.accept(new_addr, new_port);
 		if (!new_sock.is_valid())
 		{
+			// exit if the main socket closed
 			break;
 		}
-
 
 		// handle request
 
@@ -135,17 +127,12 @@ void Server::server_thread_routine()
 		m_got_request = true;
 		m_response_semaphore.wait();
 
-		//printf("Accepted a response\n");
-
 		m_got_request = false;
 		std::vector<uint8_t> response_bytes = m_response_bytes;
 
 		// send response
 		new_sock.send_all((const char*)&response_bytes[0], response_bytes.size());
 		new_sock.close();
-
-		//printf("sent the response (%d)\n", response_bytes.size());
-
 	}
 
 	if (m_sock.is_valid())

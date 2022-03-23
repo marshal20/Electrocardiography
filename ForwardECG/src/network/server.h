@@ -26,7 +26,6 @@ private:
 	Socket m_sock;
 	std::thread m_server_thread;
 	bool m_is_running = false;
-	Semaphore m_exit_thread_semaphore;
 	Semaphore m_response_semaphore;
 	bool m_got_request = false;
 	Address m_request_addr = {0, 0, 0, 0}; Port m_request_port = 0;

@@ -780,8 +780,8 @@ private:
 		}
 		else
 		{
-			ImGui::Text("Binding Address: %s", binding_items_names[server_address_select]);
-			ImGui::Text("Binding Port: %d", server_port);
+			ImGui::Text("\tBinding Address: %s", binding_items_names[server_address_select]);
+			ImGui::Text("\tBinding Port: %d", server_port);
 			if (ImGui::Button("Stop Server"))
 			{
 				if (!server.stop())
