@@ -654,7 +654,7 @@ private:
 		// render dipole
 		const Real dipole_vector_scale = 0.5;
 		gldev->depthTest(STATE_DISABLED); // disable depth testing
-		Renderer3D::setStyle(Renderer3D::Style(true, 2, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
+		Renderer3D::setStyle(Renderer3D::Style(true, dipole_vector_thickness, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
 		Renderer3D::setProjection(camera.calculateViewProjection());
 		Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec*dipole_vector_scale));
 
@@ -925,6 +925,7 @@ private:
 		// rendering options
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Text("Rendering Options");
+		ImGui::SliderFloat("Dipole Vector Thickness", &dipole_vector_thickness, 1, 20);
 		if (ImGui::Checkbox("Rotate Camera", &camera_rotate))
 		{
 			camera_eye_radius = glm::length(camera.eye-camera.look_at);
@@ -1458,6 +1459,7 @@ private:
 	std::vector<glm::vec3> dipole_locus;
 	bool render_dipole_curve = true;
 	bool render_dipole_curve_lines = true;
+	float dipole_vector_thickness = 2;
 
 	// probes
 	bool adding_probe = false;
