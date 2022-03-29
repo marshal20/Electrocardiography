@@ -470,6 +470,12 @@ public:
 						Real probe_value = evaluate_probe(*torso, probes[i]);
 						probes_values(i, current_sample) = probe_value;
 					}
+
+					// clear probes graph
+					if (probes_graph_clear_at_t0 && current_sample == 0)
+					{
+						probes_values.setZero();
+					}
 				}
 			}
 			else
@@ -811,8 +817,8 @@ private:
 		{
 			// dt
 			float im_dt = dt;
-			ImGui::SliderFloat("time step", &im_dt, 0.000001, 0.5);
-			dt = im_dt;
+			ImGui::InputFloat("time step", &im_dt, 0.001, 0.01, "%.5f");
+			dt = clamp_value<float>(im_dt, 0.00001, 5);
 
 			// steps per frame
 			ImGui::SliderInt("steps per frame", &steps_per_frame, 0, 100);
@@ -1104,6 +1110,7 @@ private:
 		{
 			probes_graph = true;
 		}
+		ImGui::Checkbox("Clear graph at (t = 0)", &probes_graph_clear_at_t0);
 		// dump to csv
 		if (ImGui::Button("Dump to csv"))
 		{
@@ -1451,8 +1458,8 @@ private:
 	// dipole vector curve
 	bool use_dipole_curve = true;
 	BezierCurve dipole_curve = { {{0, 0, 0}, {-1, 0, 0}, {-1, -1, 0}, {1, -1, 0}}, {1} };
-	Real dt = 0.001; // time step
-	int steps_per_frame = 4;
+	Real dt = 0.004; // time step
+	int steps_per_frame = 1;
 	int sample_count;
 	int current_sample = 0;
 	Eigen::MatrixX<Real> probes_values;
@@ -1469,6 +1476,7 @@ private:
 	int current_selected_probe = -1;
 	int probe_name_counter = 1;
 	bool probes_graph = false;
+	bool probes_graph_clear_at_t0 = true;
 	float probes_graph_height = 70;
 	std::vector<Probe> probes;
 	int reference_probe = -1;
