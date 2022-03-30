@@ -340,7 +340,9 @@ public:
 	int setup()
 	{
 		// create the window
-		window = createOpenglWindow(800, 600, "ForwardECG");
+		width = 800;
+		height = 600;
+		window = createOpenglWindow(width, height, "ForwardECG");
 		if (!window)
 		{
 			printf("Couldn't create a window\n");
@@ -389,6 +391,9 @@ public:
 		// mesh plot renderer
 		mpr = new MeshPlotRenderer;
 
+		// frame buffers
+		torso_fb = glFrameBuffer::create({ glTexture::create(width, height, FORMAT_RGBA, TYPE_FLOAT) }, glTexture::create(width, height, Format::FORMAT_DEPTH, Type::TYPE_FLOAT));
+
 		// LookAtCamera
 		camera = default_camera;
 
@@ -425,6 +430,9 @@ public:
 			gldev->viewport(0, 0, width, height);
 			float aspect = (float)width / (float)height;
 			camera.aspect = aspect;
+			// resize frame buffer with window resize
+			torso_fb->resize(width, height);
+
 
 			// timer
 			timer_dt = timer.elapsed_seconds();
@@ -692,12 +700,22 @@ private:
 		// set alpha mode
 		gldev->setAlpha(Alpha{ true, Alpha::SRC_ALPHA, Alpha::ONE_MINUS_SRC_ALPHA });
 
-		// render torso
+
+		// render torso to torso_fb
+		torso_fb->bind();
+		gldev->clearColorBuffer(0, 0, 0, 0);
+		gldev->clearDepthBuffer(1.0);
 		const Real alpha = 1;
 		mpr->set_colors(color_p, color_n);
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
 		mpr->set_max_val(max_abs);
 		mpr->render_mesh_plot(glm::mat4(1), torso);
+		torso_fb->unbind();
+		gldev->bindBackbuffer();
+		// render torso_fb texture
+		Renderer2D::setProjection(ortho(0, width, height, 0, -1, 1));
+		Renderer2D::drawTexture({ width/2, height/2 }, { width, height }, torso_fb->getColorTexture(0), {1, 1, 1, torso_opacity});
+
 
 		// render dipole
 		gldev->depthTest(STATE_DISABLED); // disable depth testing
@@ -792,7 +810,6 @@ private:
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
-
 
 
 		ImGui::Begin("Controls");
@@ -1044,6 +1061,7 @@ private:
 			camera_eye_radius = glm::length(camera.eye-camera.look_at);
 		}
 		ImGui::SliderFloat("Rotation Speed (Hz)", &camera_rotation_speed, -2, 2);
+		ImGui::SliderFloat("Torso Opacity", &torso_opacity, 0, 1);
 		ImGui::ColorEdit4("Background Color", (float*)&color_background);
 		ImGui::ColorEdit4("Negative Color", (float*)&color_n);
 		ImGui::ColorEdit4("Positive Color", (float*)&color_p);
@@ -1553,6 +1571,8 @@ private:
 	unsigned int N;
 	AxisRenderer* axis_renderer;
 	MeshPlotRenderer* mpr;
+	glFrameBuffer* torso_fb;
+	float torso_opacity = 1;
 	glm::vec4 color_background = { 0.1, 0.05, 0.1, 1 };
 	glm::vec4 color_n, color_p;
 	glm::vec4 color_probes;

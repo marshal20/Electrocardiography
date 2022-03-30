@@ -53,6 +53,19 @@ glFrameBuffer::~glFrameBuffer()
 	glDeleteFramebuffers(1, &m_id);
 }
 
+
+void glFrameBuffer::resize(unsigned int width, unsigned int height)
+{
+	m_width = width;
+	m_height = height;
+
+	for (glTexture* tex : m_color_tex)
+	{
+		tex->resize(width, height);
+	}
+	m_depth_tex->resize(width, height);
+}
+
 std::vector<glTexture*> glFrameBuffer::getColorTextures()
 {
 	return m_color_tex;

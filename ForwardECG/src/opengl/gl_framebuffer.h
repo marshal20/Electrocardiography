@@ -11,6 +11,7 @@ public:
 
 	~glFrameBuffer();
 
+	void resize(unsigned int width, unsigned int height);
 	std::vector<glTexture*> getColorTextures();
 	glTexture* getColorTexture(unsigned index);
 	unsigned getColorTextureCount();

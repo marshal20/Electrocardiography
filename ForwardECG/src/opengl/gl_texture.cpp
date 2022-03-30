@@ -67,6 +67,23 @@ void glTexture::update(unsigned xoff, unsigned yoff, unsigned width, unsigned he
 	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
+void glTexture::resize(unsigned int width, unsigned int height)
+{
+	// skip if it's already the target size
+	if (width == m_width && height == m_height)
+	{
+		return;
+	}
+
+	m_width = width;
+	m_height = height;
+
+	glBindTexture(GL_TEXTURE_2D, m_id);
+	glTexImage2D(GL_TEXTURE_2D, 0, format_to_glenum(m_format), m_width, m_height, 0, format_to_glenum(m_format), type_to_glenum(m_type), 0);
+	glGenerateMipmap(GL_TEXTURE_2D);
+	glBindTexture(GL_TEXTURE_2D, 0);
+}
+
 Format glTexture::getFormat() const
 {
 	return m_format;

@@ -65,7 +65,7 @@ out vec4 FragColor;
 
 void main()
 {
-	FragColor = (color*texture2D(texture, uv));
+	FragColor = color*texture2D(texture, uv);
 }
 )";
 
@@ -332,14 +332,14 @@ void Renderer2D::drawSprite(const Sprite & sprite)
 	gdevGet()->drawArrays(TOPOLOGY_TRIANGLE_LIST, 0, 6);
 }
 
-void Renderer2D::drawTexture(const glm::vec2& position, const glm::vec2& size, glTexture* texture)
+void Renderer2D::drawTexture(const glm::vec2& position, const glm::vec2& size, glTexture* texture, const glm::vec4& color)
 {
 	glm::mat4 model = translate({ position, 0 }) * scale({ size / 2.0f, 1 });
 	// Bind shader.
 	sprite_shader->bind();
 	sprite_shader->setMat4("projection", projection);
 	sprite_shader->setMat4("model", model);
-	sprite_shader->setVec4("color", { 1, 1, 1, 1 });
+	sprite_shader->setVec4("color", color);
 	// Texture.
 	sprite_shader->setInt("texture", 0);
 	texture->bind(0);

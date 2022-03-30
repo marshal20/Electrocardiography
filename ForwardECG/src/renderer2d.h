@@ -55,5 +55,5 @@ public:
 	static void drawCircle(const glm::vec2& p, float r);
 	static void drawEllipse(const glm::vec2& p, float rx, float ry);
 	static void drawSprite(const Sprite& sprite);
-	static void drawTexture(const glm::vec2& position, const glm::vec2& size, glTexture* texture);
+	static void drawTexture(const glm::vec2& position, const glm::vec2& size, glTexture* texture, const glm::vec4& color = { 1, 1, 1, 1 });
 };

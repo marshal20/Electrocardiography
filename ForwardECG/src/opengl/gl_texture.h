@@ -10,6 +10,7 @@ public:
 	~glTexture();
 
 	void update(unsigned xoff, unsigned yoff, unsigned width, unsigned height, Format format, Type type, const void* data);
+	void resize(unsigned int width, unsigned int height);
 
 	Format getFormat() const;
 	Type getType() const;
