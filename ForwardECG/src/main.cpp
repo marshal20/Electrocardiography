@@ -375,7 +375,7 @@ public:
 
 		// initialize parameters
 		t = 0;
-		dipole_pos = { 0.07, 0.5, 0.1 };
+		dipole_pos = { 0.07, 0.4, 0.1 };
 		dipole_vec = { 1, 0, 0 };
 		conductivity = 1;
 		sigma_p = 0;
@@ -387,6 +387,10 @@ public:
 		color_n = { 0, 0, 1, 1 };
 		color_p = { 1, 0, 0, 1 };
 		color_probes = { 0, 0.25, 0, 1 };
+
+		// heart mesh plot
+		heart_mesh = load_mesh_plot("models/heart_model.fbx");
+
 		
 		// mesh plot renderer
 		mpr = new MeshPlotRenderer;
@@ -700,6 +704,10 @@ private:
 		// set alpha mode
 		gldev->setAlpha(Alpha{ true, Alpha::SRC_ALPHA, Alpha::ONE_MINUS_SRC_ALPHA });
 
+
+		// render heart mesh plot
+		mpr->set_view_projection_matrix(camera.calculateViewProjection());
+		mpr->render_mesh_plot(translate(eigen2glm(dipole_pos)), heart_mesh);
 
 		// render torso to torso_fb
 		torso_fb->bind();
@@ -1568,11 +1576,12 @@ private:
 	glGraphicsDevice* gldev;
 	std::string torso_model_path;
 	MeshPlot* torso = NULL;
+	MeshPlot* heart_mesh = NULL;
 	unsigned int N;
 	AxisRenderer* axis_renderer;
 	MeshPlotRenderer* mpr;
 	glFrameBuffer* torso_fb;
-	float torso_opacity = 1;
+	float torso_opacity = 0.5;
 	glm::vec4 color_background = { 0.1, 0.05, 0.1, 1 };
 	glm::vec4 color_n, color_p;
 	glm::vec4 color_probes;
