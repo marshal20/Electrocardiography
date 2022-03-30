@@ -160,7 +160,7 @@ static bool import_probes(const std::string& file_name, std::vector<Probe>& prob
 	for (int i = 0; i < probes_count; i++)
 	{
 		fread(&serialized_probe, sizeof(serialized_probe), 1, file);
-		new_probes.push_back({ serialized_probe.tri, {serialized_probe.px, serialized_probe.py, serialized_probe.pz}, serialized_probe.name });
+		new_probes.push_back({ {{0, 0, 0}, {0, 0, 0}}, serialized_probe.tri, {serialized_probe.px, serialized_probe.py, serialized_probe.pz}, serialized_probe.name });
 	}
 
 	// assign imported probes
@@ -705,9 +705,12 @@ private:
 		gldev->setAlpha(Alpha{ true, Alpha::SRC_ALPHA, Alpha::ONE_MINUS_SRC_ALPHA });
 
 
+		// set mesh plot ambient
+		mpr->set_ambient(mesh_plot_ambient);
+
 		// render heart mesh plot
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		mpr->render_mesh_plot(translate(eigen2glm(dipole_pos)), heart_mesh);
+		mpr->render_mesh_plot(translate(eigen2glm(dipole_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
 
 		// render torso to torso_fb
 		torso_fb->bind();
@@ -1064,12 +1067,14 @@ private:
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Text("Rendering Options");
 		ImGui::SliderFloat("Dipole Vector Thickness", &dipole_vector_thickness, 1, 20);
+		ImGui::SliderFloat("Heart Render Scale", &heart_render_scale, 0.1, 5);
 		if (ImGui::Checkbox("Rotate Camera", &camera_rotate))
 		{
 			camera_eye_radius = glm::length(camera.eye-camera.look_at);
 		}
 		ImGui::SliderFloat("Rotation Speed (Hz)", &camera_rotation_speed, -2, 2);
 		ImGui::SliderFloat("Torso Opacity", &torso_opacity, 0, 1);
+		ImGui::SliderFloat("Mesh Plot Ambient", &mesh_plot_ambient, 0, 1);
 		ImGui::ColorEdit4("Background Color", (float*)&color_background);
 		ImGui::ColorEdit4("Negative Color", (float*)&color_n);
 		ImGui::ColorEdit4("Positive Color", (float*)&color_p);
@@ -1582,6 +1587,8 @@ private:
 	MeshPlotRenderer* mpr;
 	glFrameBuffer* torso_fb;
 	float torso_opacity = 0.5;
+	float mesh_plot_ambient = 0.6;
+	float heart_render_scale = 1;
 	glm::vec4 color_background = { 0.1, 0.05, 0.1, 1 };
 	glm::vec4 color_n, color_p;
 	glm::vec4 color_probes;

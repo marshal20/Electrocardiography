@@ -27,7 +27,7 @@ static glm::mat4 perspective(float fov, float aspect, float near, float far)
 		0,        s, 0,  0,
 		0,        0, v1, v2,
 		0,        0, -1, 0
-	});
+	}); 
 }
 
 glm::mat4 OrthographicCamera::calculateViewProjection() const

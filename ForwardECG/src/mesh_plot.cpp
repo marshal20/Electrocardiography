@@ -157,21 +157,25 @@ uniform mat4 projection;
 uniform mat4 model;
 
 layout (location = 0) out float value_out;
+layout (location = 1) out vec3 normal_out;
 
 void main()
 {
 	value_out = value;
 	gl_Position = projection*model*vec4(pos, 1.0); // w = 1 for points, w = 0 for vectors.
+	normal_out = (projection*model*vec4(normal, 0)).xyz;
 }
 )";
 static const char* plot_frag = R"(
 #version 330 core
 layout (location = 0) in float value;
+layout (location = 1) in vec3 normal;
 
 uniform vec4 color_n;
 uniform vec4 color_p;
 uniform float mix_color_hsv; // 0 = RGB, 1 = HSV
 uniform float max_val;
+uniform float ambient;
 
 out vec4 FragColor;
 
@@ -200,6 +204,10 @@ void main()
 	vec3 color_hsv = hsv2rgb(mix(rgb2hsv(color_n.xyz), rgb2hsv(color_p.xyz), mix_percentage));
 	
 	vec3 color = (1-mix_color_hsv)*color_rgb + mix_color_hsv*color_hsv;
+
+	float brightness = ambient + (1-ambient)*max(dot(normal, vec3(0, 0, -1)), 0.0);
+	color = color * brightness;
+
 	FragColor = vec4(color, mix(color_n.a, color_p.a, mix_percentage));
 }
 )";
@@ -246,6 +254,11 @@ void MeshPlotRenderer::set_max_val(float max_val)
 	m_max_val = max_val;
 }
 
+void MeshPlotRenderer::set_ambient(float ambient)
+{
+	m_ambient = ambient;
+}
+
 void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh_plot)
 {
 	// check for vertex and index buffer
@@ -262,6 +275,7 @@ void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* me
 	m_plot_shader->setVec4("color_p", m_color_p);
 	m_plot_shader->setFloat("mix_color_hsv", m_color_mix_type == MIX_RGB ? 0 : 1);
 	m_plot_shader->setFloat("max_val", m_max_val);
+	m_plot_shader->setFloat("ambient", m_ambient);
 
 	// Drawing.
 	mesh_plot->vertex_buffer->bind();

@@ -1,6 +1,21 @@
 #pragma once
 #include <glm/glm.hpp>
 
+
+// Coordinates system:
+// Z+ forward, Y+ up
+//                  
+//      ^           
+//    Y |           
+//      |           
+//      |           
+//      +------->   
+//     /       X    
+//    /             
+//   Z              
+//                  
+//                  
+
 class Camera
 {
 public:

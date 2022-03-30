@@ -58,6 +58,7 @@ public:
 	void set_colors(const glm::vec4& color_p, const glm::vec4& color_n);
 	void set_color_mix_type(const ColorMixType& color_mix_type);
 	void set_max_val(float max_val);
+	void set_ambient(float ambient);
 	void render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh);
 
 private:
@@ -67,5 +68,6 @@ private:
 	glm::vec4 m_color_p, m_color_n;
 	ColorMixType m_color_mix_type;
 	float m_max_val;
+	float m_ambient;
 };
 
