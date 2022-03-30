@@ -317,6 +317,13 @@ static std::string request_type_to_string(const RequestType req_type)
 }
 
 
+enum ValuesSource
+{
+	VALUES_SOURCE_CONSTANT = 1,
+	VALUES_SOURCE_BEZIER_CURVE = 2,
+	VALUES_SOURCE_VALUES_LIST = 3
+};
+
 class ForwardECGApp
 {
 public:
@@ -443,14 +450,13 @@ public:
 				camera.eye = camera.look_at + glm::vec3(camera_eye_radius*sin(camera_angle), 0, camera_eye_radius*cos(camera_angle));
 			}
 
-
-			// update dipoles_values size
-			sample_count = dipole_curve.total_duration()/dt + 1;
-			probes_values.resize(probes.size(), sample_count);
-
-			// animate dipole vector
-			if (use_dipole_curve)
+			// animate dipole vector on the curve
+			if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE)
 			{
+				// update dipoles_values size
+				sample_count = dipole_curve.total_duration()/dt + 1;
+				probes_values.resize(probes.size(), sample_count);
+
 				for (int step = 0; step < steps_per_frame; step++)
 				{
 					// next sample
@@ -478,7 +484,43 @@ public:
 					}
 				}
 			}
-			else
+			else if (dipole_vec_source == VALUES_SOURCE_VALUES_LIST)
+			{
+				probes_values.resize(probes.size(), dipole_vec_values_list.size());
+
+				if (dipole_vec_values_list.size() > 0)
+				{
+					dipole_vec_values_list_counter++;
+					if (dipole_vec_values_list_counter > dipole_vec_values_list_change_rate)
+					{
+						dipole_vec_values_list_current++;
+						dipole_vec_values_list_counter = 0;
+					}
+					dipole_vec_values_list_current = dipole_vec_values_list_current % dipole_vec_values_list.size();
+
+					dipole_vec = dipole_vec_values_list[dipole_vec_values_list_current];
+				}
+				else
+				{
+					dipole_vec = { 0, 0, 0 };
+				}
+
+				calculate_potentials();
+
+				// calculate probes values at time point
+				for (int i = 0; i < probes.size(); i++)
+				{
+					Real probe_value = evaluate_probe(*torso, probes[i]);
+					probes_values(i, dipole_vec_values_list_current) = probe_value;
+				}
+
+				// clear probes graph
+				if (probes_graph_clear_at_t0 && dipole_vec_values_list_current == 0)
+				{
+					probes_values.setZero();
+				}
+			}
+			else if (dipole_vec_source == VALUES_SOURCE_CONSTANT)
 			{
 				calculate_potentials();
 			}
@@ -658,14 +700,13 @@ private:
 		mpr->render_mesh_plot(glm::mat4(1), torso);
 
 		// render dipole
-		const Real dipole_vector_scale = 0.5;
 		gldev->depthTest(STATE_DISABLED); // disable depth testing
 		Renderer3D::setStyle(Renderer3D::Style(true, dipole_vector_thickness, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
 		Renderer3D::setProjection(camera.calculateViewProjection());
 		Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec*dipole_vector_scale));
 
 		// render dipole locus
-		if (use_dipole_curve && render_dipole_curve)
+		if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE && render_dipole_curve)
 		{
 			dipole_locus.resize(sample_count);
 			for (int i = 0; i < sample_count; i++)
@@ -677,7 +718,7 @@ private:
 		}
 
 		// render bezier curve handles (if render_dipole_curve_lines is true)
-		if (use_dipole_curve && render_dipole_curve && render_dipole_curve_lines)
+		if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE && render_dipole_curve && render_dipole_curve_lines)
 		{
 			Renderer3D::setStyle(Renderer3D::Style(true, 1, { 0.7, 0.7, 0.7, 1 }, false, { 0.75, 0, 0 ,1 }));
 			for (int i = 0; i < dipole_curve.segments_duratoins.size(); i++)
@@ -689,6 +730,33 @@ private:
 				Renderer3D::drawLine(eigen2glm(dipole_pos+dipole_curve.points[i*3+2]*dipole_vector_scale),
 					eigen2glm(dipole_pos+dipole_curve.points[i*3+3]*dipole_vector_scale));
 			}
+		}
+
+		// render dipole vector values list
+		if (dipole_vec_source == VALUES_SOURCE_VALUES_LIST && render_dipole_vec_values_point)
+		{
+			for (int i = 0; i < dipole_vec_values_list.size(); i++)
+			{
+				Renderer3D::drawPoint(eigen2glm(dipole_pos+dipole_vec_values_list[i]*dipole_vector_scale), { 0, 0, 0, 1 }, 4);
+			}
+		}
+		if (dipole_vec_source == VALUES_SOURCE_VALUES_LIST && render_dipole_vec_values_vectors)
+		{
+			Renderer3D::setStyle(Renderer3D::Style(true, 1, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
+			for (int i = 0; i < dipole_vec_values_list.size(); i++)
+			{
+				Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec_values_list[i]*dipole_vector_scale));
+			}
+		}
+		if (dipole_vec_source == VALUES_SOURCE_VALUES_LIST && render_dipole_vec_values_locus && dipole_vec_values_list.size() > 1)
+		{
+			dipole_locus.resize(dipole_vec_values_list.size());
+			for (int i = 0; i < dipole_vec_values_list.size(); i++)
+			{
+				dipole_locus[i] = eigen2glm(dipole_pos + dipole_vec_values_list[i]*dipole_vector_scale);
+			}
+			Renderer3D::setStyle(Renderer3D::Style(true, 1, { 1, 1, 1, 1 }, false, { 0.75, 0, 0 ,1 }));
+			Renderer3D::drawPolygon(&dipole_locus[0], dipole_locus.size(), false);
 		}
 
 		// render probes
@@ -810,11 +878,13 @@ private:
 
 		// dipole curve
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Dipole Vector Curve");
-		ImGui::Checkbox("Use curve for dipole vector", &use_dipole_curve);
-		ImGui::Text("Time: %.4f s", t);
-		if (use_dipole_curve)
+		int im_dipole_vec_source = (int)dipole_vec_source - 1;
+		ImGui::Combo("Dipole Vector Values Source", (int*)&im_dipole_vec_source, "Constant Value\0Bezier Curve\0Values List\0", 3);
+		dipole_vec_source = (ValuesSource)clamp_value<int>(im_dipole_vec_source+1, 1, 3);
+		if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE)
 		{
+			ImGui::Text("Time: %.4f s", t);
+
 			// dt
 			float im_dt = dt;
 			ImGui::InputFloat("time step", &im_dt, 0.001, 0.01, "%.5f");
@@ -926,7 +996,44 @@ private:
 				}
 			}
 		}
+		// dipole vector values list
+		if (dipole_vec_source == VALUES_SOURCE_VALUES_LIST)
+		{
+			ImGui::SliderInt("Change rate (frames)", &dipole_vec_values_list_change_rate, 1, 100);
+			ImGui::Text("Counter: %d", dipole_vec_values_list_counter);
+			ImGui::Text("Current dipole vector (%d) value: (%.3f, %.3f, %.3f)", dipole_vec_values_list_current, dipole_vec.x(), dipole_vec.y(), dipole_vec.z());
 
+			if (ImGui::ListBoxHeader("dipole vector values list", { 0, 200 }))
+			{
+				// values
+				glm::vec3 im_dipole_vec_value;
+				float im_curve_duration;
+				for (int i = 0; i < dipole_vec_values_list.size(); i++)
+				{
+					// vector value
+					im_dipole_vec_value = eigen2glm(dipole_vec_values_list[i]);
+					std::string point_name = "vec" + std::to_string(i);
+					ImGui::DragFloat3(point_name.c_str(), (float*)&im_dipole_vec_value, 0.01f);
+					dipole_vec_values_list[i] = glm2eigen(im_dipole_vec_value);
+				}
+
+				ImGui::ListBoxFooter();
+			}
+
+			// add and remove value
+			if (ImGui::Button("Add value"))
+			{
+				dipole_vec_values_list.push_back({ 0, 0, 0 });
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Remove value"))
+			{
+				if (dipole_vec_values_list.size() > 0)
+				{
+					dipole_vec_values_list.erase(dipole_vec_values_list.begin() + dipole_vec_values_list.size() - 1);
+				}
+			}
+		}
 
 		// rendering options
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -941,13 +1048,20 @@ private:
 		ImGui::ColorEdit4("Negative Color", (float*)&color_n);
 		ImGui::ColorEdit4("Positive Color", (float*)&color_p);
 		ImGui::ColorEdit4("Probe Color", (float*)&color_probes);
-		if (use_dipole_curve)
+		ImGui::SliderFloat("Dipole Vector Rendering Scale", &dipole_vector_scale, 0.1, 2);
+		if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE)
 		{
 			ImGui::Checkbox("Render Dipole Curve", &render_dipole_curve);
 			if (render_dipole_curve)
 			{
 				ImGui::Checkbox("Render Dipole Curve Lines", &render_dipole_curve_lines);
 			}
+		}
+		if (dipole_vec_source == VALUES_SOURCE_VALUES_LIST)
+		{
+			ImGui::Checkbox("Render Dipole Vector Values Points", &render_dipole_vec_values_point);
+			ImGui::Checkbox("Render Dipole Vector Values Vectors", &render_dipole_vec_values_vectors);
+			ImGui::Checkbox("Render Dipole Vector Values Locus", &render_dipole_vec_values_locus);
 		}
 
 		// probes
@@ -1161,14 +1275,14 @@ private:
 
 			// graphs
 			static std::vector<float> values;
-			values.resize(sample_count);
+			values.resize(probes_values.cols());
 			for (int i = 0; i < probes.size(); i++)
 			{
-				for (int j = 0; j < sample_count; j++)
+				for (int j = 0; j < probes_values.cols(); j++)
 				{
 					values[j] = probes_values(i, j);
 				}
-				ImGui::PlotLines(probes[i].name.c_str(), &values[0], sample_count, 0, NULL, FLT_MAX, FLT_MAX, {0, probes_graph_height});
+				ImGui::PlotLines(probes[i].name.c_str(), &values[0], probes_values.cols(), 0, NULL, FLT_MAX, FLT_MAX, {0, probes_graph_height});
 			}
 
 			ImGui::End();
@@ -1350,7 +1464,7 @@ private:
 				new_dipole_vec.y() = des.parse_double();
 				new_dipole_vec.z() = des.parse_double();
 				dipole_vec = new_dipole_vec;
-				use_dipole_curve = false;
+				dipole_vec_source = VALUES_SOURCE_CONSTANT;
 				ser.push_u8(1); // return true acknowledgement
 			}
 			else if (request_type == REQUEST_GET_PROBES_NAMES)
@@ -1455,8 +1569,9 @@ private:
 	MatrixX<Real> B;
 	MatrixX<Real> Q;
 
+	// dipole vector source
+	ValuesSource dipole_vec_source = VALUES_SOURCE_BEZIER_CURVE;
 	// dipole vector curve
-	bool use_dipole_curve = true;
 	BezierCurve dipole_curve = { {{0, 0, 0}, {-1, 0, 0}, {-1, -1, 0}, {1, -1, 0}}, {1} };
 	Real dt = 0.004; // time step
 	int steps_per_frame = 1;
@@ -1467,6 +1582,16 @@ private:
 	bool render_dipole_curve = true;
 	bool render_dipole_curve_lines = true;
 	float dipole_vector_thickness = 2;
+	// dipole vector values list
+	std::vector<Eigen::Vector3<Real>> dipole_vec_values_list;
+	int dipole_vec_values_list_current = 0;
+	int dipole_vec_values_list_counter = 0;
+	int dipole_vec_values_list_change_rate = 60;
+	bool render_dipole_vec_values_point = true;
+	bool render_dipole_vec_values_vectors = true;
+	bool render_dipole_vec_values_locus = true;
+	// rendering scale
+	float dipole_vector_scale = 0.5;
 
 	// probes
 	bool adding_probe = false;
