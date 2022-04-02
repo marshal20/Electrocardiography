@@ -21,6 +21,7 @@
 #include "axis_renderer.h"
 #include "imgui/imgui_impl_glfw.h"
 #include "imgui/imgui_impl_opengl3.h"
+#include "imgui/imgui_my_types.h"
 #include "geometry.h"
 #include "bezier_curve.h"
 #include "filedialog.h"
@@ -142,7 +143,7 @@ struct ProbeSerialized
 
 static bool import_probes(const std::string& file_name, std::vector<Probe>& probes)
 {
-	FILE* file = fopen(file_name.c_str(), "r");
+	FILE* file = fopen(file_name.c_str(), "rb");
 	if (!file)
 	{
 		return false;
@@ -160,7 +161,7 @@ static bool import_probes(const std::string& file_name, std::vector<Probe>& prob
 	for (int i = 0; i < probes_count; i++)
 	{
 		fread(&serialized_probe, sizeof(serialized_probe), 1, file);
-		new_probes.push_back({ {{0, 0, 0}, {0, 0, 0}}, serialized_probe.tri, {serialized_probe.px, serialized_probe.py, serialized_probe.pz}, serialized_probe.name });
+		new_probes.push_back({serialized_probe.tri, {serialized_probe.px, serialized_probe.py, serialized_probe.pz}, serialized_probe.name });
 	}
 
 	// assign imported probes
@@ -172,7 +173,7 @@ static bool import_probes(const std::string& file_name, std::vector<Probe>& prob
 
 static bool export_probes(const std::string& file_name, const std::vector<Probe>& probes)
 {
-	FILE* file = fopen(file_name.c_str(), "w");
+	FILE* file = fopen(file_name.c_str(), "wb");
 	if (!file)
 	{
 		return false;
@@ -206,7 +207,7 @@ struct PointSerialized
 
 static bool import_curve(const std::string& file_name, BezierCurve& curve)
 {
-	FILE* file = fopen(file_name.c_str(), "r");
+	FILE* file = fopen(file_name.c_str(), "rb");
 	if (!file)
 	{
 		return false;
@@ -247,7 +248,7 @@ static bool import_curve(const std::string& file_name, BezierCurve& curve)
 
 static bool export_curve(const std::string& file_name, const BezierCurve& curve)
 {
-	FILE* file = fopen(file_name.c_str(), "w");
+	FILE* file = fopen(file_name.c_str(), "wb");
 	if (!file)
 	{
 		return false;
@@ -377,9 +378,12 @@ public:
 		t = 0;
 		dipole_pos = { 0.07, 0.4, 0.1 };
 		dipole_vec = { 1, 0, 0 };
-		conductivity = 1;
-		sigma_p = 0;
-		sigma_n = conductivity;
+		air_conductivity = 0;
+		toso_conductivity = 1;
+		heart_conductivity = 1;
+
+		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
+		heart_mesh = load_mesh_plot("models/heart_model_2.fbx");
 
 		// torso mesh plot
 		torso = new MeshPlot();
@@ -387,11 +391,8 @@ public:
 		color_n = { 0, 0, 1, 1 };
 		color_p = { 1, 0, 0, 1 };
 		color_probes = { 0, 0.25, 0, 1 };
-
-		// heart mesh plot
-		heart_mesh = load_mesh_plot("models/heart_model.fbx");
-
 		
+
 		// mesh plot renderer
 		mpr = new MeshPlotRenderer;
 
@@ -446,13 +447,10 @@ public:
 			// input
 			handle_input();
 
-			// set values
-			sigma_p = 0;
-			sigma_n = conductivity;
-			// animate dipole vector
-			//t += 0.01;
-			//dipole_vec = { cos(-t), sin(-t), 0 };
-			//dipole_vec = 10*dipole_vec;
+
+			// set heart conductivity to be the same as torso conductivity
+			// TODO: Implement a fast solver (current solver O(n^3))
+			heart_conductivity = toso_conductivity;
 
 
 			// animate camera rotation
@@ -583,12 +581,24 @@ private:
 
 		torso = new_torso;
 
+		M = heart_mesh->vertices.size();
+		A_heart = MatrixX<Real>(M, M);
+		B_heart = MatrixX<Real>(M, 1);
+		Q_heart = MatrixX<Real>(M, 1);
+		IA_inv_heart = MatrixX<Real>(M, M);
+
 		// set matrices sizes
 		N = torso->vertices.size();
 		A = MatrixX<Real>(N, N);
 		B = MatrixX<Real>(N, 1);
 		Q = MatrixX<Real>(N, 1);
 		IA_inv = MatrixX<Real>(N, N);
+
+		// set conductivities inside and outside each boundary
+		torso_sigma_p = air_conductivity; // outside the torso
+		torso_sigma_n = toso_conductivity; // inside the torso
+		heart_sigma_p = toso_conductivity; // outside the heart
+		heart_sigma_n = heart_conductivity; // inside the heart
 
 		// calculate IA_inv
 		calculate_coefficients_matrix();
@@ -598,20 +608,20 @@ private:
 
 	void calculate_coefficients_matrix()
 	{
-		// conductivity inside and outside torso
-		sigma_p = 0;
-		sigma_n = conductivity;
-
 		// BEM solver (bounded conductor)
 		// Q = B - AQ
 		// (I+A)Q = B
 		A = MatrixX<Real>::Zero(N, N);
+		A_heart = MatrixX<Real>::Zero(M, M);
+
+		// Torso vertices
 		for (int i = 0; i < torso->vertices.size(); i++)
 		{
+			// vertex position
 			const MeshPlotVertex& vertex = torso->vertices[i];
 			Vector3<Real> r = glm2eigen(vertex.pos);
 
-			// A
+			// A: For torso faces
 			for (const MeshPlotFace& face : torso->faces)
 			{
 				Vector3<Real> a = glm2eigen(torso->vertices[face.idx[0]].pos);
@@ -622,7 +632,7 @@ private:
 
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
-				Real const_val = 1/(4*PI)*2*(sigma_n-sigma_p)/(sigma_n+sigma_p)*1/pow((r-center).norm(), 3) * (r-center).dot(face_normal)*area;
+				Real const_val = 1/(4*PI)*2*(torso_sigma_n-torso_sigma_p)/(torso_sigma_n+torso_sigma_p)*1/pow((r-center).norm(), 3) * (r-center).dot(face_normal)*area;
 
 				A(i, face.idx[0]) += const_val/3;
 				A(i, face.idx[1]) += const_val/3;
@@ -630,8 +640,34 @@ private:
 			}
 		}
 
+		// Heart vertices
+		for (int i = 0; i < heart_mesh->vertices.size(); i++)
+		{
+			// vertex position
+			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
+			Vector3<Real> r = glm2eigen(vertex.pos);
+
+			for (const MeshPlotFace& face : heart_mesh->faces)
+			{
+				Vector3<Real> a = glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
+				Vector3<Real> b = glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
+				Vector3<Real> c = glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
+				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
+				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
+
+				Real area = ((b-a).cross(c-a)).norm()/2;
+				Vector3<Real> center = (a+b+c)/3; // triangle center
+				Real const_val = 1/(4*PI)*2*(heart_sigma_n-heart_sigma_p)/(heart_sigma_n+heart_sigma_p)*1/pow((r-center).norm(), 3) * (r-center).dot(face_normal)*area;
+
+				A_heart(i, face.idx[0]) += const_val/3;
+				A_heart(i, face.idx[1]) += const_val/3;
+				A_heart(i, face.idx[2]) += const_val/3;
+			}
+		}
+
 		// (I+A)'
 		IA_inv = (MatrixX<Real>::Identity(N, N) + A).inverse();
+		IA_inv_heart = (MatrixX<Real>::Identity(M, M) + A_heart).inverse();
 	}
 
 	void calculate_potentials()
@@ -640,18 +676,32 @@ private:
 		// Q = B - AQ
 		// (I+A)Q = B
 		// (I+A) is constant for the same geometry
+		
+		// Torso vertices
 		for (int i = 0; i < torso->vertices.size(); i++)
 		{
 			const MeshPlotVertex& vertex = torso->vertices[i];
 			Vector3<Real> r = glm2eigen(vertex.pos);
 
 			// B
-			Real Q_inf = 1/(4*PI*conductivity) * 1/pow((r-dipole_pos).norm(), 3) * (r-dipole_pos).dot(dipole_vec);
-			B(i) = 2*conductivity/(sigma_n+sigma_p)*Q_inf;
+			Real Q_inf = 1/(4*PI*toso_conductivity) * 1/pow((r-dipole_pos).norm(), 3) * (r-dipole_pos).dot(dipole_vec);
+			B(i) = 2*toso_conductivity/(torso_sigma_n+torso_sigma_p)*Q_inf;
+		}
+
+		// Heart vertices
+		for (int i = 0; i < heart_mesh->vertices.size(); i++)
+		{
+			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
+			Vector3<Real> r = glm2eigen(vertex.pos);
+
+			// B
+			Real Q_inf = 1/(4*PI*heart_conductivity) * 1/pow((r).norm(), 3) * (r).dot(dipole_vec); // ATTENTION: TAKE CARE OF THE DIFFERENCE
+			B_heart(i) = 2*heart_conductivity/(heart_sigma_n+heart_sigma_p)*Q_inf;
 		}
 
 		// calculate potentials
 		Q = IA_inv * B;
+		Q_heart = IA_inv_heart * B_heart;
 		
 		//// debug
 		//if (Input::isKeyDown(GLFW_KEY_I))
@@ -669,13 +719,25 @@ private:
 			torso->vertices[i].value = Q(i);
 		}
 
+		// update torso potentials
+		for (int i = 0; i < heart_mesh->vertices.size(); i++)
+		{
+			heart_mesh->vertices[i].value = Q_heart(i);
+		}
+
 		// apply reference probe (to potentials in toso model only not Q)
 		if (reference_probe != -1)
 		{
 			Real reference_value = evaluate_probe(*torso, probes[reference_probe]);
+			// Torso
 			for (int i = 0; i < torso->vertices.size(); i++)
 			{
 				torso->vertices[i].value -= reference_value;
+			}
+			// Heart
+			for (int i = 0; i < heart_mesh->vertices.size(); i++)
+			{
+				heart_mesh->vertices[i].value -= reference_value;
 			}
 		}
 	}
@@ -695,6 +757,19 @@ private:
 		torso->update_gpu_buffers();
 
 
+		// calculate maximum value
+		Real max_abs_heart = 1e-6;
+		for (MeshPlotVertex& vertex : heart_mesh->vertices)
+		{
+			max_abs_heart = rmax(rabs(vertex.value), max_abs_heart);
+		}
+
+		printf("max_abs_heart: %f                \r", max_abs_heart);
+
+		// update torso potential values at GPU
+		heart_mesh->update_gpu_buffers();
+
+
 		// clear buffers
 		gldev->clearColorBuffer(color_background.r, color_background.g, color_background.b, color_background.a);
 		gldev->depthTest(STATE_ENABLED);
@@ -710,6 +785,7 @@ private:
 
 		// render heart mesh plot
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
+		mpr->set_max_val(max_abs_heart);
 		mpr->render_mesh_plot(translate(eigen2glm(dipole_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
 
 		// render torso to torso_fb
@@ -849,9 +925,9 @@ private:
 			}
 		}
 		// torso conductivity
-		float im_conductivity = conductivity;
-		ImGui::InputFloat("Torso Conductivity", &im_conductivity, 0.01, 10);
-		conductivity = im_conductivity;
+		ImGui::InputReal("Air Conductivity", &air_conductivity, 0.01, 10);
+		ImGui::InputReal("Torso Conductivity", &toso_conductivity, 0.01, 10);
+		ImGui::InputReal("Heart Conductivity", &heart_conductivity, 0.01, 10);
 		// recalculate coefficients matrix
 		if (ImGui::Button("Recalculate Coefficients Matrix"))
 		{
@@ -897,12 +973,8 @@ private:
 		// dipole position and vector
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Text("Dipole");
-		glm::vec3 im_dipole_pos = eigen2glm(dipole_pos);
-		glm::vec3 im_dipole_vec = eigen2glm(dipole_vec);
-		ImGui::DragFloat3("Dipole position", (float*)&im_dipole_pos, 0.01f);
-		ImGui::DragFloat3("Dipole Vector", (float*)&im_dipole_vec, 0.01f);
-		dipole_pos = glm2eigen(im_dipole_pos);
-		dipole_vec = glm2eigen(im_dipole_vec);
+		ImGui::DragVector3Eigen("Dipole position", dipole_pos, 0.01f);
+		ImGui::DragVector3Eigen("Dipole Vector", dipole_vec, 0.01f);
 
 		// dipole curve
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -914,9 +986,8 @@ private:
 			ImGui::Text("Time: %.4f s", t);
 
 			// dt
-			float im_dt = dt;
-			ImGui::InputFloat("time step", &im_dt, 0.001, 0.01, "%.5f");
-			dt = clamp_value<float>(im_dt, 0.00001, 5);
+			ImGui::InputReal("time step", &dt, 0.001, 0.01, "%.5f");
+			dt = clamp_value<Real>(dt, 0.00001, 5);
 
 			// steps per frame
 			ImGui::SliderInt("steps per frame", &steps_per_frame, 0, 100);
@@ -924,24 +995,18 @@ private:
 			if (ImGui::ListBoxHeader("dipole curve", { 0, 200 }))
 			{
 				// curve points
-				glm::vec3 im_curve_point_pos;
-				float im_curve_duration;
 				for (int i = 0; i < dipole_curve.points.size(); i++)
 				{
 					// point position
-					im_curve_point_pos = eigen2glm(dipole_curve.points[i]);
 					std::string point_name = "p" + std::to_string(i);
-					ImGui::DragFloat3(point_name.c_str(), (float*)&im_curve_point_pos, 0.01f);
-					dipole_curve.points[i] = glm2eigen(im_curve_point_pos);
+					ImGui::DragVector3Eigen(point_name.c_str(), dipole_curve.points[i], 0.01f);
 					// segment duration
 					if (i != 0 && i%3 == 0)
 					{
 						int segment_idx = i/3-1;
-						im_curve_duration = dipole_curve.segments_duratoins[segment_idx];
 						ImGui::SameLine();
 						std::string duration_name = "d" + std::to_string(segment_idx);
-						ImGui::InputFloat(duration_name.c_str(), &im_curve_duration);
-						dipole_curve.segments_duratoins[segment_idx] = im_curve_duration;
+						ImGui::InputReal(duration_name.c_str(), &dipole_curve.segments_duratoins[segment_idx]);
 					}
 					// tangent point mirror
 					if (i != 0 && i != 1 && i%3 != 0)
@@ -1034,15 +1099,11 @@ private:
 			if (ImGui::ListBoxHeader("dipole vector values list", { 0, 200 }))
 			{
 				// values
-				glm::vec3 im_dipole_vec_value;
-				float im_curve_duration;
 				for (int i = 0; i < dipole_vec_values_list.size(); i++)
 				{
 					// vector value
-					im_dipole_vec_value = eigen2glm(dipole_vec_values_list[i]);
 					std::string point_name = "vec" + std::to_string(i);
-					ImGui::DragFloat3(point_name.c_str(), (float*)&im_dipole_vec_value, 0.01f);
-					dipole_vec_values_list[i] = glm2eigen(im_dipole_vec_value);
+					ImGui::DragVector3Eigen(point_name.c_str(), dipole_vec_values_list[i], 0.01f);
 				}
 
 				ImGui::ListBoxFooter();
@@ -1582,7 +1643,8 @@ private:
 	std::string torso_model_path;
 	MeshPlot* torso = NULL;
 	MeshPlot* heart_mesh = NULL;
-	unsigned int N;
+	unsigned int N; // torso vertex count
+	unsigned int M; // heart vertex count
 	AxisRenderer* axis_renderer;
 	MeshPlotRenderer* mpr;
 	glFrameBuffer* torso_fb;
@@ -1594,9 +1656,13 @@ private:
 	glm::vec4 color_probes;
 	LookAtCamera camera;
 
-	Real conductivity;
-	Real sigma_p;
-	Real sigma_n;
+	Real air_conductivity;
+	Real toso_conductivity;
+	Real heart_conductivity;
+	Real torso_sigma_p;
+	Real torso_sigma_n;
+	Real heart_sigma_p;
+	Real heart_sigma_n;
 	Vector3<Real> dipole_pos;
 	Vector3<Real> dipole_vec;
 	Real t;
@@ -1604,6 +1670,10 @@ private:
 	MatrixX<Real> IA_inv;
 	MatrixX<Real> B;
 	MatrixX<Real> Q;
+	MatrixX<Real> A_heart;
+	MatrixX<Real> IA_inv_heart;
+	MatrixX<Real> B_heart;
+	MatrixX<Real> Q_heart;
 
 	// dipole vector source
 	ValuesSource dipole_vec_source = VALUES_SOURCE_BEZIER_CURVE;
@@ -1623,8 +1693,8 @@ private:
 	int dipole_vec_values_list_current = 0;
 	int dipole_vec_values_list_counter = 0;
 	int dipole_vec_values_list_change_rate = 60;
-	bool render_dipole_vec_values_point = true;
-	bool render_dipole_vec_values_vectors = true;
+	bool render_dipole_vec_values_point = false;
+	bool render_dipole_vec_values_vectors = false;
 	bool render_dipole_vec_values_locus = true;
 	// rendering scale
 	float dipole_vector_scale = 0.5;
