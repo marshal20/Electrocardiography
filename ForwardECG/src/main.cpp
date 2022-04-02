@@ -376,11 +376,12 @@ public:
 
 		// initialize parameters
 		t = 0;
+		heart_pos = { 0.07, 0.4, 0.1 };
 		dipole_pos = { 0.07, 0.4, 0.1 };
 		dipole_vec = { 1, 0, 0 };
 		air_conductivity = 0;
 		toso_conductivity = 1;
-		heart_conductivity = 1;
+		heart_conductivity = 10;
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
 		heart_mesh = load_mesh_plot("models/heart_model_2.fbx");
@@ -446,11 +447,6 @@ public:
 
 			// input
 			handle_input();
-
-
-			// set heart conductivity to be the same as torso conductivity
-			// TODO: Implement a fast solver (current solver O(n^3))
-			heart_conductivity = toso_conductivity;
 
 
 			// animate camera rotation
@@ -582,17 +578,16 @@ private:
 		torso = new_torso;
 
 		M = heart_mesh->vertices.size();
-		A_heart = MatrixX<Real>(M, M);
-		B_heart = MatrixX<Real>(M, 1);
-		Q_heart = MatrixX<Real>(M, 1);
-		IA_inv_heart = MatrixX<Real>(M, M);
 
 		// set matrices sizes
 		N = torso->vertices.size();
-		A = MatrixX<Real>(N, N);
-		B = MatrixX<Real>(N, 1);
-		Q = MatrixX<Real>(N, 1);
-		IA_inv = MatrixX<Real>(N, N);
+		A = MatrixX<Real>(N+M, N+M);
+		B = MatrixX<Real>(N+M, 1);
+		Q = MatrixX<Real>(N+M, 1);
+		IA_inv = MatrixX<Real>(N+M, N+M);
+
+		// DEBUG
+		printf("Loading torso model: Vertex count: Troso: %d vertex  \tHeart: %d vertex\n", N, M);
 
 		// set conductivities inside and outside each boundary
 		torso_sigma_p = air_conductivity; // outside the torso
@@ -611,8 +606,7 @@ private:
 		// BEM solver (bounded conductor)
 		// Q = B - AQ
 		// (I+A)Q = B
-		A = MatrixX<Real>::Zero(N, N);
-		A_heart = MatrixX<Real>::Zero(M, M);
+		A = MatrixX<Real>::Zero(N+M, N+M);
 
 		// Torso vertices
 		for (int i = 0; i < torso->vertices.size(); i++)
@@ -638,20 +632,13 @@ private:
 				A(i, face.idx[1]) += const_val/3;
 				A(i, face.idx[2]) += const_val/3;
 			}
-		}
 
-		// Heart vertices
-		for (int i = 0; i < heart_mesh->vertices.size(); i++)
-		{
-			// vertex position
-			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
-			Vector3<Real> r = glm2eigen(vertex.pos);
-
+			// A: For heart faces
 			for (const MeshPlotFace& face : heart_mesh->faces)
 			{
-				Vector3<Real> a = glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
-				Vector3<Real> b = glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
-				Vector3<Real> c = glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
+				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
+				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
+				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
 				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
 
@@ -659,15 +646,58 @@ private:
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Real const_val = 1/(4*PI)*2*(heart_sigma_n-heart_sigma_p)/(heart_sigma_n+heart_sigma_p)*1/pow((r-center).norm(), 3) * (r-center).dot(face_normal)*area;
 
-				A_heart(i, face.idx[0]) += const_val/3;
-				A_heart(i, face.idx[1]) += const_val/3;
-				A_heart(i, face.idx[2]) += const_val/3;
+				A(i, N+face.idx[0]) += const_val/3;
+				A(i, N+face.idx[1]) += const_val/3;
+				A(i, N+face.idx[2]) += const_val/3;
+			}
+		}
+
+		// Heart Vertices
+		for (int i = 0; i < heart_mesh->vertices.size(); i++)
+		{
+			// vertex position
+			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
+			Vector3<Real> r = heart_pos + glm2eigen(vertex.pos);
+
+			// A: For torso faces
+			for (const MeshPlotFace& face : torso->faces)
+			{
+				Vector3<Real> a = glm2eigen(torso->vertices[face.idx[0]].pos);
+				Vector3<Real> b = glm2eigen(torso->vertices[face.idx[1]].pos);
+				Vector3<Real> c = glm2eigen(torso->vertices[face.idx[2]].pos);
+				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
+				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
+
+				Real area = ((b-a).cross(c-a)).norm()/2;
+				Vector3<Real> center = (a+b+c)/3; // triangle center
+				Real const_val = 1/(4*PI)*2*(torso_sigma_n-torso_sigma_p)/(torso_sigma_n+torso_sigma_p)*1/pow((r-center).norm(), 3) * (r-center).dot(face_normal)*area;
+
+				A(N+i, face.idx[0]) += const_val/3;
+				A(N+i, face.idx[1]) += const_val/3;
+				A(N+i, face.idx[2]) += const_val/3;
+			}
+
+			// A: For heart faces
+			for (const MeshPlotFace& face : heart_mesh->faces)
+			{
+				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
+				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
+				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
+				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
+				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
+
+				Real area = ((b-a).cross(c-a)).norm()/2;
+				Vector3<Real> center = (a+b+c)/3; // triangle center
+				Real const_val = 1/(4*PI)*2*(heart_sigma_n-heart_sigma_p)/(heart_sigma_n+heart_sigma_p)*1/pow((r-center).norm(), 3) * (r-center).dot(face_normal)*area;
+
+				A(N+i, N+face.idx[0]) += const_val/3;
+				A(N+i, N+face.idx[1]) += const_val/3;
+				A(N+i, N+face.idx[2]) += const_val/3;
 			}
 		}
 
 		// (I+A)'
-		IA_inv = (MatrixX<Real>::Identity(N, N) + A).inverse();
-		IA_inv_heart = (MatrixX<Real>::Identity(M, M) + A_heart).inverse();
+		IA_inv = (MatrixX<Real>::Identity(N+M, N+M) + A).inverse();
 	}
 
 	void calculate_potentials()
@@ -692,16 +722,15 @@ private:
 		for (int i = 0; i < heart_mesh->vertices.size(); i++)
 		{
 			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
-			Vector3<Real> r = glm2eigen(vertex.pos);
+			Vector3<Real> r = heart_pos + glm2eigen(vertex.pos);
 
 			// B
-			Real Q_inf = 1/(4*PI*heart_conductivity) * 1/pow((r).norm(), 3) * (r).dot(dipole_vec); // ATTENTION: TAKE CARE OF THE DIFFERENCE
-			B_heart(i) = 2*heart_conductivity/(heart_sigma_n+heart_sigma_p)*Q_inf;
+			Real Q_inf = 1/(4*PI*heart_conductivity) * 1/pow((r-dipole_pos).norm(), 3) * (r-dipole_pos).dot(dipole_vec); // ATTENTION: TAKE CARE OF THE DIFFERENCE
+			B(N+i) = 2*heart_conductivity/(heart_sigma_n+heart_sigma_p)*Q_inf;
 		}
 
 		// calculate potentials
 		Q = IA_inv * B;
-		Q_heart = IA_inv_heart * B_heart;
 		
 		//// debug
 		//if (Input::isKeyDown(GLFW_KEY_I))
@@ -722,7 +751,7 @@ private:
 		// update torso potentials
 		for (int i = 0; i < heart_mesh->vertices.size(); i++)
 		{
-			heart_mesh->vertices[i].value = Q_heart(i);
+			heart_mesh->vertices[i].value = Q(N+i);
 		}
 
 		// apply reference probe (to potentials in toso model only not Q)
@@ -745,13 +774,11 @@ private:
 	void render()
 	{
 		// calculate maximum value
-		Real max_abs = 1e-6;
+		Real max_abs_torso = 1e-6;
 		for (MeshPlotVertex& vertex : torso->vertices)
 		{
-			max_abs = rmax(rabs(vertex.value), max_abs);
+			max_abs_torso = rmax(rabs(vertex.value), max_abs_torso);
 		}
-		//// debug
-		//printf("max_abs : %f\n", max_abs);
 
 		// update torso potential values at GPU
 		torso->update_gpu_buffers();
@@ -763,8 +790,6 @@ private:
 		{
 			max_abs_heart = rmax(rabs(vertex.value), max_abs_heart);
 		}
-
-		printf("max_abs_heart: %f                \r", max_abs_heart);
 
 		// update torso potential values at GPU
 		heart_mesh->update_gpu_buffers();
@@ -786,7 +811,7 @@ private:
 		// render heart mesh plot
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
 		mpr->set_max_val(max_abs_heart);
-		mpr->render_mesh_plot(translate(eigen2glm(dipole_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
+		mpr->render_mesh_plot(translate(eigen2glm(heart_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
 
 		// render torso to torso_fb
 		torso_fb->bind();
@@ -795,7 +820,7 @@ private:
 		const Real alpha = 1;
 		mpr->set_colors(color_p, color_n);
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		mpr->set_max_val(max_abs);
+		mpr->set_max_val(max_abs_torso);
 		mpr->render_mesh_plot(glm::mat4(1), torso);
 		torso_fb->unbind();
 		gldev->bindBackbuffer();
@@ -924,7 +949,8 @@ private:
 				}
 			}
 		}
-		// torso conductivity
+		ImGui::DragVector3Eigen("Heart position", heart_pos, 0.01f);
+		// conductivities
 		ImGui::InputReal("Air Conductivity", &air_conductivity, 0.01, 10);
 		ImGui::InputReal("Torso Conductivity", &toso_conductivity, 0.01, 10);
 		ImGui::InputReal("Heart Conductivity", &heart_conductivity, 0.01, 10);
@@ -1340,15 +1366,25 @@ private:
 
 		// stats
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		Real max_val = -INFINITY;
-		Real min_val = INFINITY;
+		Real torso_max_val = -INFINITY;
+		Real torso_min_val = INFINITY;
 		for (MeshPlotVertex& vertex : torso->vertices)
 		{
-			max_val = rmax(vertex.value, max_val);
-			min_val = rmin(vertex.value, min_val);
+			torso_max_val = rmax(vertex.value, torso_max_val);
+			torso_min_val = rmin(vertex.value, torso_min_val);
+		}
+		Real heart_max_val = -INFINITY;
+		Real heart_min_val = INFINITY;
+		for (MeshPlotVertex& vertex : heart_mesh->vertices)
+		{
+			heart_max_val = rmax(vertex.value, heart_max_val);
+			heart_min_val = rmin(vertex.value, heart_min_val);
 		}
 		ImGui::Text("Stats:");
-		ImGui::Text("\tMin: %.3f, Max: %.3f", min_val, max_val);
+		ImGui::Text("\tTorso Potential Max: %.3f", torso_max_val);
+		ImGui::Text("\tTorso Potential Min: %.3f", torso_min_val);
+		ImGui::Text("\tHeart Potential Max: %.3f", heart_max_val);
+		ImGui::Text("\tHeart Potential Min: %.3f", heart_min_val);
 
 		// frame rate and frame time
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -1663,6 +1699,7 @@ private:
 	Real torso_sigma_n;
 	Real heart_sigma_p;
 	Real heart_sigma_n;
+	Vector3<Real> heart_pos;
 	Vector3<Real> dipole_pos;
 	Vector3<Real> dipole_vec;
 	Real t;
@@ -1670,10 +1707,10 @@ private:
 	MatrixX<Real> IA_inv;
 	MatrixX<Real> B;
 	MatrixX<Real> Q;
-	MatrixX<Real> A_heart;
-	MatrixX<Real> IA_inv_heart;
-	MatrixX<Real> B_heart;
-	MatrixX<Real> Q_heart;
+	//MatrixX<Real> A_heart;
+	//MatrixX<Real> IA_inv_heart;
+	//MatrixX<Real> B_heart;
+	//MatrixX<Real> Q_heart;
 
 	// dipole vector source
 	ValuesSource dipole_vec_source = VALUES_SOURCE_BEZIER_CURVE;
