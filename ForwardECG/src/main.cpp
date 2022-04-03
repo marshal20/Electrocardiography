@@ -296,6 +296,7 @@ enum RequestType
 	REQUEST_GET_PROBES_NAMES = 3,
 	REQUEST_CALCULATE_VALUES_FOR_VECTOR = 4,
 	REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS = 5,
+	REQUEST_SET_DIPOLE_VECTOR_VALUES = 6,
 };
 
 static std::string request_type_to_string(const RequestType req_type)
@@ -312,6 +313,8 @@ static std::string request_type_to_string(const RequestType req_type)
 		return "REQUEST_CALCULATE_VALUES_FOR_VECTOR";
 	case REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS:
 		return "REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS";
+	case REQUEST_SET_DIPOLE_VECTOR_VALUES:
+		return "REQUEST_SET_DIPOLE_VECTOR_VALUES";
 	default:
 		return "UNKNOWN";
 	}
@@ -1649,6 +1652,24 @@ private:
 					}
 				}
 				printf("Generated %u random vector values in %.3f ms\n", random_samples_count, 1000*generating_timer.elapsed_seconds());
+			}
+			else if (request_type == REQUEST_SET_DIPOLE_VECTOR_VALUES)
+			{
+				uint32_t values_count = des.parse_u32();
+
+				dipole_vec_values_list.clear();
+
+				for (uint32_t i = 0; i < values_count; i++)
+				{
+					Eigen::Vector3<Real> new_value;
+					new_value.x() = des.parse_double();
+					new_value.y() = des.parse_double();
+					new_value.z() = des.parse_double();
+					dipole_vec_values_list.push_back(new_value);
+				}
+				
+				dipole_vec_source = VALUES_SOURCE_VALUES_LIST;
+				ser.push_u8(1); // return true acknowledgement
 			}
 			else
 			{
