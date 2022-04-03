@@ -48,6 +48,13 @@ for vec in test_vectors:
 # pause
 input("Press enter to continue...")
 
+# test set_dipole_vector_values
+print("Test set_dipole_vector_values")
+c.set_dipole_vector_values(test_vectors)
+
+# pause
+input("Press enter to continue...")
+
 # test calculate_values_for_random_vectors (10000 samples)
 print("Test calculate_values_for_random_vectors (10000 samples)")
 print(c.calculate_values_for_random_vectors(10000))

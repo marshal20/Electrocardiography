@@ -162,3 +162,28 @@ class Client:
         
         return values
 
+    def set_dipole_vector_values(self, vec_values):
+        # vec_values: n rows, 3 columns
+        
+        # form request
+        ser = serializer.Serializer()
+        ser.push_u32(6) # request REQUEST_SET_DIPOLE_VECTOR_VALUES
+        
+        # size of vectors (n)
+        ser.push_u32(len(vec_values))
+        # dipole vector values
+        for vec in vec_values:
+            ser.push_double(vec[0])
+            ser.push_double(vec[1])
+            ser.push_double(vec[2])
+        
+        response_bytes = self.send_request(ser.get_data())
+        
+        # handle response
+        des = serializer.Deserializer(response_bytes)
+        
+        # check for acknowledgement byte (1)
+        if des.parse_u8() != 1:
+            print("Warning: set_dipole_vector request no acknowledgement")
+    
+    
