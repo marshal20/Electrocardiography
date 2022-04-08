@@ -44,13 +44,16 @@ for vec in test_vectors:
     print(c.calculate_values_for_vector(vec[0], vec[1], vec[2]))
     c.set_dipole_vector(vec[0], vec[1], vec[2])
     sleep(1)
+print("")
 
 # pause
 input("Press enter to continue...")
 
 # test set_dipole_vector_values
 print("Test set_dipole_vector_values")
+test_vectors = test_vectors*2000
 c.set_dipole_vector_values(test_vectors)
+print("")
 
 # pause
 input("Press enter to continue...")

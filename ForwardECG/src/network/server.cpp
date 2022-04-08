@@ -1,4 +1,5 @@
 #include "server.h"
+#include "sockimpl.h"
 #include <functional>
 
 
@@ -113,9 +114,14 @@ void Server::server_thread_routine()
 
 		// handle request
 
+		// read request size
+		uint32_t request_size = 0;
+		new_sock.recv((char*)&request_size, sizeof(uint32_t));
+		request_size = ntohl(request_size);
+
 		// read request
 		int read_size = 0;
-		std::vector<uint8_t> request_bytes(8192, 0);
+		std::vector<uint8_t> request_bytes(request_size, 0);
 		read_size = new_sock.recv((char*)&request_bytes[0], request_bytes.size());
 		request_bytes.resize(read_size);
 

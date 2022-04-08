@@ -26,10 +26,12 @@ class Client:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((self.server_addr, self.server_port))
             
+            # send request size
+            s.send(len(request_bytes).to_bytes(4, 'big', signed=False));
             # send request
             s.sendall(request_bytes);
             
-            # receive response
+            # receive response (until connection is closed)
             data = socket_recvall(s)
             
             # close socket
