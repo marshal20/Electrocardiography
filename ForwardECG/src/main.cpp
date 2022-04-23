@@ -580,14 +580,15 @@ private:
 
 		torso = new_torso;
 
+		// vertices count
+		N = torso->vertices.size();
 		M = heart_mesh->vertices.size();
 
 		// set matrices sizes
-		N = torso->vertices.size();
-		A = MatrixX<Real>(N+M, N+M);
-		B = MatrixX<Real>(N+M, 1);
-		Q = MatrixX<Real>(N+M, 1);
-		IA_inv = MatrixX<Real>(N+M, N+M);
+		A = MatrixX<Real>(M, M);
+		B = MatrixX<Real>(M, 1);
+		Q = MatrixX<Real>(M, 1);
+		IA_inv = MatrixX<Real>(M, M);
 
 		// DEBUG
 		printf("Loading torso model: Vertex count: Troso: %d vertex  \tHeart: %d vertex\n", N, M);
@@ -599,13 +600,53 @@ private:
 		heart_sigma_n = heart_conductivity; // inside the heart
 
 		// calculate IA_inv
-		calculate_coefficients_matrix();
+		Timer t;
+		t.start();
+		calculate_transfer_matrix();
+		printf("Calculated transfer matrix in: %.3f seconds\n", t.elapsed_seconds());
+
 
 		return true;
 	}
 
-	void calculate_coefficients_matrix()
+	void calculate_transfer_matrix()
 	{
+		// BEM solver (bounded conductor) for the heart and dipole
+		// Q = B - AQ
+		// (I+A)Q = B
+		A = MatrixX<Real>::Zero(M, M);
+
+		// Heart Vertices
+		for (int i = 0; i < heart_mesh->vertices.size(); i++)
+		{
+			// vertex position
+			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
+			Vector3<Real> r = heart_pos + glm2eigen(vertex.pos);
+
+			// A: For heart faces
+			for (const MeshPlotFace& face : heart_mesh->faces)
+			{
+				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
+				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
+				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
+				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
+				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
+
+				Real area = ((b-a).cross(c-a)).norm()/2;
+				Vector3<Real> center = (a+b+c)/3; // triangle center
+				Real const_val = 1/(4*PI)*2*(heart_sigma_n-heart_sigma_p)/(heart_sigma_n+heart_sigma_p)*1/pow((r-center).norm(), 3) * (r-center).dot(face_normal)*area;
+
+				A(i, face.idx[0]) += const_val/3;
+				A(i, face.idx[1]) += const_val/3;
+				A(i, face.idx[2]) += const_val/3;
+			}
+		}
+
+		// (I+A)'
+		IA_inv = (MatrixX<Real>::Identity(M, M) + A).inverse();
+
+
+
 		// BEM solver (bounded conductor with defined TMP distribution)
 
 		// Matrices derived from potentials at the torso
@@ -792,6 +833,7 @@ private:
 		}
 
 
+		/*
 		// DEBUG
 		auto print_matrix_info = [](const char* name, const MatrixX<Real>& mat)
 		{
@@ -817,6 +859,7 @@ private:
 		//printf("PHB: %d x %d\n", PHB.rows(), PHB.cols());
 		//printf("PHH: %d x %d\n", PHH.rows(), PHH.cols());
 		//printf("GHH: %d x %d\n", GHH.rows(), GHH.cols());
+		*/
 
 		// ZBH (NxM) : heart potentials to torso potentials transfer matrix
 		// ZBH = (PBB - GBH*GHH^-1*PHB)^-1 * (GBH*GHH^-1*PHH - PBH)
@@ -841,20 +884,28 @@ private:
 
 	void calculate_potentials()
 	{
-		// TEMPORARY heart potentials based on dipole vector
-		QH = MatrixX<Real>(M, 1);
+		// heart potentials (TMP) calculation based on dipole vector
 		// Heart vertices
 		for (int i = 0; i < heart_mesh->vertices.size(); i++)
 		{
 			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
-			Vector3<Real> r = glm2eigen(vertex.pos);
+			Vector3<Real> r = heart_pos + glm2eigen(vertex.pos);
 
 			// B
-			QH(i) = 1/(4*PI*heart_conductivity) * 1/pow((r).norm(), 3) * (r).dot(dipole_vec); // ATTENTION: TAKE CARE OF THE DIFFERENCE
+			Real Q_inf = 1/(4*PI*heart_conductivity) * 1/pow((r-dipole_pos).norm(), 3) * (r-dipole_pos).dot(dipole_vec); // ATTENTION: TAKE CARE OF THE DIFFERENCE
+			B(i) = 2*heart_conductivity/(heart_sigma_n+heart_sigma_p)*Q_inf;
 		}
 
+		// calculate potentials
+		Q = IA_inv * B;
+
+		QH = Q;
+
+
+		// TMP forward ecg
 		// Q_B = ZBH * Q_H
 		QB = ZBH * QH;
+
 
 		//// debug
 		//if (Input::isKeyDown(GLFW_KEY_I))
@@ -1084,7 +1135,7 @@ private:
 		// recalculate coefficients matrix
 		if (ImGui::Button("Recalculate Coefficients Matrix"))
 		{
-			calculate_coefficients_matrix();
+			calculate_transfer_matrix();
 		}
 
 		// server
