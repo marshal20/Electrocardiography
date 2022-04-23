@@ -899,6 +899,19 @@ private:
 		// calculate potentials
 		Q = IA_inv * B;
 
+		// zero heart right section (x < 0)
+		if (zero_heart_right_section)
+		{
+			for (int i = 0; i < heart_mesh->vertices.size(); i++)
+			{
+				const MeshPlotVertex& vertex = heart_mesh->vertices[i];
+				if (vertex.pos.x < 0)
+				{
+					Q(i) = 0;
+				}
+			}
+		}
+
 		QH = Q;
 
 
@@ -1179,6 +1192,7 @@ private:
 		ImGui::Text("Dipole");
 		ImGui::DragVector3Eigen("Dipole position", dipole_pos, 0.01f);
 		ImGui::DragVector3Eigen("Dipole Vector", dipole_vec, 0.01f);
+		ImGui::Checkbox("Zero right heart section", &zero_heart_right_section);
 
 		// dipole curve
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -1900,6 +1914,7 @@ private:
 	Vector3<Real> dipole_pos;
 	Vector3<Real> dipole_vec;
 	Real t;
+	bool zero_heart_right_section = false;
 	MatrixX<Real> A;
 	MatrixX<Real> IA_inv;
 	MatrixX<Real> B;
