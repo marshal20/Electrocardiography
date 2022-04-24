@@ -1099,7 +1099,9 @@ private:
 		}
 
 		// render axis
+		gldev->depthTest(STATE_ENABLED); // enable depth testing
 		axis_renderer->render(camera);
+		gldev->depthTest(STATE_DISABLED); // disable depth testing
 		Renderer2D::setProjection(ortho(0, width, height, 0, -1, 1));
 		Renderer2D::drawTexture({ width-50, height-50 }, { 80, 80 }, axis_renderer->get_texture());
 	
