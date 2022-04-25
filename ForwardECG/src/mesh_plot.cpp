@@ -115,6 +115,34 @@ void MeshPlot::update_gpu_buffers()
 	}
 }
 
+static void fix_mesh_plot_normals(MeshPlot* mesh)
+{
+	// zero all normals
+	for (MeshPlotVertex& v : mesh->vertices)
+	{
+		v.normal = { 0, 0, 0 };
+	}
+
+	// recalculate normals for each face
+	for (const MeshPlotFace& face : mesh->faces)
+	{
+		glm::vec3 a = mesh->vertices[face.idx[0]].pos;
+		glm::vec3 b = mesh->vertices[face.idx[1]].pos;
+		glm::vec3 c = mesh->vertices[face.idx[2]].pos;
+		glm::vec3 face_normal = glm::normalize(glm::cross((b-a), (c-a)));
+
+		mesh->vertices[face.idx[0]].normal += face_normal;
+		mesh->vertices[face.idx[1]].normal += face_normal;
+		mesh->vertices[face.idx[2]].normal += face_normal;
+	}
+
+	// normalize all normals
+	for (MeshPlotVertex& v : mesh->vertices)
+	{
+		v.normal = glm::normalize(v.normal);
+	}
+}
+
 MeshPlot* load_mesh_plot(const char* file_name)
 {
 	Assimp::Importer importer;
@@ -135,6 +163,9 @@ MeshPlot* load_mesh_plot(const char* file_name)
 	MeshPlot* mesh = new MeshPlot;
 
 	process_node(scene->mRootNode, scene, *mesh);
+
+	fix_mesh_plot_normals(mesh);
+
 	mesh->create_gpu_buffers();
 	mesh->update_gpu_buffers();
 
@@ -207,6 +238,9 @@ void main()
 
 	float brightness = ambient + (1-ambient)*max(dot(normal, vec3(0, 0, -1)), 0.0);
 	color = color * brightness;
+
+	// debug
+	//color = normal/2+0.5 + 0.01*color;
 
 	FragColor = vec4(color, mix(color_n.a, color_p.a, mix_percentage));
 }
