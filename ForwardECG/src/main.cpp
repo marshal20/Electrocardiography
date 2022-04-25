@@ -1625,22 +1625,47 @@ private:
 		up = right.cross(forward).normalized(); // recalculate the up vector
 
 		// handle camera control (mouse middle button)
-		if (Input::isButtonDown(GLFW_MOUSE_BUTTON_MIDDLE))
 		{
-			Vector2<Real> cursor_delta = { Input::getCursorXDelta(), -Input::getCursorYDelta() };
+			Vector2<Real> cursor_delta = { 0, 0 };
+			// middle mouse + movement
+			if (Input::isButtonDown(GLFW_MOUSE_BUTTON_MIDDLE))
+			{
+				cursor_delta = { Input::getCursorXDelta(), -Input::getCursorYDelta() };
+			}
 			const Real translation_scaler = glm2eigen(camera.eye-camera.look_at).norm()/width;// 0.01;
 			const Real rotation_scaler = translation_scaler*10;
+
+			// keyboard translation (shift + arrows)
+			const Real keyboard_cursor_speed = 10;
+			if (Input::isKeyDown(GLFW_KEY_LEFT))
+			{
+				cursor_delta.x() += keyboard_cursor_speed;
+			}
+			if (Input::isKeyDown(GLFW_KEY_RIGHT))
+			{
+				cursor_delta.x() -= keyboard_cursor_speed;
+			}
+			if (Input::isKeyDown(GLFW_KEY_DOWN))
+			{
+				cursor_delta.y() += keyboard_cursor_speed;
+			}
+			if (Input::isKeyDown(GLFW_KEY_UP))
+			{
+				cursor_delta.y() -= keyboard_cursor_speed;
+			}
 
 			if (Input::isKeyDown(GLFW_KEY_LEFT_SHIFT) || Input::isKeyDown(GLFW_KEY_RIGHT_SHIFT))
 			{
 				// camera translation (shift + middle mouse button)
 				Vector3<Real> translation = right*translation_scaler*cursor_delta.x() + up*translation_scaler*cursor_delta.y();
+				
+				// apply translation
 				camera.look_at += -eigen2glm(translation);
 				camera.eye += -eigen2glm(translation);
 			}
 			else
 			{
-				// camera rotation (middle mouse button)
+				// apply rotation
 				Vector3<Real> new_location_rel = glm2eigen(camera.eye-camera.look_at) - right*rotation_scaler*cursor_delta.x() - up*rotation_scaler*cursor_delta.y();
 				new_location_rel = new_location_rel.normalized() * glm2eigen(camera.eye-camera.look_at).norm();
 				camera.eye = camera.look_at + eigen2glm(new_location_rel);
@@ -1650,16 +1675,26 @@ private:
 		
 		const Real zoom_scaler = 0.05;
 		const Real roll_scaler = 0.05;
+		// mouse scroll wheel
 		Real scroll_delta = Input::getScrollDelta();
+		// keyboard rotation (- + +)
+		if (Input::isKeyDown(GLFW_KEY_KP_SUBTRACT))
+		{
+			scroll_delta -= 0.1;
+		}
+		if (Input::isKeyDown(GLFW_KEY_KP_ADD))
+		{
+			scroll_delta += 0.1;
+		}
+		// camera roll (ctrl + scroll wheel) or (ctrl + +/-)
 		if (Input::isKeyDown(GLFW_KEY_LEFT_CONTROL) || Input::isKeyDown(GLFW_KEY_RIGHT_CONTROL))
 		{
-			// camera roll (ctrl + scroll wheel)
 			Vector3<Real> new_up = (up + right*scroll_delta*roll_scaler).normalized();
 			up = new_up;
 		}
+		// camera zoom (shift + scroll wheel) or (shift + +/-)
 		if (Input::isKeyDown(GLFW_KEY_LEFT_SHIFT) || Input::isKeyDown(GLFW_KEY_RIGHT_SHIFT))
 		{
-			// camera zoom (Shift + scroll wheel)
 			camera.eye = eigen2glm(glm2eigen(camera.look_at) + (1-scroll_delta*zoom_scaler)*glm2eigen(camera.eye-camera.look_at));
 		}
 
