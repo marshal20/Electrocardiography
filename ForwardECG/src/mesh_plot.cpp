@@ -205,8 +205,10 @@ layout (location = 1) in vec3 normal;
 uniform vec4 color_n;
 uniform vec4 color_p;
 uniform float mix_color_hsv; // 0 = RGB, 1 = HSV
+uniform float min_val;
 uniform float max_val;
 uniform float ambient;
+uniform float specular;
 
 out vec4 FragColor;
 
@@ -230,13 +232,14 @@ vec3 hsv2rgb(vec3 c)
 
 void main()
 {
-	float mix_percentage = (value/max_val+1)/2;
+	float value_normalized = (value-min_val)/(max_val-min_val);
+	float mix_percentage = value_normalized;
 	vec3 color_rgb = mix(color_n.xyz, color_p.xyz, mix_percentage);
 	vec3 color_hsv = hsv2rgb(mix(rgb2hsv(color_n.xyz), rgb2hsv(color_p.xyz), mix_percentage));
 	
 	vec3 color = (1-mix_color_hsv)*color_rgb + mix_color_hsv*color_hsv;
 
-	float brightness = ambient + (1-ambient)*max(dot(normal, vec3(0, 0, -1)), 0.0);
+	float brightness = ambient + (1-ambient)*max(pow(dot(normal, vec3(0, 0, -1)), specular), 0.0);
 	color = color * brightness;
 
 	// debug
@@ -258,7 +261,10 @@ MeshPlotRenderer::MeshPlotRenderer()
 	m_color_mix_type = MIX_HSV;
 	m_color_n = glm::vec4(0, 0, 1, 1);
 	m_color_p = glm::vec4(1, 0, 0, 1);
+	m_min_val = -1;
 	m_max_val = 1;
+	m_ambient = 0.8;
+	m_specular = 5;
 }
 
 MeshPlotRenderer::~MeshPlotRenderer()
@@ -283,14 +289,20 @@ void MeshPlotRenderer::set_color_mix_type(const ColorMixType& color_mix_type)
 	m_color_mix_type = color_mix_type;
 }
 
-void MeshPlotRenderer::set_max_val(float max_val)
+void MeshPlotRenderer::set_values_range(float min_value, float max_value)
 {
-	m_max_val = max_val;
+	m_min_val = min_value;
+	m_max_val = max_value;
 }
 
 void MeshPlotRenderer::set_ambient(float ambient)
 {
 	m_ambient = ambient;
+}
+
+void MeshPlotRenderer::set_specular(float specular)
+{
+	m_specular = specular;
 }
 
 void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh_plot)
@@ -308,8 +320,10 @@ void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* me
 	m_plot_shader->setVec4("color_n", m_color_n);
 	m_plot_shader->setVec4("color_p", m_color_p);
 	m_plot_shader->setFloat("mix_color_hsv", m_color_mix_type == MIX_RGB ? 0 : 1);
+	m_plot_shader->setFloat("min_val", m_min_val);
 	m_plot_shader->setFloat("max_val", m_max_val);
 	m_plot_shader->setFloat("ambient", m_ambient);
+	m_plot_shader->setFloat("specular", m_specular);
 
 	// Drawing.
 	mesh_plot->vertex_buffer->bind();

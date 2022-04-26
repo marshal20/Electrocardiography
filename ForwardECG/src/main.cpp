@@ -391,7 +391,7 @@ public:
 
 		// torso mesh plot
 		torso = new MeshPlot();
-		load_torso_model("models/torso_model_3.fbx");
+		load_torso_model("models/torso_model_fixed.fbx");
 		color_n = { 0, 0, 1, 1 };
 		color_p = { 1, 0, 0, 1 };
 		color_probes = { 0, 0.25, 0, 1 };
@@ -997,10 +997,11 @@ private:
 
 		// set mesh plot ambient
 		mpr->set_ambient(mesh_plot_ambient);
+		mpr->set_specular(mesh_plot_specular);
 
 		// render heart mesh plot
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		mpr->set_max_val(max_abs_heart);
+		mpr->set_values_range(-max_abs_heart, max_abs_heart);
 		mpr->render_mesh_plot(translate(eigen2glm(heart_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
 
 		// render torso to torso_fb
@@ -1010,7 +1011,7 @@ private:
 		const Real alpha = 1;
 		mpr->set_colors(color_p, color_n);
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		mpr->set_max_val(max_abs_torso);
+		mpr->set_values_range(-max_abs_torso, max_abs_torso);
 		mpr->render_mesh_plot(glm::mat4(1), torso);
 		torso_fb->unbind();
 		gldev->bindBackbuffer();
@@ -1356,6 +1357,7 @@ private:
 		ImGui::SliderFloat("Rotation Speed (Hz)", &camera_rotation_speed, -2, 2);
 		ImGui::SliderFloat("Torso Opacity", &torso_opacity, 0, 1);
 		ImGui::SliderFloat("Mesh Plot Ambient", &mesh_plot_ambient, 0, 1);
+		ImGui::SliderFloat("Mesh Plot Specular", &mesh_plot_specular, 1, 10);
 		ImGui::ColorEdit4("Background Color", (float*)&color_background);
 		ImGui::ColorEdit4("Negative Color", (float*)&color_n);
 		ImGui::ColorEdit4("Positive Color", (float*)&color_p);
@@ -1933,6 +1935,7 @@ private:
 	glFrameBuffer* torso_fb;
 	float torso_opacity = 0.5;
 	float mesh_plot_ambient = 0.6;
+	float mesh_plot_specular = 2;
 	float heart_render_scale = 1;
 	glm::vec4 color_background = { 0.1, 0.05, 0.1, 1 };
 	glm::vec4 color_n, color_p;
