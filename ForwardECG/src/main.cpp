@@ -29,6 +29,7 @@
 #include "network/serializer.h"
 #include "timer.h"
 #include "random.h"
+#include "file_io.h"
 
 
 using namespace Eigen;
@@ -328,6 +329,118 @@ enum ValuesSource
 	VALUES_SOURCE_VALUES_LIST = 3
 };
 
+
+static Vector3<Real> calculate_triangle_normal(MeshPlot* mesh, int tri_idx)
+{
+	Vector3<Real> a = glm2eigen(mesh->vertices[mesh->faces[tri_idx].idx[0]].pos);
+	Vector3<Real> b = glm2eigen(mesh->vertices[mesh->faces[tri_idx].idx[1]].pos);
+	Vector3<Real> c = glm2eigen(mesh->vertices[mesh->faces[tri_idx].idx[2]].pos);
+	return (b-a).cross(c-a).normalized();
+}
+
+
+struct ActionPotentialParameters
+{
+	Real resting_potential;
+	Real peak_potential;
+	Real depolarization_time;
+	Real repolarization_time;
+};
+
+static Real action_potential_value(Real t, const ActionPotentialParameters& params)
+{
+	const Real depolarization_slope_duration = 0.035;
+	Real mixing_percentage = 1;
+
+	if (t < params.depolarization_time-depolarization_slope_duration*(params.repolarization_time-params.depolarization_time))
+	{
+		mixing_percentage = 1;
+	}
+	else if (t < params.depolarization_time)
+	{
+		mixing_percentage = (params.depolarization_time-t)/(depolarization_slope_duration*(params.repolarization_time-params.depolarization_time));
+	}
+	else if (params.depolarization_time <= t && t <= params.repolarization_time)
+	{
+		mixing_percentage = (exp(4*(t-params.depolarization_time)/(params.repolarization_time-params.depolarization_time)-2) - exp(-2))/(-exp(-2)+exp(2))*0.75;
+	}
+	else if (t > params.repolarization_time)
+	{
+		mixing_percentage = 1-0.25*exp(-(t-params.repolarization_time)*10/(params.repolarization_time-params.depolarization_time));
+	}
+
+	return params.peak_potential - (params.peak_potential-params.resting_potential)*mixing_percentage;
+}
+
+static bool import_parameters(const std::string& file_name, std::vector<ActionPotentialParameters>& params)
+{
+	size_t contents_size;
+	uint8_t* contents = file_read(file_name.c_str(), &contents_size);
+	if (!contents)
+	{
+		return false;
+	}
+
+	Deserializer des(contents, contents_size);
+
+	// parse
+
+	std::vector<ActionPotentialParameters> new_params;
+
+	// vertex count
+	uint32_t vertex_count = des.parse_u32();
+	if (vertex_count != params.size())
+	{
+		return false;
+	}
+	new_params.reserve(vertex_count);
+
+	for (uint32_t i = 0; i < vertex_count; i++)
+	{
+		ActionPotentialParameters param;
+		param.resting_potential = des.parse_double();
+		param.peak_potential = des.parse_double();
+		param.depolarization_time = des.parse_double();
+		param.repolarization_time = des.parse_double();
+		new_params.push_back(param);
+	}
+
+	// set parameters
+	params = new_params;
+
+	free(contents);
+	return true;
+}
+
+static bool export_parameters(const std::string& file_name, const std::vector<ActionPotentialParameters>& params)
+{
+	Serializer ser;
+
+	// write
+
+	// vertex count
+	ser.push_u32(params.size());
+
+	for (const ActionPotentialParameters& param : params)
+	{
+		ser.push_double(param.resting_potential);
+		ser.push_double(param.peak_potential);
+		ser.push_double(param.depolarization_time);
+		ser.push_double(param.repolarization_time);
+	}
+
+	return file_write(file_name.c_str(), ser.get_data());
+}
+
+enum DrawingMode
+{
+	//DRAW_ALL = 1,
+	DRAW_REST_POTENTIAL = 1,
+	DRAW_PEAK_POTENTIAL = 2,
+	DRAW_DEPOLARIZATION_TIME = 3,
+	DRAW_REPOLARIZATION_TIME = 4
+};
+
 class ForwardECGApp
 {
 public:
@@ -381,13 +494,14 @@ public:
 		t = 0;
 		heart_pos = { 0.07, 0.4, 0.1 };
 		dipole_pos = { 0.07, 0.4, 0.1 };
-		dipole_vec = { 1, 0, 0 };
+		dipole_vec = { 0, 0, 0 };
 		air_conductivity = 0;
 		toso_conductivity = 1;
 		heart_conductivity = 10;
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
 		heart_mesh = load_mesh_plot("models/heart_model_4.fbx");
+		heart_action_potential_params.resize(heart_mesh->vertices.size(), ActionPotentialParameters{-80e-3, 15e-3, 150e-3, 500e-3});
 
 		// torso mesh plot
 		torso = new MeshPlot();
@@ -534,6 +648,37 @@ public:
 				calculate_potentials();
 			}
 
+			// TMP action potential
+			// update dipoles_values size
+			sample_count = TMP_total_duration/TMP_t + 1;
+			probes_values.resize(probes.size(), sample_count);
+
+			for (int step = 0; step < TMP_steps_per_frame; step++)
+			{
+				// next sample
+				current_sample++;
+				current_sample = current_sample%sample_count;
+
+				// update dipole vector
+				t = current_sample*TMP_t;
+
+				// calculate
+				calculate_potentials();
+
+				// calculate probes values at time point
+				for (int i = 0; i < probes.size(); i++)
+				{
+					Real probe_value = evaluate_probe(*torso, probes[i]);
+					probes_values(i, current_sample) = probe_value;
+				}
+
+				// clear probes graph
+				if (probes_graph_clear_at_t0 && current_sample == 0)
+				{
+					probes_values.setZero();
+				}
+			}
+
 
 			// render
 			render();
@@ -589,6 +734,7 @@ private:
 		B = MatrixX<Real>(M, 1);
 		Q = MatrixX<Real>::Zero(M, 1);
 		IA_inv = MatrixX<Real>(M, M);
+		QH = MatrixX<Real>::Zero(M, 1);
 
 		// DEBUG
 		printf("Loading torso model: Vertex count: Troso: %d vertex  \tHeart: %d vertex\n", N, M);
@@ -900,7 +1046,6 @@ private:
 
 		// calculate potentials
 		Q = IA_inv * B;
-		*/
 
 		// zero heart right section (x < 0)
 		if (zero_heart_right_section)
@@ -916,6 +1061,14 @@ private:
 		}
 
 		QH = Q;
+		*/
+
+
+		// update heart TMP
+		for (int i = 0; i < heart_mesh->vertices.size(); i++)
+		{
+			QH(i) = action_potential_value(t, heart_action_potential_params[i]);
+		}
 
 
 		// TMP forward ecg
@@ -977,11 +1130,47 @@ private:
 		torso->update_gpu_buffers();
 
 
+		// view target channel
+		if (drawing_values_enabled && drawing_view_target_channel)
+		{
+			// set value
+			for (int i = 0; i < heart_mesh->vertices.size(); i++)
+			{
+				switch (drawing_values_mode)
+				{
+				case DRAW_REST_POTENTIAL:
+					heart_mesh->vertices[i].value = heart_action_potential_params[i].resting_potential;
+					break;
+				case DRAW_PEAK_POTENTIAL:
+					heart_mesh->vertices[i].value = heart_action_potential_params[i].peak_potential;
+					break;
+				case DRAW_DEPOLARIZATION_TIME:
+					heart_mesh->vertices[i].value = heart_action_potential_params[i].depolarization_time;
+					break;
+				case DRAW_REPOLARIZATION_TIME:
+					heart_mesh->vertices[i].value = heart_action_potential_params[i].repolarization_time;
+					break;
+				default:
+					break;
+				}
+			}
+		}
+
+
 		// calculate maximum value
 		Real max_abs_heart = 1e-6;
 		for (MeshPlotVertex& vertex : heart_mesh->vertices)
 		{
 			max_abs_heart = rmax(rabs(vertex.value), max_abs_heart);
+		}
+
+		// calculate heart maximum and minimum values
+		Real heart_potential_max = -1e12;
+		Real heart_potential_min = 1e12;
+		for (int i = 0; i < heart_mesh->vertices.size(); i++)
+		{
+			heart_potential_min = rmin(heart_potential_min, heart_action_potential_params[i].resting_potential);
+			heart_potential_max = rmax(heart_potential_max, heart_action_potential_params[i].peak_potential);
 		}
 
 		// update torso potential values at GPU
@@ -1004,7 +1193,7 @@ private:
 
 		// render heart mesh plot
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		mpr->set_values_range(-max_abs_heart, max_abs_heart);
+		mpr->set_values_range(heart_potential_min, heart_potential_max);
 		mpr->render_mesh_plot(translate(eigen2glm(heart_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
 
 		// render torso to torso_fb
@@ -1204,8 +1393,57 @@ private:
 		// drawing
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Checkbox("draw values enable", &drawing_values_enabled);
-		ImGui::InputReal("drawing radius", &drawing_values_radius);
-		ImGui::InputReal("value", &drawing_value);
+		ImGui::Checkbox("draw values blur", &drawing_values_blur);
+		ImGui::Checkbox("draw only vertices facing camera", &drawing_only_facing_camera);
+		int im_drawing_values_mode_select = (int)drawing_values_mode - 1;
+		ImGui::Combo("drawing target", (int*)&im_drawing_values_mode_select, "Rest Potential\0Peak Potential\0Depolarization Time\0Repolarization Time\0", 4);
+		drawing_values_mode = (DrawingMode)clamp_value<int>(im_drawing_values_mode_select+1, 1, 4);
+		ImGui::DragReal("drawing brush radius", &drawing_values_radius, 0.01, 0.001, 1);
+		ImGui::InputReal("drawing value", &drawing_value);
+		ImGui::Checkbox("view target channel", &drawing_view_target_channel);
+		if (ImGui::Button("Import parameters"))
+		{
+			// open file dialog
+			std::string file_name = open_file_dialog("action_potential_parameters", "All\0*.*\0");
+
+			// import
+			if (file_name != "")
+			{
+				if (import_parameters(file_name, heart_action_potential_params))
+				{
+					printf("Imported \"%s\" parameters\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to import \"%s\" parameters\n", file_name.c_str());
+				}
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Export parameters"))
+		{
+			// save file dialog
+			std::string file_name = save_file_dialog("action_potential_parameters", "All\0*.*\0");
+
+			// export
+			if (file_name != "")
+			{
+				if (export_parameters(file_name, heart_action_potential_params))
+				{
+					printf("Exported \"%s\" parameters\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to export \"%s\" parameters\n", file_name.c_str());
+				}
+			}
+		}
+
+		// dt
+		ImGui::InputReal("TMP Total Duration", &TMP_total_duration);
+		ImGui::InputReal("TMP Time step", &TMP_t, 0.001, 0.01, "%.5f");
+		TMP_t = clamp_value<Real>(TMP_t, 0.000001, 5);
+		ImGui::SliderInt("TMP steps per frame", &TMP_steps_per_frame, 0, 100);
 
 
 		// dipole position and vector
@@ -1644,54 +1882,56 @@ private:
 		Vector3<Real> right = forward.cross(up).normalized();
 		up = right.cross(forward).normalized(); // recalculate the up vector
 
-		// handle camera control (mouse middle button)
+
+		// cursor (mouse and keyboard arrows)
+		Vector2<Real> cursor_delta = { 0, 0 };
+		// middle mouse + movement
+		if (Input::isButtonDown(GLFW_MOUSE_BUTTON_MIDDLE))
 		{
-			Vector2<Real> cursor_delta = { 0, 0 };
-			// middle mouse + movement
-			if (Input::isButtonDown(GLFW_MOUSE_BUTTON_MIDDLE))
-			{
-				cursor_delta = { Input::getCursorXDelta(), -Input::getCursorYDelta() };
-			}
-			const Real translation_scaler = glm2eigen(camera.eye-camera.look_at).norm()/width;// 0.01;
-			const Real rotation_scaler = translation_scaler*10;
-
-			// keyboard translation (shift + arrows)
-			const Real keyboard_cursor_speed = 10;
-			if (Input::isKeyDown(GLFW_KEY_LEFT))
-			{
-				cursor_delta.x() += keyboard_cursor_speed;
-			}
-			if (Input::isKeyDown(GLFW_KEY_RIGHT))
-			{
-				cursor_delta.x() -= keyboard_cursor_speed;
-			}
-			if (Input::isKeyDown(GLFW_KEY_DOWN))
-			{
-				cursor_delta.y() += keyboard_cursor_speed;
-			}
-			if (Input::isKeyDown(GLFW_KEY_UP))
-			{
-				cursor_delta.y() -= keyboard_cursor_speed;
-			}
-
-			if (Input::isKeyDown(GLFW_KEY_LEFT_SHIFT) || Input::isKeyDown(GLFW_KEY_RIGHT_SHIFT))
-			{
-				// camera translation (shift + middle mouse button)
-				Vector3<Real> translation = right*translation_scaler*cursor_delta.x() + up*translation_scaler*cursor_delta.y();
-				
-				// apply translation
-				camera.look_at += -eigen2glm(translation);
-				camera.eye += -eigen2glm(translation);
-			}
-			else
-			{
-				// apply rotation
-				Vector3<Real> new_location_rel = glm2eigen(camera.eye-camera.look_at) - right*rotation_scaler*cursor_delta.x() - up*rotation_scaler*cursor_delta.y();
-				new_location_rel = new_location_rel.normalized() * glm2eigen(camera.eye-camera.look_at).norm();
-				camera.eye = camera.look_at + eigen2glm(new_location_rel);
-				//up = glm2eigen(camera.up);
-			}
+			cursor_delta = { Input::getCursorXDelta(), -Input::getCursorYDelta() };
 		}
+		const Real translation_scaler = glm2eigen(camera.eye-camera.look_at).norm()/width;// 0.01;
+		const Real rotation_scaler = translation_scaler*10;
+		// keyboard translation (shift + arrows)
+		const Real keyboard_cursor_speed = 10;
+		if (Input::isKeyDown(GLFW_KEY_LEFT))
+		{
+			cursor_delta.x() += keyboard_cursor_speed;
+		}
+		if (Input::isKeyDown(GLFW_KEY_RIGHT))
+		{
+			cursor_delta.x() -= keyboard_cursor_speed;
+		}
+		if (Input::isKeyDown(GLFW_KEY_DOWN))
+		{
+			cursor_delta.y() += keyboard_cursor_speed;
+		}
+		if (Input::isKeyDown(GLFW_KEY_UP))
+		{
+			cursor_delta.y() -= keyboard_cursor_speed;
+		}
+
+		// handle camera control (ctrl + mouse middle button)
+		if (Input::isKeyDown(GLFW_KEY_LEFT_CONTROL) || Input::isKeyDown(GLFW_KEY_RIGHT_CONTROL))
+		{
+			// apply rotation
+			Vector3<Real> new_location_rel = glm2eigen(camera.eye-camera.look_at) - right*rotation_scaler*cursor_delta.x() - up*rotation_scaler*cursor_delta.y();
+			new_location_rel = new_location_rel.normalized() * glm2eigen(camera.eye-camera.look_at).norm();
+			camera.eye = camera.look_at + eigen2glm(new_location_rel);
+			//up = glm2eigen(camera.up)
+		}
+
+		// translation
+		if (Input::isKeyDown(GLFW_KEY_LEFT_SHIFT) || Input::isKeyDown(GLFW_KEY_RIGHT_SHIFT))
+		{
+			// camera translation (shift + middle mouse button)
+			Vector3<Real> translation = right*translation_scaler*cursor_delta.x() + up*translation_scaler*cursor_delta.y();
+
+			// apply translation
+			camera.look_at += -eigen2glm(translation);
+			camera.eye += -eigen2glm(translation);
+		}
+
 		
 		const Real zoom_scaler = 0.05;
 		const Real roll_scaler = 0.05;
@@ -1833,11 +2073,91 @@ private:
 			// apply drawing value to mesh vertices
 			if (Input::isButtonDown(GLFW_MOUSE_BUTTON_LEFT))
 			{
+				// blur
+				std::vector<int> intersected_values;
 				for (int i = 0; i < heart_mesh->vertices.size(); i++)
 				{
 					if (perpendicular_distance(glm2eigen(camera.eye), glm2eigen(camera.eye)+direction, heart_pos+glm2eigen(heart_mesh->vertices[i].pos)) < drawing_values_radius)
 					{
-						Q(i) = drawing_value;
+						if (drawing_only_facing_camera && glm2eigen(heart_mesh->vertices[i].normal).dot(-forward) > 0)
+						{
+							intersected_values.push_back(i);
+						}
+						else if (!drawing_only_facing_camera)
+						{
+							intersected_values.push_back(i);
+						}
+					}
+				}
+				// blur or set
+				if (drawing_values_blur)
+				{
+					// calculate average value
+					Real average_value = 0;
+					for (int i = 0; i < intersected_values.size(); i++)
+					{
+						switch (drawing_values_mode)
+						{
+						case DRAW_REST_POTENTIAL:
+							average_value += heart_action_potential_params[intersected_values[i]].resting_potential;
+							break;
+						case DRAW_PEAK_POTENTIAL:
+							average_value += heart_action_potential_params[intersected_values[i]].peak_potential;
+							break;
+						case DRAW_DEPOLARIZATION_TIME:
+							average_value += heart_action_potential_params[intersected_values[i]].depolarization_time;
+							break;
+						case DRAW_REPOLARIZATION_TIME:
+							average_value += heart_action_potential_params[intersected_values[i]].repolarization_time;
+							break;
+						default:
+							break;
+						}
+					}
+					average_value /= (Real)intersected_values.size();
+
+					// apply the blur effect
+					for (int i = 0; i < intersected_values.size(); i++)
+					{
+						switch (drawing_values_mode)
+						{
+						case DRAW_REST_POTENTIAL:
+							heart_action_potential_params[intersected_values[i]].resting_potential = 0.99*heart_action_potential_params[intersected_values[i]].resting_potential + 0.01*average_value;
+							break;
+						case DRAW_PEAK_POTENTIAL:
+							heart_action_potential_params[intersected_values[i]].peak_potential = 0.99*heart_action_potential_params[intersected_values[i]].peak_potential + 0.01*average_value;
+							break;
+						case DRAW_DEPOLARIZATION_TIME:
+							heart_action_potential_params[intersected_values[i]].depolarization_time = 0.99*heart_action_potential_params[intersected_values[i]].depolarization_time + 0.01*average_value;
+							break;
+						case DRAW_REPOLARIZATION_TIME:
+							heart_action_potential_params[intersected_values[i]].repolarization_time = 0.99*heart_action_potential_params[intersected_values[i]].repolarization_time + 0.01*average_value;
+							break;
+						default:
+							break;
+						}
+					}
+				}
+				else
+				{
+					// set value
+					for (int i = 0; i < intersected_values.size(); i++)
+					{
+						switch (drawing_values_mode)
+						{
+						case DRAW_REST_POTENTIAL:
+							heart_action_potential_params[intersected_values[i]].resting_potential = drawing_value;
+							break;
+						case DRAW_PEAK_POTENTIAL:
+							heart_action_potential_params[intersected_values[i]].peak_potential = drawing_value;
+							break;
+						case DRAW_DEPOLARIZATION_TIME:
+							heart_action_potential_params[intersected_values[i]].depolarization_time = drawing_value;
+							break;
+						case DRAW_REPOLARIZATION_TIME:
+							heart_action_potential_params[intersected_values[i]].repolarization_time = drawing_value;
+							break;
+						}
 					}
 				}
 			}
@@ -2063,7 +2383,7 @@ private:
 	//MatrixX<Real> Q_heart;
 
 	// dipole vector source
-	ValuesSource dipole_vec_source = VALUES_SOURCE_BEZIER_CURVE;
+	ValuesSource dipole_vec_source = VALUES_SOURCE_CONSTANT;
 	// dipole vector curve
 	BezierCurve dipole_curve = { {{0, 0, 0}, {-1, 0, 0}, {-1, -1, 0}, {1, -1, 0}}, {1} };
 	Real dt = 0.004; // time step
@@ -2115,12 +2435,20 @@ private:
 	Real camera_angle = 0;
 	float camera_rotation_speed = 1; // RPS
 
-	// drawing
+	// action potential drawing
+	Real TMP_total_duration = 1;
+	Real TMP_t = 0.0001;
+	int TMP_steps_per_frame = 1;
+	std::vector<ActionPotentialParameters> heart_action_potential_params;
 	bool drawing_values_enabled = false;
+	bool drawing_values_blur = false;
+	bool drawing_only_facing_camera = true;
+	DrawingMode drawing_values_mode = DRAW_DEPOLARIZATION_TIME;
 	Real drawing_values_radius = 0.1;
 	Real drawing_value = 15e-3;
 	std::vector<glm::vec3> drawing_values_preview;
 	int drawing_values_points_count = 32;
+	bool drawing_view_target_channel = true;
 
 
 };
