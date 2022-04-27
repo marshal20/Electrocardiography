@@ -387,7 +387,7 @@ public:
 		heart_conductivity = 10;
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
-		heart_mesh = load_mesh_plot("models/heart_model_3.fbx");
+		heart_mesh = load_mesh_plot("models/heart_model_4.fbx");
 
 		// torso mesh plot
 		torso = new MeshPlot();
@@ -587,7 +587,7 @@ private:
 		// set matrices sizes
 		A = MatrixX<Real>(M, M);
 		B = MatrixX<Real>(M, 1);
-		Q = MatrixX<Real>(M, 1);
+		Q = MatrixX<Real>::Zero(M, 1);
 		IA_inv = MatrixX<Real>(M, M);
 
 		// DEBUG
@@ -884,6 +884,8 @@ private:
 
 	void calculate_potentials()
 	{
+		// TODO: DELETE
+		/*
 		// heart potentials (TMP) calculation based on dipole vector
 		// Heart vertices
 		for (int i = 0; i < heart_mesh->vertices.size(); i++)
@@ -898,6 +900,7 @@ private:
 
 		// calculate potentials
 		Q = IA_inv * B;
+		*/
 
 		// zero heart right section (x < 0)
 		if (zero_heart_right_section)
@@ -1099,6 +1102,14 @@ private:
 			Renderer3D::drawPoint(eigen2glm(adding_probe_intersection), { 0, 0, 0, 1 }, 4);
 		}
 
+		// render drawing preview
+		if (drawing_values_enabled && drawing_values_preview.size() >= 2)
+		{
+			Renderer3D::setStyle(Renderer3D::Style(true, 1, { 1, 1, 1, 1 }, true, { 0.75, 0, 0, 0.2 }));
+			drawing_values_preview.push_back(drawing_values_preview[0]);
+			Renderer3D::drawPolygon(&drawing_values_preview[0], drawing_values_preview.size(), false);
+		}
+
 		// render axis
 		gldev->depthTest(STATE_ENABLED); // enable depth testing
 		axis_renderer->render(camera);
@@ -1188,6 +1199,13 @@ private:
 				}
 			}
 		}
+
+
+		// drawing
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Checkbox("draw values enable", &drawing_values_enabled);
+		ImGui::InputReal("drawing radius", &drawing_values_radius);
+		ImGui::InputReal("value", &drawing_value);
 
 
 		// dipole position and vector
@@ -1729,16 +1747,14 @@ private:
 			Vector3<Real> up = glm2eigen(camera.up).normalized();
 			Vector3<Real> right = forward.cross(up).normalized();
 			// calculate the pointer direction
-			Vector3<Real> direction = forward;
-			direction = rodrigues_rotate(direction, up, -x*0.5*camera.fov*camera.aspect);
-			direction = rodrigues_rotate(direction, right, y*0.5*camera.fov);
+			Vector3<Real> direction = forward + up*tan(0.5*y*camera.fov) + right*tan(0.5*x*camera.aspect*camera.fov);
 			direction = direction.normalized();
 
 			Ray ray = { glm2eigen(camera.eye), direction };
 
 			Real t;
 			int tri_idx;
-			if (ray_mesh_intersect(*torso, ray, t, tri_idx))
+			if (ray_mesh_intersect(*torso, Vector3<Real>(0, 0, 0), ray, t, tri_idx))
 			{
 				if (Input::isButtonDown(GLFW_MOUSE_BUTTON_LEFT))
 				{
@@ -1747,6 +1763,83 @@ private:
 				}
 				adding_probe_intersected = true;
 				adding_probe_intersection = ray.point_at_dir(t);
+			}
+		}
+
+		// drawing
+		if (drawing_values_enabled)
+		{
+			// normalized screen coordinates
+			Real x = (Real)Input::getCursorXPos()/width*2 - 1;
+			Real y = -((Real)Input::getCursorYPos()/height*2 - 1);
+
+			// camera axis
+			Vector3<Real> forward = glm2eigen(camera.look_at-camera.eye).normalized();
+			Vector3<Real> up = glm2eigen(camera.up).normalized();
+			Vector3<Real> right = forward.cross(up).normalized();
+			// calculate the pointer direction
+			Vector3<Real> direction = forward + up*tan(0.5*y*camera.fov) + right*tan(0.5*x*camera.aspect*camera.fov);
+			direction = direction.normalized();
+
+			std::vector<Vector3<Real>> origin_points(drawing_values_points_count, Vector3<Real>(0, 0, 0));
+
+			// generate origin points
+			for (int i = 0; i < drawing_values_points_count; i++)
+			{
+				Real theta = ((Real)i/(Real)drawing_values_points_count)*2*PI;
+				origin_points[i] = glm2eigen(camera.eye) + drawing_values_radius*sin(theta)*up + drawing_values_radius*cos(theta)*right;
+			}
+
+			//// intersect preview
+			//drawing_values_preview.resize(drawing_values_points_count);
+			//for (int i = 0; i < drawing_values_points_count; i++)
+			//{
+			//	Vector3<Real> new_point = origin_points[i] + direction*10;
+			//	drawing_values_preview[i] = eigen2glm(new_point);
+			//}
+
+			// intersect preview
+			drawing_values_preview.resize(0);
+			Ray ray = { glm2eigen(camera.eye), direction };
+			// calculate average t
+			Real t_average = 0;
+			for (int i = 0; i < drawing_values_points_count; i++)
+			{
+				Real t;
+				int tri_idx;
+				ray.origin = origin_points[i];
+				if (ray_mesh_intersect(*heart_mesh, heart_pos, ray, t, tri_idx))
+				{
+					t_average = t;
+				}
+			}
+			// actual intersection
+			Real t;
+			int tri_idx;
+			for (int i = 0; i < drawing_values_points_count; i++)
+			{
+				ray.origin = origin_points[i];
+				if (ray_mesh_intersect(*heart_mesh, heart_pos, ray, t, tri_idx))
+				{
+					drawing_values_preview.push_back(eigen2glm(ray.point_at_dir(t)));
+				}
+				else
+				{
+					t = t_average;
+					drawing_values_preview.push_back(eigen2glm(ray.point_at_dir(t)));
+				}
+			}
+			
+			// apply drawing value to mesh vertices
+			if (Input::isButtonDown(GLFW_MOUSE_BUTTON_LEFT))
+			{
+				for (int i = 0; i < heart_mesh->vertices.size(); i++)
+				{
+					if (perpendicular_distance(glm2eigen(camera.eye), glm2eigen(camera.eye)+direction, heart_pos+glm2eigen(heart_mesh->vertices[i].pos)) < drawing_values_radius)
+					{
+						Q(i) = drawing_value;
+					}
+				}
 			}
 		}
 	}
@@ -2021,6 +2114,14 @@ private:
 	Real camera_eye_radius = 1;
 	Real camera_angle = 0;
 	float camera_rotation_speed = 1; // RPS
+
+	// drawing
+	bool drawing_values_enabled = false;
+	Real drawing_values_radius = 0.1;
+	Real drawing_value = 15e-3;
+	std::vector<glm::vec3> drawing_values_preview;
+	int drawing_values_points_count = 32;
+
 
 };
 

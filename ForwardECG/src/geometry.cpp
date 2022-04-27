@@ -78,7 +78,7 @@ Eigen::Vector2<Real> get_point_in_triangle_basis(const Triangle& triangle, const
 	return { s, t };
 }
 
-bool ray_mesh_intersect(const MeshPlot& mesh, const Ray& ray, Real& t, int& tri_idx)
+bool ray_mesh_intersect(const MeshPlot& mesh, const Eigen::Vector3<Real>& mesh_position, const Ray& ray, Real& t, int& tri_idx)
 {
 	bool intersected = false;
 	Real min_t = INFINITY;
@@ -86,9 +86,9 @@ bool ray_mesh_intersect(const MeshPlot& mesh, const Ray& ray, Real& t, int& tri_
 	for (int i = 0; i < mesh.faces.size(); i++)
 	{
 		const MeshPlotFace& face = mesh.faces[i];
-		Triangle tri = { glm2eigen(mesh.vertices[face.idx[0]].pos),
-						 glm2eigen(mesh.vertices[face.idx[1]].pos),
-						 glm2eigen(mesh.vertices[face.idx[2]].pos) };
+		Triangle tri = { mesh_position + glm2eigen(mesh.vertices[face.idx[0]].pos),
+						 mesh_position + glm2eigen(mesh.vertices[face.idx[1]].pos),
+						 mesh_position + glm2eigen(mesh.vertices[face.idx[2]].pos) };
 		Real new_t;
 		if (ray.intersect_triangle(tri, new_t))
 		{

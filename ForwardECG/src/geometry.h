@@ -29,5 +29,5 @@ struct Ray
 
 Eigen::Vector2<Real> get_point_in_triangle_basis(const Triangle& triangle, const Eigen::Vector3<Real>& p);
 
-bool ray_mesh_intersect(const MeshPlot& mesh, const Ray& ray, Real& t, int& tri_idx);
+bool ray_mesh_intersect(const MeshPlot& mesh, const Eigen::Vector3<Real>& mesh_position, const Ray& ray, Real& t, int& tri_idx);
 

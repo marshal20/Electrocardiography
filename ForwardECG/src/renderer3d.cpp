@@ -149,14 +149,17 @@ void Renderer3D::drawPolygon(const glm::vec3* points, int count, bool loop)
 	{
 		simple_shader->setVec4("color", style.stroke_color);
 		glLineWidth(style.stroke_width);
-		Topology topology = loop ? TOPOLOGY_LINE_LOOP : TOPOLOGY_LINE_STRIP;
-		gdevGet()->drawArrays(topology, 0, new_count);
+		gdevGet()->drawArrays(TOPOLOGY_LINE_STRIP, 0, new_count);
+		if (loop && count >= 2)
+		{
+			drawLine(points[0], points[count-1]);
+		}
 	}
 
 	// render the rest of points
 	if (count > MAX_VERTICES)
 	{
-		drawPolygon(&points[MAX_VERTICES-1], count-MAX_VERTICES, loop);
+		drawPolygon(&points[MAX_VERTICES-1], count-MAX_VERTICES, false);
 	}
 }
 
