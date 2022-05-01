@@ -349,7 +349,7 @@ struct ActionPotentialParameters
 
 static Real action_potential_value(Real t, const ActionPotentialParameters& params)
 {
-	const Real depolarization_slope_duration = 0.035;
+	const Real depolarization_slope_duration = 0.08;
 	Real mixing_percentage = 1;
 
 	if (t < params.depolarization_time-depolarization_slope_duration*(params.repolarization_time-params.depolarization_time))
@@ -370,6 +370,45 @@ static Real action_potential_value(Real t, const ActionPotentialParameters& para
 	}
 
 	return params.peak_potential - (params.peak_potential-params.resting_potential)*mixing_percentage;
+}
+
+// returns a 3rd order transition between 0 and 1, for t [0:1] 
+static Real s_3rd_order_curve_transition(Real t)
+{
+	return (0<t) * 0
+		 + (0<=t&&t<0.5) * 0.5*pow((t*2), 3)
+		 + (0.5<=t&&t<1) * (1-0.5*pow((2-t*2), 3))
+		 + (1<=t) * 1;
+}
+
+static Real action_potential_value_2(Real t, const ActionPotentialParameters& params)
+{
+	const Real depolarization_slope_duration = 0.020;
+	const Real repolarization_slope_duration = 0.050;
+	Real mixing_percentage = 0;
+
+	if (t < params.depolarization_time-depolarization_slope_duration)
+	{
+		mixing_percentage = 0;
+	}
+	else if (t < params.depolarization_time)
+	{
+		mixing_percentage = s_3rd_order_curve_transition((t-(params.depolarization_time-depolarization_slope_duration))/depolarization_slope_duration);
+	}
+	else if (params.depolarization_time <= t && t <= params.repolarization_time)
+	{
+		mixing_percentage = 1;
+	}
+	else if (t > params.repolarization_time && t <= params.repolarization_time+repolarization_slope_duration)
+	{
+		mixing_percentage = 1-s_3rd_order_curve_transition((t-params.repolarization_time)/repolarization_slope_duration);
+	}
+	else
+	{
+		mixing_percentage = 0;
+	}
+
+	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage;
 }
 
 static bool import_parameters(const std::string& file_name, std::vector<ActionPotentialParameters>& params)
@@ -492,15 +531,15 @@ public:
 
 		// initialize parameters
 		t = 0;
-		heart_pos = { 0.07, 0.4, 0.1 };
-		dipole_pos = { 0.07, 0.4, 0.1 };
+		heart_pos = { 0.07, 0.4, 0.05 };
+		dipole_pos = { 0.07, 0.4, 0.05 };
 		dipole_vec = { 0, 0, 0 };
 		air_conductivity = 0;
 		toso_conductivity = 1;
 		heart_conductivity = 10;
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
-		heart_mesh = load_mesh_plot("models/heart_model_4.fbx");
+		heart_mesh = load_mesh_plot("models/heart_model_5.fbx");
 		heart_action_potential_params.resize(heart_mesh->vertices.size(), ActionPotentialParameters{-80e-3, 15e-3, 150e-3, 500e-3});
 
 		// torso mesh plot
@@ -650,7 +689,7 @@ public:
 
 			// TMP action potential
 			// update dipoles_values size
-			sample_count = TMP_total_duration/TMP_t + 1;
+			sample_count = TMP_total_duration/TMP_dt + 1;
 			probes_values.resize(probes.size(), sample_count);
 
 			for (int step = 0; step < TMP_steps_per_frame; step++)
@@ -660,7 +699,7 @@ public:
 				current_sample = current_sample%sample_count;
 
 				// update dipole vector
-				t = current_sample*TMP_t;
+				t = current_sample*TMP_dt;
 
 				// calculate
 				calculate_potentials();
@@ -757,6 +796,7 @@ private:
 
 	void calculate_transfer_matrix()
 	{
+		/*
 		// BEM solver (bounded conductor) for the heart and dipole
 		// Q = B - AQ
 		// (I+A)Q = B
@@ -790,11 +830,13 @@ private:
 
 		// (I+A)'
 		IA_inv = (MatrixX<Real>::Identity(M, M) + A).inverse();
-
+		*/
 
 
 		// BEM solver (bounded conductor with defined TMP distribution)
-
+		const Real CLOSE_RANGE_THRESHOLD = -1;
+		const Real r_power = 2;
+		const bool ignore_negative_dot_product = false;
 		// Matrices derived from potentials at the torso
 
 		// PBB (NxN)
@@ -817,8 +859,21 @@ private:
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Vector3<Real> r_vec = r-center; // r-c
-				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
+				//Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
+				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), r_power)); // omega = (r^.n^ * ds)/(r*r)
 				Real const_val = 1/(4*PI)*solid_angle;
+
+				// skip for close region triangles
+				if ((center-r).norm() < CLOSE_RANGE_THRESHOLD)
+				{
+					continue;
+				}
+
+				// ignore negative dot product
+				if (ignore_negative_dot_product && r_vec.dot(face_normal) < 0)
+				{
+					continue;
+				}
 
 				PBB(i, face.idx[0]) += const_val/3;
 				PBB(i, face.idx[1]) += const_val/3;
@@ -849,8 +904,15 @@ private:
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Vector3<Real> r_vec = r-center; // r-c
-				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
+				//Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
+				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), r_power)); // omega = (r^.n^ * ds)/(r*r)
 				Real const_val = -1/(4*PI)*solid_angle;
+
+				// ignore negative dot product
+				if (ignore_negative_dot_product && r_vec.dot(face_normal) < 0)
+				{
+					continue;
+				}
 
 				PBH(i, face.idx[0]) += const_val/3;
 				PBH(i, face.idx[1]) += const_val/3;
@@ -878,7 +940,8 @@ private:
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Vector3<Real> r_vec = r-center; // r-c
-				Real const_val = -1/(4*PI) * area;
+				//Real const_val = -1/(4*PI) * area;
+				Real const_val = -1/(4*PI) / r_vec.norm();
 
 				GBH(i, face.idx[0]) += const_val/3;
 				GBH(i, face.idx[1]) += const_val/3;
@@ -909,8 +972,15 @@ private:
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Vector3<Real> r_vec = r-center; // r-c
-				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
+				//Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
+				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), r_power)); // omega = (r^.n^ * ds)/(r*r)
 				Real const_val = 1/(4*PI)*solid_angle;
+
+				// ignore negative dot product
+				if (ignore_negative_dot_product && r_vec.dot(face_normal) < 0)
+				{
+					continue;
+				}
 
 				PHB(i, face.idx[0]) += const_val/3;
 				PHB(i, face.idx[1]) += const_val/3;
@@ -938,8 +1008,21 @@ private:
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Vector3<Real> r_vec = r-center; // r-c
-				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
+				//Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
+				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), r_power)); // omega = (r^.n^ * ds)/(r*r)
 				Real const_val = -1/(4*PI)*solid_angle;
+
+				// skip for close region triangles
+				if ((center-r).norm() < CLOSE_RANGE_THRESHOLD)
+				{
+					continue;
+				}
+
+				// ignore negative dot product
+				if (ignore_negative_dot_product && r_vec.dot(face_normal) < 0)
+				{
+					continue;
+				}
 
 				PHH(i, face.idx[0]) += const_val/3;
 				PHH(i, face.idx[1]) += const_val/3;
@@ -970,7 +1053,14 @@ private:
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Vector3<Real> r_vec = r-center; // r-c
-				Real const_val = -1/(4*PI) * area;
+				//Real const_val = -1/(4*PI) * area;
+				Real const_val = -1/(4*PI) / r_vec.norm();
+
+				// skip for close region triangles
+				if ((center-r).norm() < CLOSE_RANGE_THRESHOLD)
+				{
+					continue;
+				}
 
 				GHH(i, face.idx[0]) += const_val/3;
 				GHH(i, face.idx[1]) += const_val/3;
@@ -1014,6 +1104,8 @@ private:
 
 		// ZBH = PBB^-1 * PBH
 		ZBH = PBB.inverse() * PBH; // without potential gradient effect
+
+		//ZBH = PBH; // without potential gradient effect
 
 		// TODO: try to fix the first equation.
 
@@ -1067,9 +1159,22 @@ private:
 		// update heart TMP
 		for (int i = 0; i < heart_mesh->vertices.size(); i++)
 		{
-			QH(i) = action_potential_value(t, heart_action_potential_params[i]);
+			QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+			//if (probes_differentiation)
+			//{
+			//	QH(i) = (action_potential_value(t, heart_action_potential_params[i]) - action_potential_value(t-dt, heart_action_potential_params[i]))/dt;
+			//}
 		}
 
+
+		// DEBUG
+		if (zero_heart_right_section)
+		{
+			for (int i = 0; i < heart_mesh->vertices.size(); i++)
+			{
+				QH(i) = 1;
+			}
+		}
 
 		// TMP forward ecg
 		// Q_B = ZBH * Q_H
@@ -1438,11 +1543,21 @@ private:
 				}
 			}
 		}
+		if (ImGui::Button("Fix parameters dep/rep time"))
+		{
+			for (ActionPotentialParameters& param : heart_action_potential_params)
+			{
+				if (param.repolarization_time < param.depolarization_time + 0.050)
+				{
+					param.repolarization_time = param.depolarization_time + 0.050;
+				}
+			}
+		}
 
 		// dt
 		ImGui::InputReal("TMP Total Duration", &TMP_total_duration);
-		ImGui::InputReal("TMP Time step", &TMP_t, 0.001, 0.01, "%.5f");
-		TMP_t = clamp_value<Real>(TMP_t, 0.000001, 5);
+		ImGui::InputReal("TMP Time step", &TMP_dt, 0.001, 0.01, "%.5f");
+		TMP_dt = clamp_value<Real>(TMP_dt, 0.000001, 5);
 		ImGui::SliderInt("TMP steps per frame", &TMP_steps_per_frame, 0, 100);
 
 
@@ -1787,6 +1902,8 @@ private:
 			}
 		}
 
+		ImGui::Checkbox("probes differentiation", &probes_differentiation);
+
 
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		// view probes graph
@@ -1833,10 +1950,13 @@ private:
 			heart_min_val = rmin(vertex.value, heart_min_val);
 		}
 		ImGui::Text("Stats:");
-		ImGui::Text("\tTorso Potential Max: %.3f", torso_max_val);
-		ImGui::Text("\tTorso Potential Min: %.3f", torso_min_val);
-		ImGui::Text("\tHeart Potential Max: %.3f", heart_max_val);
-		ImGui::Text("\tHeart Potential Min: %.3f", heart_min_val);
+		ImGui::Text("\tTorso Potential Max: %f", torso_max_val);
+		ImGui::Text("\tTorso Potential Min: %f", torso_min_val);
+		ImGui::Text("\tTorso Potential Delta: %f", torso_max_val-torso_min_val);
+		ImGui::Text("\t ");
+		ImGui::Text("\tHeart Potential Max: %f", heart_max_val);
+		ImGui::Text("\tHeart Potential Min: %f", heart_min_val);
+		ImGui::Text("\tHeart Potential Delta: %f", heart_max_val-heart_min_val);
 
 		// frame rate and frame time
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -1852,17 +1972,47 @@ private:
 
 			// graph height
 			ImGui::SliderFloat("Height", &probes_graph_height, 10, 200);
+			ImGui::SliderFloat("Width", &probes_graph_width, 20, 400);
 
 			// graphs
 			static std::vector<float> values;
+			static std::vector<float> values_diff;
 			values.resize(probes_values.cols());
+			values_diff.resize(probes_values.cols());
 			for (int i = 0; i < probes.size(); i++)
 			{
 				for (int j = 0; j < probes_values.cols(); j++)
 				{
 					values[j] = probes_values(i, j);
 				}
-				ImGui::PlotLines(probes[i].name.c_str(), &values[0], probes_values.cols(), 0, NULL, FLT_MAX, FLT_MAX, {0, probes_graph_height});
+				//if (probes_differentiation)
+				//{
+				//	//float average = 0;
+				//	for (int j = 1; j < probes_values.cols(); j++)
+				//	{
+				//		//values_diff[j] = values[j] - average;
+				//		//average = 0.5*average + 0.5*values_diff[j];
+				//		values_diff[j-1] = (values[j] - values[j-1])/TMP_dt;
+				//	}
+				//	values_diff[values_diff.size()-1] = values_diff[values_diff.size()-2];
+				//}
+				//else
+				//{
+				//	values_diff = values;
+				//}
+				for (int j = 1; j < probes_values.cols(); j++)
+				{
+					//values_diff[j] = values[j] - average;
+					//average = 0.5*average + 0.5*values_diff[j];
+					values_diff[j-1] = (values[j] - values[j-1])/TMP_dt;
+				}
+				values_diff[values_diff.size()-1] = values_diff[values_diff.size()-2];
+				ImGui::PlotLines(probes[i].name.c_str(), &values[0], values.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height});
+				if (probes_differentiation)
+				{
+					ImGui::SameLine();
+					ImGui::PlotLines((probes[i].name + "_differential").c_str(), &values_diff[0], values_diff.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height });
+				}
 			}
 
 			ImGui::End();
@@ -2415,9 +2565,11 @@ private:
 	int probe_name_counter = 1;
 	bool probes_graph = false;
 	bool probes_graph_clear_at_t0 = true;
-	float probes_graph_height = 70;
+	float probes_graph_height = 60;
+	float probes_graph_width = 120;
 	std::vector<Probe> probes;
 	int reference_probe = -1;
+	bool probes_differentiation = false;
 
 	// server
 	Server server;
@@ -2436,9 +2588,9 @@ private:
 	float camera_rotation_speed = 1; // RPS
 
 	// action potential drawing
-	Real TMP_total_duration = 1;
-	Real TMP_t = 0.0001;
-	int TMP_steps_per_frame = 1;
+	Real TMP_total_duration = 0.5;
+	Real TMP_dt = 0.0001;
+	int TMP_steps_per_frame = 20;
 	std::vector<ActionPotentialParameters> heart_action_potential_params;
 	bool drawing_values_enabled = false;
 	bool drawing_values_blur = false;
