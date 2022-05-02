@@ -9,6 +9,40 @@ SERVER_PORT = 1234
 c = client.Client(SERVER_ADDR, SERVER_PORT)
 
 
+# test get_tmp_bsp_values
+print("Test get_tmp_bsp_values")
+tmp_values, bsp_values = c.get_tmp_bsp_values()
+print("tmp_values: {}x{}, bsp_values: {}x{}".format(len(tmp_values), len(tmp_values[0]), len(bsp_values), len(bsp_values[0])))
+print("")
+
+# pause
+input("Press enter to continue...")
+
+# test set_tmp_values
+print("Test set_tmp_values")
+c.set_tmp_values(tmp_values)
+print("")
+
+# pause
+input("Press enter to continue...")
+
+# test set_tmp_values with edited tmp values
+print("Test set_tmp_values with edited tmp values")
+# zero the 2nd half of tmp_values
+for i in range(int(len(tmp_values)/2), len(tmp_values)):
+    for j in range(0, len(tmp_values[0])):
+        tmp_values[i][j] = 0
+c.set_tmp_values(tmp_values)
+print("")
+
+# pause
+input("Press enter to continue...")
+
+# stop here
+quit()
+
+
+
 # test get_probes_values
 arr = c.get_probes_values()
 print("Test get_probes_values")

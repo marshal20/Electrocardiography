@@ -136,9 +136,18 @@ void Server::server_thread_routine()
 		m_got_request = false;
 		std::vector<uint8_t> response_bytes = m_response_bytes;
 
+		// send response size
+		uint32_t response_size = response_bytes.size();
+		response_size = htonl(response_size);
+		new_sock.send_all((char*)&response_size, sizeof(uint32_t));
+
 		// send response
 		new_sock.send_all((const char*)&response_bytes[0], response_bytes.size());
+
+		// wait for connection close
+		read_size = new_sock.recv((char*)&request_bytes[0], request_bytes.size());
 		new_sock.close();
+
 	}
 
 	if (m_sock.is_valid())

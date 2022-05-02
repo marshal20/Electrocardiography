@@ -298,6 +298,8 @@ enum RequestType
 	REQUEST_CALCULATE_VALUES_FOR_VECTOR = 4,
 	REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS = 5,
 	REQUEST_SET_DIPOLE_VECTOR_VALUES = 6,
+	REQUEST_GET_TMP_BSP_VALUES = 7,
+	REQUEST_SET_TMP_VALUES = 8,
 };
 
 static std::string request_type_to_string(const RequestType req_type)
@@ -316,6 +318,10 @@ static std::string request_type_to_string(const RequestType req_type)
 		return "REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS";
 	case REQUEST_SET_DIPOLE_VECTOR_VALUES:
 		return "REQUEST_SET_DIPOLE_VECTOR_VALUES";
+	case REQUEST_GET_TMP_BSP_VALUES:
+		return "REQUEST_GET_TMP_BSP_VALUES";
+	case REQUEST_SET_TMP_VALUES:
+		return "REQUEST_SET_TMP_VALUES";
 	default:
 		return "UNKNOWN";
 	}
@@ -338,6 +344,12 @@ static Vector3<Real> calculate_triangle_normal(MeshPlot* mesh, int tri_idx)
 	return (b-a).cross(c-a).normalized();
 }
 
+
+enum TMPValuesSource
+{
+	TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS = 1,
+	TMP_SOURCE_TMP_DIRECT_VALUES = 2,
+};
 
 struct ActionPotentialParameters
 {
@@ -430,6 +442,8 @@ static bool import_parameters(const std::string& file_name, std::vector<ActionPo
 	uint32_t vertex_count = des.parse_u32();
 	if (vertex_count != params.size())
 	{
+		printf("vertex count doesn't match\n");
+		free(contents);
 		return false;
 	}
 	new_params.reserve(vertex_count);
@@ -470,6 +484,133 @@ static bool export_parameters(const std::string& file_name, const std::vector<Ac
 
 	return file_write(file_name.c_str(), ser.get_data());
 }
+
+
+static bool import_tmp_direct_values(const std::string& file_name, MatrixX<Real>& tmp_direct_values, int tmp_points_count)
+{
+	size_t contents_size;
+	uint8_t* contents = file_read(file_name.c_str(), &contents_size);
+	if (!contents)
+	{
+		return false;
+	}
+
+	Deserializer des(contents, contents_size);
+
+	// parse
+
+	// vertex count
+	uint32_t rows_count = des.parse_u32();
+	uint32_t cols_count = des.parse_u32();
+	if (cols_count != tmp_points_count)
+	{
+		printf("TMP points count doesn't match\n");
+		free(contents);
+		return false;
+	}
+
+	MatrixX<Real> new_tmp_direct_values = MatrixX<Real>::Zero(rows_count, cols_count);
+
+	for (int i = 0; i < rows_count; i++)
+	{
+		for (int j = 0; j < cols_count; j++)
+		{
+			new_tmp_direct_values(i, j) = des.parse_double();
+		}
+	}
+
+	// set parameters
+	tmp_direct_values = new_tmp_direct_values;
+
+	free(contents);
+	return true;
+}
+
+static bool export_tmp_direct_values(const std::string& file_name, const MatrixX<Real>& tmp_direct_values)
+{
+	Serializer ser;
+
+	// write
+
+	// rows and columns count
+	ser.push_u32(tmp_direct_values.rows());
+	ser.push_u32(tmp_direct_values.cols());
+
+	for (int i = 0; i < tmp_direct_values.rows(); i++)
+	{
+		for (int j = 0; j < tmp_direct_values.cols(); j++)
+		{
+			ser.push_double(tmp_direct_values(i, j));
+		}
+	}
+
+	return file_write(file_name.c_str(), ser.get_data());
+}
+
+static bool export_tmp_bsp_values_csv(const std::string& file_name, const MatrixX<Real>& tmp_direct_values, const MatrixX<Real>& probes_values)
+{
+	FILE* file = fopen(file_name.c_str(), "w");
+	if (!file)
+	{
+		return false;
+	}
+
+	std::string line = "";
+
+	// column names
+	// TMP values
+	for (int i = 0; i < tmp_direct_values.cols(); i++)
+	{
+		if (i != 0)
+		{
+			line += ", ";
+		}
+		line += std::string("TMP_") + std::to_string(i);
+	}
+	// BSP probes values
+	for (int i = 0; i < probes_values.rows(); i++)
+	{
+		if (i != 0)
+		{
+			line += ", ";
+		}
+		line += std::string("BSP_") + std::to_string(i);
+	}
+	line += "\n";
+	fwrite(line.c_str(), sizeof(char), line.size(), file);
+
+	// values
+	for (int sample = 0; sample < tmp_direct_values.rows(); sample++)
+	{
+		line = "";
+		
+		// TMP values
+		for (int i = 0; i < tmp_direct_values.cols(); i++)
+		{
+			if (i != 0)
+			{
+				line += ", ";
+			}
+			line += std::to_string(tmp_direct_values(sample, i));
+		}
+		// BSP probes values
+		for (int i = 0; i < probes_values.rows(); i++)
+		{
+			if (i != 0)
+			{
+				line += ", ";
+			}
+			line += std::to_string(probes_values(i, sample));
+		}
+
+		line += "\n";
+		fwrite(line.c_str(), sizeof(char), line.size(), file);
+	}
+
+	fclose(file);
+	return true;
+}
+
 
 enum DrawingMode
 {
@@ -615,7 +756,7 @@ public:
 			// animate dipole vector on the curve
 			if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE)
 			{
-				// update dipoles_values size
+				// update probes_values size
 				sample_count = dipole_curve.total_duration()/dt + 1;
 				probes_values.resize(probes.size(), sample_count);
 
@@ -688,33 +829,91 @@ public:
 			}
 
 			// TMP action potential
-			// update dipoles_values size
-			sample_count = TMP_total_duration/TMP_dt + 1;
-			probes_values.resize(probes.size(), sample_count);
-
-			for (int step = 0; step < TMP_steps_per_frame; step++)
+			if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
 			{
-				// next sample
-				current_sample++;
-				current_sample = current_sample%sample_count;
+				// update probes_values size
+				sample_count = TMP_total_duration/TMP_dt + 1;
+				probes_values.resize(probes.size(), sample_count);
 
-				// update dipole vector
-				t = current_sample*TMP_dt;
-
-				// calculate
-				calculate_potentials();
-
-				// calculate probes values at time point
-				for (int i = 0; i < probes.size(); i++)
+				for (int step = 0; step < TMP_steps_per_frame; step++)
 				{
-					Real probe_value = evaluate_probe(*torso, probes[i]);
-					probes_values(i, current_sample) = probe_value;
+					// next sample
+					current_sample++;
+					current_sample = current_sample%sample_count;
+
+					// update dipole vector
+					t = current_sample*TMP_dt;
+
+					// update heart TMP from action potential parameters
+					for (int i = 0; i < heart_mesh->vertices.size(); i++)
+					{
+						QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+					}
+
+					// calculate body surface potentials
+					calculate_potentials();
+
+					// calculate probes values at time point
+					for (int i = 0; i < probes.size(); i++)
+					{
+						Real probe_value = evaluate_probe(*torso, probes[i]);
+						probes_values(i, current_sample) = probe_value;
+					}
+
+					// clear probes graph
+					if (probes_graph_clear_at_t0 && current_sample == 0)
+					{
+						probes_values.setZero();
+					}
 				}
+			}
+			else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+			{
+				// update probes_values size
+				sample_count = tmp_direct_values.rows() > 0 ? tmp_direct_values.rows() : 1;
+				probes_values.resize(probes.size(), sample_count);
 
-				// clear probes graph
-				if (probes_graph_clear_at_t0 && current_sample == 0)
+				for (int step = 0; step < TMP_steps_per_frame; step++)
 				{
-					probes_values.setZero();
+					// next sample
+					current_sample++;
+					current_sample = current_sample%sample_count;
+
+					// update dipole vector
+					t = current_sample*TMP_dt;
+
+					// assign direct values
+					if (tmp_direct_values.rows() > 0)
+					{
+						for (int i = 0; i < heart_mesh->vertices.size(); i++)
+						{
+							QH(i) = tmp_direct_values(current_sample, i);
+						}
+					}
+					else
+					{
+						// set values to 0
+						for (int i = 0; i < heart_mesh->vertices.size(); i++)
+						{
+							QH(i) = 0;
+						}
+					}
+
+					// calculate body surface potentials
+					calculate_potentials();
+
+					// calculate probes values at time point
+					for (int i = 0; i < probes.size(); i++)
+					{
+						Real probe_value = evaluate_probe(*torso, probes[i]);
+						probes_values(i, current_sample) = probe_value;
+					}
+
+					// clear probes graph
+					if (probes_graph_clear_at_t0 && current_sample == 0)
+					{
+						probes_values.setZero();
+					}
 				}
 			}
 
@@ -1156,17 +1355,6 @@ private:
 		*/
 
 
-		// update heart TMP
-		for (int i = 0; i < heart_mesh->vertices.size(); i++)
-		{
-			QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
-			//if (probes_differentiation)
-			//{
-			//	QH(i) = (action_potential_value(t, heart_action_potential_params[i]) - action_potential_value(t-dt, heart_action_potential_params[i]))/dt;
-			//}
-		}
-
-
 		// DEBUG
 		if (zero_heart_right_section)
 		{
@@ -1495,70 +1683,161 @@ private:
 		}
 
 
-		// drawing
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Checkbox("draw values enable", &drawing_values_enabled);
-		ImGui::Checkbox("draw values blur", &drawing_values_blur);
-		ImGui::Checkbox("draw only vertices facing camera", &drawing_only_facing_camera);
-		int im_drawing_values_mode_select = (int)drawing_values_mode - 1;
-		ImGui::Combo("drawing target", (int*)&im_drawing_values_mode_select, "Rest Potential\0Peak Potential\0Depolarization Time\0Repolarization Time\0", 4);
-		drawing_values_mode = (DrawingMode)clamp_value<int>(im_drawing_values_mode_select+1, 1, 4);
-		ImGui::DragReal("drawing brush radius", &drawing_values_radius, 0.01, 0.001, 1);
-		ImGui::InputReal("drawing value", &drawing_value);
-		ImGui::Checkbox("view target channel", &drawing_view_target_channel);
-		if (ImGui::Button("Import parameters"))
+		// TMP Source
 		{
-			// open file dialog
-			std::string file_name = open_file_dialog("action_potential_parameters", "All\0*.*\0");
-
-			// import
-			if (file_name != "")
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+			int im_tmp_source = (int)tmp_source - 1;
+			ImGui::Combo("TMP Source", (int*)&im_tmp_source, "Action Potential Parameters\0Direct Values\0", 2);
+			tmp_source = (TMPValuesSource)clamp_value<int>(im_tmp_source+1, 1, 2);
+		}
+		if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
+		{
+			ImGui::Text("Time: %.4f s", t);
+			// action potential drawing drawing
+			ImGui::Checkbox("draw values enable", &drawing_values_enabled);
+			ImGui::Checkbox("draw values blur", &drawing_values_blur);
+			ImGui::Checkbox("draw only vertices facing camera", &drawing_only_facing_camera);
+			int im_drawing_values_mode_select = (int)drawing_values_mode - 1;
+			ImGui::Combo("drawing target", (int*)&im_drawing_values_mode_select, "Rest Potential\0Peak Potential\0Depolarization Time\0Repolarization Time\0", 4);
+			drawing_values_mode = (DrawingMode)clamp_value<int>(im_drawing_values_mode_select+1, 1, 4);
+			ImGui::DragReal("drawing brush radius", &drawing_values_radius, 0.01, 0.001, 1);
+			ImGui::InputReal("drawing value", &drawing_value);
+			ImGui::Checkbox("view target channel", &drawing_view_target_channel);
+			if (ImGui::Button("Import parameters"))
 			{
-				if (import_parameters(file_name, heart_action_potential_params))
+				// open file dialog
+				std::string file_name = open_file_dialog("action_potential_parameters", "All\0*.*\0");
+
+				// import
+				if (file_name != "")
 				{
-					printf("Imported \"%s\" parameters\n", file_name.c_str());
-				}
-				else
-				{
-					printf("Failed to import \"%s\" parameters\n", file_name.c_str());
+					if (import_parameters(file_name, heart_action_potential_params))
+					{
+						printf("Imported \"%s\" parameters\n", file_name.c_str());
+					}
+					else
+					{
+						printf("Failed to import \"%s\" parameters\n", file_name.c_str());
+					}
 				}
 			}
-		}
-		ImGui::SameLine();
-		if (ImGui::Button("Export parameters"))
-		{
-			// save file dialog
-			std::string file_name = save_file_dialog("action_potential_parameters", "All\0*.*\0");
-
-			// export
-			if (file_name != "")
+			ImGui::SameLine();
+			if (ImGui::Button("Export parameters"))
 			{
-				if (export_parameters(file_name, heart_action_potential_params))
+				// save file dialog
+				std::string file_name = save_file_dialog("action_potential_parameters", "All\0*.*\0");
+
+				// export
+				if (file_name != "")
 				{
-					printf("Exported \"%s\" parameters\n", file_name.c_str());
-				}
-				else
-				{
-					printf("Failed to export \"%s\" parameters\n", file_name.c_str());
+					if (export_parameters(file_name, heart_action_potential_params))
+					{
+						printf("Exported \"%s\" parameters\n", file_name.c_str());
+					}
+					else
+					{
+						printf("Failed to export \"%s\" parameters\n", file_name.c_str());
+					}
 				}
 			}
-		}
-		if (ImGui::Button("Fix parameters dep/rep time"))
-		{
-			for (ActionPotentialParameters& param : heart_action_potential_params)
+			if (ImGui::Button("Fix parameters dep/rep time"))
 			{
-				if (param.repolarization_time < param.depolarization_time + 0.050)
+				for (ActionPotentialParameters& param : heart_action_potential_params)
 				{
-					param.repolarization_time = param.depolarization_time + 0.050;
+					if (param.repolarization_time < param.depolarization_time + 0.050)
+					{
+						param.repolarization_time = param.depolarization_time + 0.050;
+					}
 				}
 			}
-		}
 
-		// dt
-		ImGui::InputReal("TMP Total Duration", &TMP_total_duration);
-		ImGui::InputReal("TMP Time step", &TMP_dt, 0.001, 0.01, "%.5f");
-		TMP_dt = clamp_value<Real>(TMP_dt, 0.000001, 5);
-		ImGui::SliderInt("TMP steps per frame", &TMP_steps_per_frame, 0, 100);
+			if (ImGui::Button("Calculate TMP direct values from action potential parameters"))
+			{
+				tmp_direct_values = MatrixX<Real>::Zero(sample_count, M);
+
+				for (int sample = 0; sample < sample_count; sample++)
+				{
+					Real t_current = (Real)sample * TMP_dt;
+
+					for (int i = 0; i < M; i++)
+					{
+						tmp_direct_values(sample, i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+					}
+				}
+
+				printf("Calculated TMP direct values from action potential parameters\n");
+			}
+
+			// dt
+			ImGui::InputReal("TMP Total Duration", &TMP_total_duration);
+			ImGui::InputReal("TMP Time step", &TMP_dt, 0.001, 0.01, "%.5f");
+			TMP_dt = clamp_value<Real>(TMP_dt, 0.000001, 5);
+			ImGui::SliderInt("TMP steps per frame", &TMP_steps_per_frame, 0, 100);
+		}
+		else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+		{
+			ImGui::Text("Samples Count: %d", tmp_direct_values.rows());
+			ImGui::Text("Current Sample: %d", current_sample);
+
+			if (ImGui::Button("Import TMP direct values"))
+			{
+				// open file dialog
+				std::string file_name = open_file_dialog("tmp_values", "All\0*.*\0");
+
+				// import
+				if (file_name != "")
+				{
+					if (import_tmp_direct_values(file_name, tmp_direct_values, N))
+					{
+						printf("Imported \"%s\" tmp_values\n", file_name.c_str());
+					}
+					else
+					{
+						printf("Failed to import \"%s\" tmp_values\n", file_name.c_str());
+					}
+				}
+			}
+			ImGui::SameLine();
+			if (ImGui::Button("Export TMP direct values"))
+			{
+				// save file dialog
+				std::string file_name = save_file_dialog("tmp_values", "All\0*.*\0");
+
+				// export
+				if (file_name != "")
+				{
+					if (export_tmp_direct_values(file_name, tmp_direct_values))
+					{
+						printf("Exported \"%s\" tmp_values\n", file_name.c_str());
+					}
+					else
+					{
+						printf("Failed to export \"%s\" tmp_values\n", file_name.c_str());
+					}
+				}
+			}
+
+			if (ImGui::Button("Export TMP and BSP probes values (CSV)"))
+			{
+				// save file dialog
+				std::string file_name = save_file_dialog("tmp_bsp_values_csv", "All\0*.*\0");
+
+				// export
+				if (file_name != "")
+				{
+					if (export_tmp_bsp_values_csv(file_name, tmp_direct_values, probes_values))
+					{
+						printf("Exported \"%s\" TMP and BSP values (CSV)\n", file_name.c_str());
+					}
+					else
+					{
+						printf("Failed to export \"%s\" TMP and BSP values (CSV)\n", file_name.c_str());
+					}
+				}
+			}
+
+			ImGui::SliderInt("TMP steps per frame", &TMP_steps_per_frame, 0, 100);
+		}
 
 
 		// dipole position and vector
@@ -2462,6 +2741,95 @@ private:
 				dipole_vec_source = VALUES_SOURCE_VALUES_LIST;
 				ser.push_u8(1); // return true acknowledgement
 			}
+			else if (request_type == REQUEST_GET_TMP_BSP_VALUES)
+			{
+				Timer generating_timer;
+				generating_timer.start();
+				
+				// calculate BSP probes values
+				MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, M+probes.size());
+				for (int sample = 0; sample < sample_count; sample++)
+				{
+					t = sample*TMP_dt;
+
+					if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
+					{
+						// update heart TMP from action potential parameters
+						for (int i = 0; i < M; i++)
+						{
+							QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+						}
+					}
+					else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+					{
+						// update heart TMP from direct values
+						for (int i = 0; i < M; i++)
+						{
+							QH(i) = tmp_direct_values(sample, i);
+						}
+					}
+
+					// calculate body surface potentials
+					calculate_potentials();
+
+					for (int i = 0; i < M; i++)
+					{
+						TMP_BSP_values(sample, i) = QH(i);
+					}
+
+					for (int i = 0; i < probes.size(); i++)
+					{
+						TMP_BSP_values(sample, M+i) = evaluate_probe(*torso, probes[i]);
+					}
+				}
+
+				printf("Generated BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
+
+				// serialize data
+				ser.push_u32(sample_count); // sample count
+				ser.push_u32(M); // TMP values count
+				ser.push_u32(probes.size()); // probes count
+
+				// serialize matrix SAMPLE_COUNTx(M+PROBES_COUNT)
+				for (int i = 0; i < TMP_BSP_values.rows(); i++)
+				{
+					for (int j = 0; j < TMP_BSP_values.cols(); j++)
+					{
+						ser.push_double(TMP_BSP_values(i, j));
+					}
+				}
+			}
+			else if (request_type == REQUEST_SET_TMP_VALUES)
+			{
+				// deserialize data
+				int rows_count = des.parse_u32();
+				int cols_count = des.parse_u32();
+
+				if (cols_count == M)
+				{
+					// deserialize matrix SAMPLE_COUNTxN
+					MatrixX<Real> new_tmp_direct_values = MatrixX<Real>::Zero(rows_count, cols_count);
+					for (int i = 0; i < rows_count; i++)
+					{
+						for (int j = 0; j < cols_count; j++)
+						{
+							new_tmp_direct_values(i, j) = des.parse_double();
+						}
+					}
+
+					// set new values
+					tmp_direct_values = new_tmp_direct_values;
+					tmp_source = TMP_SOURCE_TMP_DIRECT_VALUES;
+
+					ser.push_u8(1); // return true acknowledgement
+				}
+				else
+				{
+					printf("TMP values count doesn't match\n");
+
+					ser.push_u8(0); // return false acknowledgement
+				}
+			}
 			else
 			{
 				printf("Unknown request\n");
@@ -2540,7 +2908,7 @@ private:
 	int steps_per_frame = 1;
 	int sample_count;
 	int current_sample = 0;
-	Eigen::MatrixX<Real> probes_values;
+	Eigen::MatrixX<Real> probes_values; // PROBES_COUNTxSAMPLE_COUNT
 	std::vector<glm::vec3> dipole_locus;
 	bool render_dipole_curve = true;
 	bool render_dipole_curve_lines = true;
@@ -2589,8 +2957,8 @@ private:
 
 	// action potential drawing
 	Real TMP_total_duration = 0.5;
-	Real TMP_dt = 0.0001;
-	int TMP_steps_per_frame = 20;
+	Real TMP_dt = 0.0005; // old value: 0.0001
+	int TMP_steps_per_frame = 1; // old value: 20
 	std::vector<ActionPotentialParameters> heart_action_potential_params;
 	bool drawing_values_enabled = false;
 	bool drawing_values_blur = false;
@@ -2601,6 +2969,9 @@ private:
 	std::vector<glm::vec3> drawing_values_preview;
 	int drawing_values_points_count = 32;
 	bool drawing_view_target_channel = true;
+	// TMP direct values source
+	TMPValuesSource tmp_source = TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS;
+	MatrixX<Real> tmp_direct_values; // SAMPLE_COUNTxM matrix
 
 
 };

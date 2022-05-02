@@ -1,18 +1,6 @@
 import socket
 import serializer
 
-def socket_recvall(s):
-    data = bytearray()
-    
-    while True:
-        packet = s.recv(8192)
-        if not packet:
-            break
-        data.extend(packet)
-        
-    return data
-    
-
 
 class Client:
     def __init__(self, server_addr, server_port):
@@ -31,8 +19,11 @@ class Client:
             # send request
             s.sendall(request_bytes);
             
-            # receive response (until connection is closed)
-            data = socket_recvall(s)
+            # receive response size
+            response_size = int.from_bytes(s.recv(4), 'big', signed=False)
+            # receive response
+            #print("Receiving {} bytes".format(response_size))
+            data = s.recv(response_size);
             
             # close socket
             s.close()
@@ -189,3 +180,70 @@ class Client:
             print("Warning: set_dipole_vector request no acknowledgement")
     
     
+    def get_tmp_bsp_values(self):
+        # returns two matrices: 
+        #   * TMP_values:    SAMPLE_COUNTxTMP_POINTS_COUNT
+        #   * probes_values: SAMPLE_COUNTxPROBES_COUNT
+    
+        # form request
+        ser = serializer.Serializer()
+        ser.push_u32(7) # request REQUEST_GET_TMP_BSP_VALUES
+        
+        response_bytes = self.send_request(ser.get_data())
+        
+        # parse response
+        des = serializer.Deserializer(response_bytes)
+        
+        sample_count = des.parse_u32()
+        tmp_points_count = des.parse_u32()
+        probes_count = des.parse_u32()
+        
+        # parse row by row
+        tmp_values = []
+        probes_values = []
+        for j in range(sample_count):
+            # TMP values
+            tmp_row = []
+            # probes_values
+            for i in range(tmp_points_count):
+                tmp_row.append(des.parse_double())
+            # append row to matrix
+            tmp_values.append(tmp_row)
+            
+            # probes values
+            probes_row = []
+            # probes_values
+            for i in range(probes_count):
+                probes_row.append(des.parse_double())
+            # append row to matrix
+            probes_values.append(probes_row)
+        
+        return tmp_values, probes_values
+    
+    
+    def set_tmp_values(self, tmp_values):
+        # sends tmp_values matrix: SAMPLE_COUNTxTMP_POINTS_COUNT
+    
+        # form request
+        ser = serializer.Serializer()
+        ser.push_u32(8) # request REQUEST_SET_TMP_VALUES
+        
+        # send matrix dimensions
+        ser.push_u32(len(tmp_values))    # rows count
+        ser.push_u32(len(tmp_values[0])) # cols count
+        
+        # send matrix
+        for row in tmp_values:
+            for value in row:
+                ser.push_double(value)
+        
+        response_bytes = self.send_request(ser.get_data())
+        
+        # parse response
+        des = serializer.Deserializer(response_bytes)
+        
+        # check for acknowledgement byte (1)
+        if des.parse_u8() != 1:
+            print("Warning: set_dipole_vector request no acknowledgement")
+        
+        
