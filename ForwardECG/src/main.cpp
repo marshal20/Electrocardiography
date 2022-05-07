@@ -300,6 +300,7 @@ enum RequestType
 	REQUEST_SET_DIPOLE_VECTOR_VALUES = 6,
 	REQUEST_GET_TMP_BSP_VALUES = 7,
 	REQUEST_SET_TMP_VALUES = 8,
+	REQUEST_GET_TMP_BSP_VALUES_PROBES = 9,
 };
 
 static std::string request_type_to_string(const RequestType req_type)
@@ -322,6 +323,8 @@ static std::string request_type_to_string(const RequestType req_type)
 		return "REQUEST_GET_TMP_BSP_VALUES";
 	case REQUEST_SET_TMP_VALUES:
 		return "REQUEST_SET_TMP_VALUES";
+	case REQUEST_GET_TMP_BSP_VALUES_PROBES:
+		return "REQUEST_GET_TMP_BSP_VALUES_PROBES";
 	default:
 		return "UNKNOWN";
 	}
@@ -685,7 +688,7 @@ public:
 
 		// torso mesh plot
 		torso = new MeshPlot();
-		load_torso_model("models/torso_model_fixed.fbx");
+		load_torso_model("models/torso_model_fixed_highres.fbx");
 		color_n = { 0, 0, 1, 1 };
 		color_p = { 1, 0, 0, 1 };
 		color_probes = { 0, 0.25, 0, 1 };
@@ -2785,8 +2788,8 @@ private:
 				Timer generating_timer;
 				generating_timer.start();
 				
-				// calculate BSP probes values
-				MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, M+probes.size());
+				// calculate BSP values
+				MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, M+N);
 				for (int sample = 0; sample < sample_count; sample++)
 				{
 					t = sample*TMP_dt;
@@ -2816,9 +2819,9 @@ private:
 						TMP_BSP_values(sample, i) = QH(i);
 					}
 
-					for (int i = 0; i < probes.size(); i++)
+					for (int i = 0; i < N; i++)
 					{
-						TMP_BSP_values(sample, M+i) = evaluate_probe(*torso, probes[i]);
+						TMP_BSP_values(sample, M+i) = QB(i);
 					}
 				}
 
@@ -2827,7 +2830,7 @@ private:
 				// serialize data
 				ser.push_u32(sample_count); // sample count
 				ser.push_u32(M); // TMP values count
-				ser.push_u32(probes.size()); // probes count
+				ser.push_u32(N); // BSP values count
 
 				// serialize matrix SAMPLE_COUNTx(M+PROBES_COUNT)
 				for (int i = 0; i < TMP_BSP_values.rows(); i++)
@@ -2868,6 +2871,64 @@ private:
 
 					ser.push_u8(0); // return false acknowledgement
 				}
+			}
+			else if (request_type == REQUEST_GET_TMP_BSP_VALUES_PROBES)
+			{
+			Timer generating_timer;
+			generating_timer.start();
+
+			// calculate BSP probes values
+			MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, M+probes.size());
+			for (int sample = 0; sample < sample_count; sample++)
+			{
+				t = sample*TMP_dt;
+
+				if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
+				{
+					// update heart TMP from action potential parameters
+					for (int i = 0; i < M; i++)
+					{
+						QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+					}
+				}
+				else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+				{
+					// update heart TMP from direct values
+					for (int i = 0; i < M; i++)
+					{
+						QH(i) = tmp_direct_values(sample, i);
+					}
+				}
+
+				// calculate body surface potentials
+				calculate_potentials();
+
+				for (int i = 0; i < M; i++)
+				{
+					TMP_BSP_values(sample, i) = QH(i);
+				}
+
+				for (int i = 0; i < probes.size(); i++)
+				{
+					TMP_BSP_values(sample, M+i) = evaluate_probe(*torso, probes[i]);
+				}
+			}
+
+			printf("Generated BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
+
+			// serialize data
+			ser.push_u32(sample_count); // sample count
+			ser.push_u32(M); // TMP values count
+			ser.push_u32(probes.size()); // probes count
+
+			// serialize matrix SAMPLE_COUNTx(M+PROBES_COUNT)
+			for (int i = 0; i < TMP_BSP_values.rows(); i++)
+			{
+				for (int j = 0; j < TMP_BSP_values.cols(); j++)
+				{
+					ser.push_double(TMP_BSP_values(i, j));
+				}
+			}
 			}
 			else
 			{

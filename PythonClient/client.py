@@ -182,12 +182,79 @@ class Client:
     
     def get_tmp_bsp_values(self):
         # returns two matrices: 
+        #   * TMP_values: SAMPLE_COUNTxTMP_POINTS_COUNT
+        #   * BSP_values: SAMPLE_COUNTxBSP_POINTS_COUNT
+    
+        # form request
+        ser = serializer.Serializer()
+        ser.push_u32(7) # request REQUEST_GET_TMP_BSP_VALUES
+        
+        response_bytes = self.send_request(ser.get_data())
+        
+        # parse response
+        des = serializer.Deserializer(response_bytes)
+        
+        sample_count = des.parse_u32()
+        tmp_points_count = des.parse_u32()
+        bsp_count = des.parse_u32()
+        
+        # parse row by row
+        tmp_values = []
+        bsp_values = []
+        for j in range(sample_count):
+            # TMP values
+            tmp_row = []
+            # tmp_values
+            for i in range(tmp_points_count):
+                tmp_row.append(des.parse_double())
+            # append row to matrix
+            tmp_values.append(tmp_row)
+            
+            # probes values
+            bsp_row = []
+            # bsp_values
+            for i in range(bsp_count):
+                bsp_row.append(des.parse_double())
+            # append row to matrix
+            bsp_values.append(bsp_row)
+        
+        return tmp_values, bsp_values
+    
+    
+    def set_tmp_values(self, tmp_values):
+        # sends tmp_values matrix: SAMPLE_COUNTxTMP_POINTS_COUNT
+    
+        # form request
+        ser = serializer.Serializer()
+        ser.push_u32(8) # request REQUEST_SET_TMP_VALUES
+        
+        # send matrix dimensions
+        ser.push_u32(len(tmp_values))    # rows count
+        ser.push_u32(len(tmp_values[0])) # cols count
+        
+        # send matrix
+        for row in tmp_values:
+            for value in row:
+                ser.push_double(value)
+        
+        response_bytes = self.send_request(ser.get_data())
+        
+        # parse response
+        des = serializer.Deserializer(response_bytes)
+        
+        # check for acknowledgement byte (1)
+        if des.parse_u8() != 1:
+            print("Warning: set_dipole_vector request no acknowledgement")
+        
+        
+    def get_tmp_bsp_values_probes(self):
+        # returns two matrices: 
         #   * TMP_values:    SAMPLE_COUNTxTMP_POINTS_COUNT
         #   * probes_values: SAMPLE_COUNTxPROBES_COUNT
     
         # form request
         ser = serializer.Serializer()
-        ser.push_u32(7) # request REQUEST_GET_TMP_BSP_VALUES
+        ser.push_u32(9) # request REQUEST_GET_TMP_BSP_VALUES_PROBES
         
         response_bytes = self.send_request(ser.get_data())
         
@@ -220,30 +287,5 @@ class Client:
         
         return tmp_values, probes_values
     
-    
-    def set_tmp_values(self, tmp_values):
-        # sends tmp_values matrix: SAMPLE_COUNTxTMP_POINTS_COUNT
-    
-        # form request
-        ser = serializer.Serializer()
-        ser.push_u32(8) # request REQUEST_SET_TMP_VALUES
-        
-        # send matrix dimensions
-        ser.push_u32(len(tmp_values))    # rows count
-        ser.push_u32(len(tmp_values[0])) # cols count
-        
-        # send matrix
-        for row in tmp_values:
-            for value in row:
-                ser.push_double(value)
-        
-        response_bytes = self.send_request(ser.get_data())
-        
-        # parse response
-        des = serializer.Deserializer(response_bytes)
-        
-        # check for acknowledgement byte (1)
-        if des.parse_u8() != 1:
-            print("Warning: set_dipole_vector request no acknowledgement")
         
         
