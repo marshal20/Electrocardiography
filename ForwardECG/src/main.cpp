@@ -1768,6 +1768,37 @@ private:
 				printf("Calculated TMP direct values from action potential parameters\n");
 			}
 
+			if (ImGui::Button("Export TMP and BSP probes values (CSV)"))
+			{
+				// save file dialog
+				std::string file_name = save_file_dialog("tmp_bsp_values_csv", "All\0*.*\0");
+
+				// export
+				if (file_name != "")
+				{
+					// claculate values
+					MatrixX<Real> tmp_direct_values_temporary = MatrixX<Real>::Zero(sample_count, M);
+					for (int sample = 0; sample < sample_count; sample++)
+					{
+						Real t_current = (Real)sample * TMP_dt;
+
+						for (int i = 0; i < M; i++)
+						{
+							tmp_direct_values_temporary(sample, i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+						}
+					}
+
+					if (export_tmp_bsp_values_csv(file_name, tmp_direct_values_temporary, probes_values))
+					{
+						printf("Exported \"%s\" TMP and BSP values (CSV)\n", file_name.c_str());
+					}
+					else
+					{
+						printf("Failed to export \"%s\" TMP and BSP values (CSV)\n", file_name.c_str());
+					}
+				}
+			}
+
 			// dt
 			ImGui::InputReal("TMP Total Duration", &TMP_total_duration);
 			ImGui::InputReal("TMP Time step", &TMP_dt, 0.001, 0.01, "%.5f");
@@ -2932,12 +2963,12 @@ private:
 	int current_selected_probe = -1;
 	int probe_name_counter = 1;
 	bool probes_graph = false;
-	bool probes_graph_clear_at_t0 = true;
+	bool probes_graph_clear_at_t0 = false;
 	float probes_graph_height = 60;
 	float probes_graph_width = 120;
 	std::vector<Probe> probes;
 	int reference_probe = -1;
-	bool probes_differentiation = false;
+	bool probes_differentiation = true;
 
 	// server
 	Server server;
