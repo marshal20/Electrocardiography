@@ -688,7 +688,7 @@ public:
 
 		// torso mesh plot
 		torso = new MeshPlot();
-		load_torso_model("models/torso_model_fixed_highres.fbx");
+		load_torso_model("models/torso_model_fixed.fbx");
 		color_n = { 0, 0, 1, 1 };
 		color_p = { 1, 0, 0, 1 };
 		color_probes = { 0, 0.25, 0, 1 };
@@ -842,6 +842,7 @@ public:
 					// update probes_values size
 					sample_count = TMP_total_duration/TMP_dt + 1;
 					probes_values.resize(probes.size(), sample_count);
+					heart_probes_values.resize(heart_probes.size(), sample_count);
 
 					for (int step = 0; step < TMP_steps_per_frame; step++)
 					{
@@ -860,6 +861,12 @@ public:
 
 						// calculate body surface potentials
 						calculate_potentials();
+
+						// update probes
+						for (int i = 0; i < heart_probes.size(); i++)
+						{
+							heart_probes_values(current_sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+						}
 
 						// calculate probes values at time point
 						for (int i = 0; i < probes.size(); i++)
@@ -909,6 +916,12 @@ public:
 
 						// calculate body surface potentials
 						calculate_potentials();
+
+						// update probes
+						for (int i = 0; i < heart_probes.size(); i++)
+						{
+							heart_probes_values(current_sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+						}
 
 						// calculate probes values at time point
 						for (int i = 0; i < probes.size(); i++)
@@ -1593,6 +1606,12 @@ private:
 			Renderer3D::drawPoint(eigen2glm(adding_probe_intersection), { 0, 0, 0, 1 }, 4);
 		}
 
+		// render heart probes
+		for (int i = 0; i < heart_probes.size(); i++)
+		{
+			Renderer3D::drawPoint(eigen2glm(heart_pos + heart_probes[i].point), { 1, 1, 1, 1 }, 2);
+		}
+
 		// render drawing preview
 		if (drawing_values_enabled && drawing_values_preview.size() >= 2)
 		{
@@ -2183,6 +2202,33 @@ private:
 			}
 			ImGui::EndCombo();
 		}
+		// cast probes rays
+		if (ImGui::Button("cast probes in sphere"))
+		{
+			probes.clear();
+			// spherical coordinates to cartisian
+			for (int theta_i = 0; theta_i < 12; theta_i++)
+			{
+				Real theta = -PI/2 + PI*((Real)theta_i/12);
+				for (int phi_i = 0; phi_i < 12; phi_i++)
+				{
+					// calculate ray
+					Real phi = 0 + 2*PI*((Real)phi_i/12);
+					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
+					ray_direction.normalize();
+					Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+					// intersect ray with mesh
+					Real t;
+					int tri_idx;
+					if (ray_mesh_intersect(*torso, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+					{
+						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+						probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+					}
+				}
+			}
+		}
 		// Import probes locations
 		if (ImGui::Button("Import probes"))
 		{
@@ -2283,6 +2329,155 @@ private:
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms), elapsed: %.2f s", 1/timer_dt, 1000*timer_dt, timer_time);
 		
+
+		// heart probes
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		if (ImGui::ListBoxHeader("Heart Probes", { 0, 120 }))
+		{
+			for (int i = 0; i < heart_probes.size(); i++)
+			{
+				bool is_selected = i==heart_current_selected_probe;
+				ImGui::Selectable(heart_probes[i].name.c_str(), &is_selected);
+				if (is_selected)
+				{
+					heart_current_selected_probe = i;
+				}
+
+				// value
+				ImGui::SameLine();
+				Real probe_value = evaluate_probe(*heart_mesh, heart_probes[i]);
+				std::string item_name = "  " + std::to_string(probe_value);
+				ImGui::Text(item_name.c_str());
+			}
+			ImGui::ListBoxFooter();
+		}
+		// probe info
+		if (heart_current_selected_probe != -1 && heart_current_selected_probe < heart_probes.size())
+		{
+			probe_info = true;
+			ImGui::Begin("Heart Probe info", &probe_info);
+
+			const Probe& heart_probe = heart_probes[heart_current_selected_probe];
+
+			char probe_name_buffer[256];
+			strncpy(probe_name_buffer, heart_probes[heart_current_selected_probe].name.c_str(), sizeof(probe_name_buffer)-1);
+			ImGui::InputText("Name", (char*)&probe_name_buffer, sizeof(probe_name_buffer));
+			heart_probes[heart_current_selected_probe].name = probe_name_buffer;
+
+			ImGui::Text("\tTriangle: %d", heart_probe.triangle_idx);
+			ImGui::Text("\tPoint: {%.3lf, %.3lf, %.3lf}", heart_probe.point.x(), heart_probe.point.y(), heart_probe.point.z());
+			ImGui::Text("\tValue: %.3lf", evaluate_probe(*heart_mesh, heart_probe));
+
+			ImGui::End();
+
+			if (!probe_info)
+			{
+				heart_current_selected_probe = -1;
+			}
+		}
+		// Add probe, Remove probe, move up, move down
+		if (ImGui::Button("Add heart Probe"))
+		{
+			heart_adding_probe = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Remove Heart Probe"))
+		{
+			if (heart_current_selected_probe != -1 && heart_current_selected_probe < heart_probes.size())
+			{
+				heart_probes.erase(heart_probes.begin() + heart_current_selected_probe);
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("U H")) // up
+		{
+			if (heart_current_selected_probe > 0)
+			{
+				swap(heart_probes[heart_current_selected_probe-1], heart_probes[heart_current_selected_probe]);
+				heart_current_selected_probe--;
+			}
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("D")) // down
+		{
+			if (heart_current_selected_probe < heart_probes.size()-1)
+			{
+				swap(heart_probes[heart_current_selected_probe], heart_probes[heart_current_selected_probe+1]);
+				heart_current_selected_probe++;
+			}
+		}
+		if (heart_adding_probe)
+		{
+			ImGui::SameLine();
+			ImGui::Text("Click to add a heart probe");
+		}
+		// cast probes rays
+		if (ImGui::Button("cast heart probes in sphere"))
+		{
+			heart_probes.clear();
+			// spherical coordinates to cartisian
+			for (int theta_i = 0; theta_i < 10; theta_i++)
+			{
+				Real theta = -PI/2 + PI*((Real)theta_i/10);
+				for (int phi_i = 0; phi_i < 10; phi_i++)
+				{
+					// calculate ray
+					Real phi = 0 + 2*PI*((Real)phi_i/10);
+					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
+					ray_direction.normalize();
+					Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+					// intersect ray with mesh
+					Real t;
+					int tri_idx;
+					if (ray_mesh_intersect(*heart_mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+					{
+						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+						heart_probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+					}
+				}
+			}
+		}
+		// Import probes locations
+		if (ImGui::Button("Import heart probes"))
+		{
+			// open file dialog
+			std::string file_name = open_file_dialog("locations.probes", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
+
+			// import
+			if (file_name != "")
+			{
+				if (import_probes(file_name, heart_probes))
+				{
+					printf("Imported \"%s\" heart probes\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to import \"%s\" probes\n", file_name.c_str());
+				}
+			}
+		}
+		// Export probes locations
+		ImGui::SameLine();
+		if (ImGui::Button("Export heart probes"))
+		{
+			// save file dialog
+			std::string file_name = save_file_dialog("locations.probes", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
+
+			// export
+			if (file_name != "")
+			{
+				if (export_probes(file_name, heart_probes))
+				{
+					printf("Exported \"%s\" probes\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to export \"%s\" probes\n", file_name.c_str());
+				}
+			}
+		}
+
 		ImGui::End();
 
 
@@ -2334,6 +2529,30 @@ private:
 					ImGui::SameLine();
 					ImGui::PlotLines((probes[i].name + "_differential").c_str(), &values_diff[0], values_diff.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height });
 				}
+			}
+
+			ImGui::End();
+		}
+
+		// heart probes graph
+		if (heart_probes_graph)
+		{
+			ImGui::Begin("Heart Probes Graph", &heart_probes_graph);
+
+			// graph height
+			ImGui::SliderFloat("Height", &heart_probes_graph_height, 10, 200);
+			ImGui::SliderFloat("Width", &heart_probes_graph_width, 20, 400);
+
+			// graphs
+			static std::vector<float> values;
+			values.resize(heart_probes_values.cols());
+			for (int i = 0; i < heart_probes.size(); i++)
+			{
+				for (int j = 0; j < heart_probes_values.cols(); j++)
+				{
+					values[j] = heart_probes_values(i, j);
+				}
+				ImGui::PlotLines(heart_probes[i].name.c_str(), &values[0], values.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height });
 			}
 
 			ImGui::End();
@@ -2874,60 +3093,60 @@ private:
 			}
 			else if (request_type == REQUEST_GET_TMP_BSP_VALUES_PROBES)
 			{
-			Timer generating_timer;
-			generating_timer.start();
+				Timer generating_timer;
+				generating_timer.start();
 
-			// calculate BSP probes values
-			MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, M+probes.size());
-			for (int sample = 0; sample < sample_count; sample++)
-			{
-				t = sample*TMP_dt;
-
-				if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
+				// calculate BSP probes values
+				MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, heart_probes.size()+probes.size());
+				for (int sample = 0; sample < sample_count; sample++)
 				{
-					// update heart TMP from action potential parameters
-					for (int i = 0; i < M; i++)
+					t = sample*TMP_dt;
+
+					if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
 					{
-						QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+						// update heart TMP from action potential parameters
+						for (int i = 0; i < heart_probes.size(); i++)
+						{
+							QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+						}
+					}
+					else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+					{
+						// update heart TMP from direct values
+						for (int i = 0; i < M; i++)
+						{
+							QH(i) = tmp_direct_values(sample, i);
+						}
+					}
+
+					// calculate body surface potentials
+					calculate_potentials();
+
+					for (int i = 0; i < heart_probes.size(); i++)
+					{
+						TMP_BSP_values(sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+					}
+
+					for (int i = 0; i < probes.size(); i++)
+					{
+						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_probe(*torso, probes[i]);
 					}
 				}
-				else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+
+				printf("Generated BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
+
+				// serialize data
+				ser.push_u32(sample_count); // sample count
+				ser.push_u32(heart_probes.size()); // heart probes count
+				ser.push_u32(probes.size()); // probes count
+
+				// serialize matrix SAMPLE_COUNTx(HEART_PROBES_COUNT+PROBES_COUNT)
+				for (int i = 0; i < TMP_BSP_values.rows(); i++)
 				{
-					// update heart TMP from direct values
-					for (int i = 0; i < M; i++)
+					for (int j = 0; j < TMP_BSP_values.cols(); j++)
 					{
-						QH(i) = tmp_direct_values(sample, i);
+						ser.push_double(TMP_BSP_values(i, j));
 					}
-				}
-
-				// calculate body surface potentials
-				calculate_potentials();
-
-				for (int i = 0; i < M; i++)
-				{
-					TMP_BSP_values(sample, i) = QH(i);
-				}
-
-				for (int i = 0; i < probes.size(); i++)
-				{
-					TMP_BSP_values(sample, M+i) = evaluate_probe(*torso, probes[i]);
-				}
-			}
-
-			printf("Generated BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
-
-			// serialize data
-			ser.push_u32(sample_count); // sample count
-			ser.push_u32(M); // TMP values count
-			ser.push_u32(probes.size()); // probes count
-
-			// serialize matrix SAMPLE_COUNTx(M+PROBES_COUNT)
-			for (int i = 0; i < TMP_BSP_values.rows(); i++)
-			{
-				for (int j = 0; j < TMP_BSP_values.cols(); j++)
-				{
-					ser.push_double(TMP_BSP_values(i, j));
-				}
 			}
 			}
 			else
@@ -3076,6 +3295,20 @@ private:
 	// update rate
 	int TMP_update_refresh_rate = 1; // updates per x frames
 	int TMP_update_refresh_rate_counter = 0;
+
+	// heart probes
+	bool heart_adding_probe = false;
+	bool heart_adding_probe_intersected = false;
+	Eigen::Vector3<Real> heart_adding_probe_intersection;
+	bool heart_probe_info;
+	int heart_current_selected_probe = -1;
+	int heart_probe_name_counter = 1;
+	bool heart_probes_graph = false;
+	bool heart_probes_graph_clear_at_t0 = false;
+	float heart_probes_graph_height = 60;
+	float heart_probes_graph_width = 120;
+	std::vector<Probe> heart_probes;
+	MatrixX<Real> heart_probes_values;
 
 
 };
