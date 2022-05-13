@@ -31,5 +31,13 @@ T clamp_value(T value, T min, T max)
 	return value;
 }
 
+// maps a value between range 1 [min1 : max1] to range 2 [min2 : max2]
+template<typename T>
+T map_value_to_range(T value, T min1, T max1, T min2, T max2)
+{
+	T t = (value-min1)/(max1-min1);
+	return min2 + t*(max2-min2);
+}
+
 
 Eigen::Vector3<Real> rodrigues_rotate(const Eigen::Vector3<Real>& v, const Eigen::Vector3<Real>& axis, Real theta);

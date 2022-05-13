@@ -624,6 +624,37 @@ enum DrawingMode
 	DRAW_REPOLARIZATION_TIME = 4
 };
 
+
+static std::vector<Probe> cast_probes_in_sphere(const MeshPlot& mesh, int rows, int cols)
+{
+	std::vector<Probe> probes;
+
+	// spherical coordinates to cartisian
+	for (int theta_i = 0; theta_i < rows; theta_i++)
+	{
+		Real theta = map_value_to_range<Real>(((Real)theta_i+0.5), 0, rows, -PI/2, PI/2);
+		for (int phi_i = 0; phi_i < cols; phi_i++)
+		{
+			// calculate ray
+			Real phi = map_value_to_range<Real>(((Real)phi_i+0.5), 0, cols, 0, 2*PI);
+			Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
+			ray_direction.normalize();
+			Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+			// intersect ray with mesh
+			Real t;
+			int tri_idx;
+			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+			{
+				Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+				probes.push_back(Probe{ tri_idx, intersection_point, std::string("P_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+			}
+		}
+	}
+
+	return probes;
+}
+
 class ForwardECGApp
 {
 public:
@@ -2294,31 +2325,13 @@ private:
 			ImGui::EndCombo();
 		}
 		// cast probes rays
-		if (ImGui::Button("cast probes in sphere"))
+		ImGui::InputInt("Torso Probes Rows", &torso_cast_probes_rows);
+		torso_cast_probes_rows = clamp_value<int>(torso_cast_probes_rows, 0, 1000000);
+		ImGui::InputInt("Torso Probes Columns", &torso_cast_probes_cols);
+		torso_cast_probes_cols = clamp_value<int>(torso_cast_probes_cols, 0, 1000000);
+		if (ImGui::Button("Cast torso probes in sphere"))
 		{
-			probes.clear();
-			// spherical coordinates to cartisian
-			for (int theta_i = 0; theta_i < 12; theta_i++)
-			{
-				Real theta = -PI/2 + PI*((Real)theta_i/12);
-				for (int phi_i = 0; phi_i < 12; phi_i++)
-				{
-					// calculate ray
-					Real phi = 0 + 2*PI*((Real)phi_i/12);
-					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
-					ray_direction.normalize();
-					Ray cast_ray = { {0, 0, 0}, ray_direction };
-
-					// intersect ray with mesh
-					Real t;
-					int tri_idx;
-					if (ray_mesh_intersect(*torso, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
-					{
-						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-						probes.push_back(Probe{ tri_idx, intersection_point, std::string("B_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
-					}
-				}
-			}
+			probes = cast_probes_in_sphere(*torso, torso_cast_probes_rows, torso_cast_probes_cols);
 		}
 		// Import probes locations
 		if (ImGui::Button("Import probes"))
@@ -2478,32 +2491,14 @@ private:
 			ImGui::SameLine();
 			ImGui::Text("Click to add a heart probe");
 		}
-		// cast probes rays
-		if (ImGui::Button("cast heart probes in sphere"))
+		// cast heart probes rays
+		ImGui::InputInt("Heart Probes Rows", &heart_cast_probes_rows);
+		heart_cast_probes_rows = clamp_value<int>(heart_cast_probes_rows, 0, 1000000);
+		ImGui::InputInt("Heart Probes Columns", &heart_cast_probes_cols);
+		heart_cast_probes_cols = clamp_value<int>(heart_cast_probes_cols, 0, 1000000);
+		if (ImGui::Button("Cast heart probes in sphere"))
 		{
-			heart_probes.clear();
-			// spherical coordinates to cartisian
-			for (int theta_i = 0; theta_i < 10; theta_i++)
-			{
-				Real theta = -PI/2 + PI*((Real)theta_i/10);
-				for (int phi_i = 0; phi_i < 10; phi_i++)
-				{
-					// calculate ray
-					Real phi = 0 + 2*PI*((Real)phi_i/10);
-					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
-					ray_direction.normalize();
-					Ray cast_ray = { {0, 0, 0}, ray_direction };
-
-					// intersect ray with mesh
-					Real t;
-					int tri_idx;
-					if (ray_mesh_intersect(*heart_mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
-					{
-						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-						heart_probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
-					}
-				}
-			}
+			heart_probes = cast_probes_in_sphere(*heart_mesh, heart_cast_probes_rows, heart_cast_probes_cols);
 		}
 		// Import probes locations
 		if (ImGui::Button("Import heart probes"))
@@ -3390,6 +3385,12 @@ private:
 	MatrixX<Real> tmp_probes_interpolation_matrix; // MxPROBES_COUNT
 	int last_heart_probes_count = 0;
 	Real last_interpolation_power = 3;
+
+	// cast probes
+	int torso_cast_probes_rows = 10;
+	int torso_cast_probes_cols = 10;
+	int heart_cast_probes_rows = 12;
+	int heart_cast_probes_cols = 12;
 
 };
 
