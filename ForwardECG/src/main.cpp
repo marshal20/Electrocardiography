@@ -756,6 +756,7 @@ public:
 				camera.eye = camera.look_at + glm::vec3(camera_eye_radius*sin(camera_angle), 0, camera_eye_radius*cos(camera_angle));
 			}
 
+			/*
 			// animate dipole vector on the curve
 			if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE)
 			{
@@ -830,6 +831,80 @@ public:
 			{
 				calculate_potentials();
 			}
+			*/
+
+
+			// recalculate tmp_probes_interpolation_matrix
+			if (last_heart_probes_count != heart_probes.size() || last_interpolation_power != interpolation_power)
+			{
+				tmp_probes_interpolation_matrix = MatrixX<Real>::Zero(M, heart_probes.size());
+
+				for (int i = 0; i < M; i++)
+				{
+					Vector3<Real> vertex_pos = glm2eigen(heart_mesh->vertices[i].pos);
+
+					// calculate each factor
+					for (int j = 0; j < heart_probes.size(); j++)
+					{
+						Real factor = 1/pow((heart_probes[j].point-vertex_pos).norm(), interpolation_power);
+						//factor = rmin(factor, 1e15);
+						tmp_probes_interpolation_matrix(i, j) = factor;
+					}
+
+					/*
+					// choose only the max 3
+					int max1 = -1;
+					int max2 = -1;
+					int max3 = -1;
+					for (int j = 0; j < heart_probes.size(); j++)
+					{
+						if (max1 != -1 && tmp_probes_interpolation_matrix(i, j) > tmp_probes_interpolation_matrix(i, max1))
+						{
+							max1 = j;
+						}
+					}
+					for (int j = 0; j < heart_probes.size(); j++)
+					{
+						if (max2 != -1 && max2 != max1 && tmp_probes_interpolation_matrix(i, j) > tmp_probes_interpolation_matrix(i, max2))
+						{
+							max2 = j;
+						}
+					}
+					for (int j = 0; j < heart_probes.size(); j++)
+					{
+						if (max3 != -1 && max3 != max2 && max3 != max1 && tmp_probes_interpolation_matrix(i, j) > tmp_probes_interpolation_matrix(i, max3))
+						{
+							max3 = j;
+						}
+					}
+					// zero all except the max 3 values
+					for (int j = 0; j < heart_probes.size(); j++)
+					{
+						if (j != max1 && j != max2 && j != max3)
+						{
+							tmp_probes_interpolation_matrix(i, j) = 0;
+						}
+					}
+					*/
+
+					// calculate the sum
+					Real sum = 0;
+					for (int j = 0; j < heart_probes.size(); j++)
+					{
+						sum += tmp_probes_interpolation_matrix(i, j);
+					}
+					//sum = rmax(sum, 1e-12);
+
+					// apply scale
+					for (int j = 0; j < heart_probes.size(); j++)
+					{
+						tmp_probes_interpolation_matrix(i, j) /= sum;
+					}
+				}
+
+				last_heart_probes_count = heart_probes.size();
+				last_interpolation_power = interpolation_power;
+			}
 
 			// TMP action potential
 			TMP_update_refresh_rate_counter++;
@@ -850,7 +925,7 @@ public:
 						current_sample++;
 						current_sample = current_sample%sample_count;
 
-						// update dipole vector
+						// update time vector
 						t = current_sample*TMP_dt;
 
 						// update heart TMP from action potential parameters
@@ -894,16 +969,13 @@ public:
 						current_sample++;
 						current_sample = current_sample%sample_count;
 
-						// update dipole vector
+						// update time vector
 						t = current_sample*TMP_dt;
 
-						// assign direct values
+						// assign direct values (from probes interpolation)
 						if (tmp_direct_values.rows() > 0)
 						{
-							for (int i = 0; i < heart_mesh->vertices.size(); i++)
-							{
-								QH(i) = tmp_direct_values(current_sample, i);
-							}
+							QH = tmp_probes_interpolation_matrix*tmp_direct_values.row(current_sample).transpose();
 						}
 						else
 						{
@@ -1113,7 +1185,7 @@ private:
 			const MeshPlotVertex& vertex = torso->vertices[i];
 			Vector3<Real> r = glm2eigen(vertex.pos);
 
-			// A: For torso faces
+			// A: For heart faces
 			for (const MeshPlotFace& face : heart_mesh->faces)
 			{
 				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
@@ -1149,7 +1221,7 @@ private:
 			const MeshPlotVertex& vertex = torso->vertices[i];
 			Vector3<Real> r = glm2eigen(vertex.pos);
 
-			// A: For torso faces
+			// A: For heart faces
 			for (const MeshPlotFace& face : heart_mesh->faces)
 			{
 				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
@@ -1217,7 +1289,7 @@ private:
 			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
 			Vector3<Real> r = heart_pos + glm2eigen(vertex.pos);
 
-			// A: For torso faces
+			// A: For heart faces
 			for (const MeshPlotFace& face : heart_mesh->faces)
 			{
 				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
@@ -1262,7 +1334,7 @@ private:
 			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
 			Vector3<Real> r = heart_pos + glm2eigen(vertex.pos);
 
-			// A: For torso faces
+			// A: For heart faces
 			for (const MeshPlotFace& face : heart_mesh->faces)
 			{
 				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
@@ -1376,7 +1448,7 @@ private:
 		QH = Q;
 		*/
 
-
+		/*
 		// DEBUG
 		if (zero_heart_right_section)
 		{
@@ -1385,6 +1457,7 @@ private:
 				QH(i) = 1;
 			}
 		}
+		*/
 
 		// TMP forward ecg
 		// Q_B = ZBH * Q_H
@@ -1414,6 +1487,7 @@ private:
 			heart_mesh->vertices[i].value = QH(i);
 		}
 
+		/*
 		// apply reference probe (to potentials in toso model only not Q)
 		if (reference_probe != -1)
 		{
@@ -1429,6 +1503,7 @@ private:
 				heart_mesh->vertices[i].value -= reference_value;
 			}
 		}
+		*/
 
 	}
 
@@ -1781,18 +1856,31 @@ private:
 
 			if (ImGui::Button("Calculate TMP direct values from action potential parameters"))
 			{
-				tmp_direct_values = MatrixX<Real>::Zero(sample_count, M);
+				sample_count = TMP_total_duration/TMP_dt + 1;
+				tmp_direct_values = MatrixX<Real>::Zero(sample_count, heart_probes.size());
 
 				for (int sample = 0; sample < sample_count; sample++)
 				{
-					Real t_current = (Real)sample * TMP_dt;
+					Real t_current = (Real)sample*TMP_dt;
 
+					// update heart TMP from action potential parameters
 					for (int i = 0; i < M; i++)
 					{
-						tmp_direct_values(sample, i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+						QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+					}
+
+					// calculate body surface potentials
+					calculate_potentials();
+
+					for (int i = 0; i < heart_probes.size(); i++)
+					{
+						tmp_direct_values(sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+						//tmp_direct_values(sample, i) = (Real)sample/1000.0;
+						//tmp_direct_values(sample, i) = QH(i);
 					}
 				}
 
+				tmp_source = TMP_SOURCE_TMP_DIRECT_VALUES;
 				printf("Calculated TMP direct values from action potential parameters\n");
 			}
 
@@ -1838,6 +1926,7 @@ private:
 		{
 			ImGui::Text("Samples Count: %d", tmp_direct_values.rows());
 			ImGui::Text("Current Sample: %d", current_sample);
+			ImGui::DragReal("Interpolation Power", &interpolation_power, 0.1, 1, 12);
 
 			if (ImGui::Button("Import TMP direct values"))
 			{
@@ -1901,6 +1990,7 @@ private:
 		}
 
 
+		/*
 		// dipole position and vector
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Text("Dipole");
@@ -2055,6 +2145,7 @@ private:
 				}
 			}
 		}
+		*/
 
 		// rendering options
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -2224,7 +2315,7 @@ private:
 					if (ray_mesh_intersect(*torso, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
 					{
 						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-						probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+						probes.push_back(Probe{ tri_idx, intersection_point, std::string("B_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
 					}
 				}
 			}
@@ -2298,37 +2389,7 @@ private:
 					printf("Failed to dump probes to \"%s\"\n", file_name.c_str());
 				}
 			}
-		}
-
-		// stats
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		Real torso_max_val = -INFINITY;
-		Real torso_min_val = INFINITY;
-		for (MeshPlotVertex& vertex : torso->vertices)
-		{
-			torso_max_val = rmax(vertex.value, torso_max_val);
-			torso_min_val = rmin(vertex.value, torso_min_val);
-		}
-		Real heart_max_val = -INFINITY;
-		Real heart_min_val = INFINITY;
-		for (MeshPlotVertex& vertex : heart_mesh->vertices)
-		{
-			heart_max_val = rmax(vertex.value, heart_max_val);
-			heart_min_val = rmin(vertex.value, heart_min_val);
-		}
-		ImGui::Text("Stats:");
-		ImGui::Text("\tTorso Potential Max: %f", torso_max_val);
-		ImGui::Text("\tTorso Potential Min: %f", torso_min_val);
-		ImGui::Text("\tTorso Potential Delta: %f", torso_max_val-torso_min_val);
-		ImGui::Text("\t ");
-		ImGui::Text("\tHeart Potential Max: %f", heart_max_val);
-		ImGui::Text("\tHeart Potential Min: %f", heart_min_val);
-		ImGui::Text("\tHeart Potential Delta: %f", heart_max_val-heart_min_val);
-
-		// frame rate and frame time
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms), elapsed: %.2f s", 1/timer_dt, 1000*timer_dt, timer_time);
-		
+		}		
 
 		// heart probes
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -2346,6 +2407,12 @@ private:
 				// value
 				ImGui::SameLine();
 				Real probe_value = evaluate_probe(*heart_mesh, heart_probes[i]);
+
+				if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+				{
+					probe_value = tmp_direct_values(current_sample, i);
+				}
+
 				std::string item_name = "  " + std::to_string(probe_value);
 				ImGui::Text(item_name.c_str());
 			}
@@ -2398,7 +2465,7 @@ private:
 			}
 		}
 		ImGui::SameLine();
-		if (ImGui::Button("D")) // down
+		if (ImGui::Button("D H")) // down
 		{
 			if (heart_current_selected_probe < heart_probes.size()-1)
 			{
@@ -2477,6 +2544,36 @@ private:
 				}
 			}
 		}
+
+
+		// stats
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		Real torso_max_val = -INFINITY;
+		Real torso_min_val = INFINITY;
+		for (MeshPlotVertex& vertex : torso->vertices)
+		{
+			torso_max_val = rmax(vertex.value, torso_max_val);
+			torso_min_val = rmin(vertex.value, torso_min_val);
+		}
+		Real heart_max_val = -INFINITY;
+		Real heart_min_val = INFINITY;
+		for (MeshPlotVertex& vertex : heart_mesh->vertices)
+		{
+			heart_max_val = rmax(vertex.value, heart_max_val);
+			heart_min_val = rmin(vertex.value, heart_min_val);
+		}
+		ImGui::Text("Stats:");
+		ImGui::Text("\tTorso Potential Max: %f", torso_max_val);
+		ImGui::Text("\tTorso Potential Min: %f", torso_min_val);
+		ImGui::Text("\tTorso Potential Delta: %f", torso_max_val-torso_min_val);
+		ImGui::Text("\t ");
+		ImGui::Text("\tHeart Potential Max: %f", heart_max_val);
+		ImGui::Text("\tHeart Potential Min: %f", heart_min_val);
+		ImGui::Text("\tHeart Potential Delta: %f", heart_max_val-heart_min_val);
+
+		// frame rate and frame time
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms), elapsed: %.2f s", 1/timer_dt, 1000*timer_dt, timer_time);
 
 		ImGui::End();
 
@@ -3011,23 +3108,12 @@ private:
 				MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, M+N);
 				for (int sample = 0; sample < sample_count; sample++)
 				{
-					t = sample*TMP_dt;
+					Real t_current = sample*TMP_dt;
 
-					if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
+					// update heart TMP from action potential parameters
+					for (int i = 0; i < M; i++)
 					{
-						// update heart TMP from action potential parameters
-						for (int i = 0; i < M; i++)
-						{
-							QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
-						}
-					}
-					else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
-					{
-						// update heart TMP from direct values
-						for (int i = 0; i < M; i++)
-						{
-							QH(i) = tmp_direct_values(sample, i);
-						}
+						QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
 					}
 
 					// calculate body surface potentials
@@ -3066,9 +3152,9 @@ private:
 				int rows_count = des.parse_u32();
 				int cols_count = des.parse_u32();
 
-				if (cols_count == M)
+				if (cols_count == heart_probes.size())
 				{
-					// deserialize matrix SAMPLE_COUNTxN
+					// deserialize matrix SAMPLE_COUNTxPROBES_COUNT
 					MatrixX<Real> new_tmp_direct_values = MatrixX<Real>::Zero(rows_count, cols_count);
 					for (int i = 0; i < rows_count; i++)
 					{
@@ -3100,23 +3186,12 @@ private:
 				MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, heart_probes.size()+probes.size());
 				for (int sample = 0; sample < sample_count; sample++)
 				{
-					t = sample*TMP_dt;
+					Real t_current = sample*TMP_dt;
 
-					if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
+					// update heart TMP from action potential parameters
+					for (int i = 0; i < M; i++)
 					{
-						// update heart TMP from action potential parameters
-						for (int i = 0; i < heart_probes.size(); i++)
-						{
-							QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
-						}
-					}
-					else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
-					{
-						// update heart TMP from direct values
-						for (int i = 0; i < M; i++)
-						{
-							QH(i) = tmp_direct_values(sample, i);
-						}
+						QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
 					}
 
 					// calculate body surface potentials
@@ -3290,7 +3365,7 @@ private:
 	bool drawing_view_target_channel = true;
 	// TMP direct values source
 	TMPValuesSource tmp_source = TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS;
-	MatrixX<Real> tmp_direct_values; // SAMPLE_COUNTxM matrix
+	MatrixX<Real> tmp_direct_values; // SAMPLE_COUNTxPROBES_COUNT matrix
 
 	// update rate
 	int TMP_update_refresh_rate = 1; // updates per x frames
@@ -3310,6 +3385,11 @@ private:
 	std::vector<Probe> heart_probes;
 	MatrixX<Real> heart_probes_values;
 
+	// heart probes interpolation
+	Real interpolation_power = 3;
+	MatrixX<Real> tmp_probes_interpolation_matrix; // MxPROBES_COUNT
+	int last_heart_probes_count = 0;
+	Real last_interpolation_power = 3;
 
 };
 

@@ -222,7 +222,7 @@ class Client:
     
     
     def set_tmp_values(self, tmp_values):
-        # sends tmp_values matrix: SAMPLE_COUNTxTMP_POINTS_COUNT
+        # sends tmp_values matrix: SAMPLE_COUNTxHEART_PROBES_COUNT
     
         # form request
         ser = serializer.Serializer()
@@ -233,9 +233,9 @@ class Client:
         ser.push_u32(len(tmp_values[0])) # cols count
         
         # send matrix
-        for row in tmp_values:
-            for value in row:
-                ser.push_double(value)
+        for i in range(len(tmp_values)):
+            for j in range(len(tmp_values[0])):
+                ser.push_double(tmp_values[i][j])
         
         response_bytes = self.send_request(ser.get_data())
         
