@@ -882,49 +882,12 @@ public:
 						tmp_probes_interpolation_matrix(i, j) = factor;
 					}
 
-					/*
-					// choose only the max 3
-					int max1 = -1;
-					int max2 = -1;
-					int max3 = -1;
-					for (int j = 0; j < heart_probes.size(); j++)
-					{
-						if (max1 != -1 && tmp_probes_interpolation_matrix(i, j) > tmp_probes_interpolation_matrix(i, max1))
-						{
-							max1 = j;
-						}
-					}
-					for (int j = 0; j < heart_probes.size(); j++)
-					{
-						if (max2 != -1 && max2 != max1 && tmp_probes_interpolation_matrix(i, j) > tmp_probes_interpolation_matrix(i, max2))
-						{
-							max2 = j;
-						}
-					}
-					for (int j = 0; j < heart_probes.size(); j++)
-					{
-						if (max3 != -1 && max3 != max2 && max3 != max1 && tmp_probes_interpolation_matrix(i, j) > tmp_probes_interpolation_matrix(i, max3))
-						{
-							max3 = j;
-						}
-					}
-					// zero all except the max 3 values
-					for (int j = 0; j < heart_probes.size(); j++)
-					{
-						if (j != max1 && j != max2 && j != max3)
-						{
-							tmp_probes_interpolation_matrix(i, j) = 0;
-						}
-					}
-					*/
-
 					// calculate the sum
 					Real sum = 0;
 					for (int j = 0; j < heart_probes.size(); j++)
 					{
 						sum += tmp_probes_interpolation_matrix(i, j);
 					}
-					//sum = rmax(sum, 1e-12);
 
 					// apply scale
 					for (int j = 0; j < heart_probes.size(); j++)
@@ -1715,7 +1678,16 @@ private:
 		// render heart probes
 		for (int i = 0; i < heart_probes.size(); i++)
 		{
-			Renderer3D::drawPoint(eigen2glm(heart_pos + heart_probes[i].point), { 1, 1, 1, 1 }, 2);
+			glm::vec4 color = { 1, 1, 1, 1 };
+			if (i == heart_current_selected_probe)
+			{
+				color = { 0, 0, 0, 1 };
+			}
+			Renderer3D::drawPoint(eigen2glm(heart_pos + heart_probes[i].point), color, 2);
+		}
+		if (heart_adding_probe && heart_adding_probe_intersected)
+		{
+			Renderer3D::drawPoint(eigen2glm(heart_pos + heart_adding_probe_intersection), { 0, 0, 0, 1 }, 2);
 		}
 
 		// render drawing preview
@@ -2333,6 +2305,60 @@ private:
 		{
 			probes = cast_probes_in_sphere(*torso, torso_cast_probes_rows, torso_cast_probes_cols);
 		}
+		// cast probes rays
+		if (ImGui::Button("OLD cast probes in sphere"))
+		{
+			probes.clear();
+			// spherical coordinates to cartisian
+			for (int theta_i = 0; theta_i < 12; theta_i++)
+			{
+				Real theta = -PI/2 + PI*((Real)theta_i/12);
+				for (int phi_i = 0; phi_i < 12; phi_i++)
+				{
+					// calculate ray
+					Real phi = 0 + 2*PI*((Real)phi_i/12);
+					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
+					ray_direction.normalize();
+					Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+					// intersect ray with mesh
+					Real t;
+					int tri_idx;
+					if (ray_mesh_intersect(*torso, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+					{
+						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+						probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+					}
+				}
+			}
+		}
+		// cast probes rays
+		if (ImGui::Button("9x9 FIXED cast probes in sphere"))
+		{
+			probes.clear();
+			// spherical coordinates to cartisian
+			for (int theta_i = 0; theta_i < 9; theta_i++)
+			{
+				Real theta = -PI/2 + PI*((Real)theta_i/9);
+				for (int phi_i = 0; phi_i < 9; phi_i++)
+				{
+					// calculate ray
+					Real phi = 0 + 2*PI*((Real)phi_i/9);
+					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
+					ray_direction.normalize();
+					Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+					// intersect ray with mesh
+					Real t;
+					int tri_idx;
+					if (ray_mesh_intersect(*torso, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+					{
+						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+						probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+					}
+				}
+			}
+		}
 		// Import probes locations
 		if (ImGui::Button("Import probes"))
 		{
@@ -2500,6 +2526,60 @@ private:
 		{
 			heart_probes = cast_probes_in_sphere(*heart_mesh, heart_cast_probes_rows, heart_cast_probes_cols);
 		}
+		// cast heart probes rays
+		if (ImGui::Button("OLD cast heart probes in sphere"))
+		{
+			heart_probes.clear();
+			// spherical coordinates to cartisian
+			for (int theta_i = 0; theta_i < 10; theta_i++)
+			{
+				Real theta = -PI/2 + PI*((Real)theta_i/10);
+				for (int phi_i = 0; phi_i < 10; phi_i++)
+				{
+					// calculate ray
+					Real phi = 0 + 2*PI*((Real)phi_i/10);
+					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
+					ray_direction.normalize();
+					Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+					// intersect ray with mesh
+					Real t;
+					int tri_idx;
+					if (ray_mesh_intersect(*heart_mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+					{
+						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+						heart_probes.push_back(Probe{ tri_idx, intersection_point, std::string("B_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+					}
+				}
+			}
+		}
+		// cast probes rays
+		if (ImGui::Button("15x5 FIXED cast probes in sphere"))
+		{
+			heart_probes.clear();
+			// spherical coordinates to cartisian
+			for (int theta_i = 0; theta_i < 5; theta_i++)
+			{
+				Real theta = -PI/2 + PI*((Real)theta_i/5);
+				for (int phi_i = 0; phi_i < 15; phi_i++)
+				{
+					// calculate ray
+					Real phi = 0 + 2*PI*((Real)phi_i/15);
+					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
+					ray_direction.normalize();
+					Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+					// intersect ray with mesh
+					Real t;
+					int tri_idx;
+					if (ray_mesh_intersect(*heart_mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+					{
+						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+						heart_probes.push_back(Probe{ tri_idx, intersection_point, std::string("B_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+					}
+				}
+			}
+		}
 		// Import probes locations
 		if (ImGui::Button("Import heart probes"))
 		{
@@ -2593,33 +2673,20 @@ private:
 				{
 					values[j] = probes_values(i, j);
 				}
-				//if (probes_differentiation)
-				//{
-				//	//float average = 0;
-				//	for (int j = 1; j < probes_values.cols(); j++)
-				//	{
-				//		//values_diff[j] = values[j] - average;
-				//		//average = 0.5*average + 0.5*values_diff[j];
-				//		values_diff[j-1] = (values[j] - values[j-1])/TMP_dt;
-				//	}
-				//	values_diff[values_diff.size()-1] = values_diff[values_diff.size()-2];
-				//}
-				//else
-				//{
-				//	values_diff = values;
-				//}
 				for (int j = 1; j < probes_values.cols(); j++)
 				{
-					//values_diff[j] = values[j] - average;
-					//average = 0.5*average + 0.5*values_diff[j];
 					values_diff[j-1] = (values[j] - values[j-1])/TMP_dt;
 				}
 				values_diff[values_diff.size()-1] = values_diff[values_diff.size()-2];
-				ImGui::PlotLines(probes[i].name.c_str(), &values[0], values.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height});
 				if (probes_differentiation)
 				{
 					ImGui::SameLine();
 					ImGui::PlotLines((probes[i].name + "_differential").c_str(), &values_diff[0], values_diff.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height });
+
+				}
+				else
+				{
+					ImGui::PlotLines(probes[i].name.c_str(), &values[0], values.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height });
 				}
 			}
 
@@ -2785,6 +2852,38 @@ private:
 				}
 				adding_probe_intersected = true;
 				adding_probe_intersection = ray.point_at_dir(t);
+			}
+		}
+
+		// heart_adding_probes
+		heart_adding_probe_intersected = false;
+		if (heart_adding_probe)
+		{
+			// normalized screen coordinates
+			Real x = (Real)Input::getCursorXPos()/width*2 - 1;
+			Real y = -((Real)Input::getCursorYPos()/height*2 - 1);
+
+			// camera axis
+			Vector3<Real> forward = glm2eigen(camera.look_at-camera.eye).normalized();
+			Vector3<Real> up = glm2eigen(camera.up).normalized();
+			Vector3<Real> right = forward.cross(up).normalized();
+			// calculate the pointer direction
+			Vector3<Real> direction = forward + up*tan(0.5*y*camera.fov) + right*tan(0.5*x*camera.aspect*camera.fov);
+			direction = direction.normalized();
+
+			Ray ray = { glm2eigen(camera.eye), direction };
+
+			Real t;
+			int tri_idx;
+			if (ray_mesh_intersect(*heart_mesh, heart_pos, ray, t, tri_idx))
+			{
+				if (Input::isButtonDown(GLFW_MOUSE_BUTTON_LEFT))
+				{
+					heart_probes.push_back({ tri_idx, ray.point_at_dir(t)-heart_pos, "probe" + std::to_string(heart_probe_name_counter++) });
+					heart_adding_probe = false;
+				}
+				heart_adding_probe_intersected = true;
+				heart_adding_probe_intersection = ray.point_at_dir(t)-heart_pos;
 			}
 		}
 
