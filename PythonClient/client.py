@@ -244,7 +244,7 @@ class Client:
         
         # check for acknowledgement byte (1)
         if des.parse_u8() != 1:
-            print("Warning: set_dipole_vector request no acknowledgement")
+            print("Warning: set_tmp_values request no acknowledgement")
         
         
     def get_tmp_bsp_values_probes(self):

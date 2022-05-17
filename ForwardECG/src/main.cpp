@@ -1027,7 +1027,10 @@ public:
 					for (int step = 0; step < TMP_steps_per_frame; step++)
 					{
 						// next sample
-						current_sample++;
+						if (!(tmp_direct_values_one_play && current_sample == sample_count-1))
+						{
+							current_sample++;
+						}
 						current_sample = current_sample%sample_count;
 
 						// update time vector
@@ -1998,6 +2001,14 @@ private:
 			ImGui::Text("Samples Count: %d", tmp_direct_values.rows());
 			ImGui::Text("Current Sample: %d", current_sample);
 			ImGui::DragReal("Interpolation Power", &interpolation_power, 0.1, 1, 12);
+			ImGui::Checkbox("play values one time only", &tmp_direct_values_one_play);
+			if (tmp_direct_values_one_play)
+			{
+				if (ImGui::Button("Play TMP Again"))
+				{
+					current_sample = 0;
+				}
+			}
 
 			if (ImGui::Button("Import TMP direct values"))
 			{
@@ -3329,6 +3340,8 @@ private:
 					// set new values
 					tmp_direct_values = new_tmp_direct_values;
 					tmp_source = TMP_SOURCE_TMP_DIRECT_VALUES;
+					tmp_direct_values_one_play = true;
+					current_sample = 0;
 
 					ser.push_u8(1); // return true acknowledgement
 				}
@@ -3611,6 +3624,7 @@ private:
 	MatrixX<Real> tmp_direct_values; // SAMPLE_COUNTxPROBES_COUNT matrix
 	bool use_interpolation_for_action_potential = false;
 	MatrixX<Real> heart_probes_values_temp;
+	bool tmp_direct_values_one_play = true;
 
 	// update rate
 	int TMP_update_refresh_rate = 1; // updates per x frames
