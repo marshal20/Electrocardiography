@@ -287,5 +287,45 @@ class Client:
         
         return tmp_values, probes_values
     
+
+    def get_tmp_bsp_values_probes_2(self):
+        # returns two matrices: 
+        #   * TMP_values:    SAMPLE_COUNTxTMP_POINTS_COUNT
+        #   * probes_values: SAMPLE_COUNTxPROBES_COUNT
+    
+        # form request
+        ser = serializer.Serializer()
+        ser.push_u32(10) # request REQUEST_GET_TMP_BSP_VALUES_PROBES_2
         
+        response_bytes = self.send_request(ser.get_data())
+        
+        # parse response
+        des = serializer.Deserializer(response_bytes)
+        
+        sample_count = des.parse_u32()
+        tmp_points_count = des.parse_u32()
+        probes_count = des.parse_u32()
+        
+        # parse row by row
+        tmp_values = []
+        probes_values = []
+        for j in range(sample_count):
+            # TMP values
+            tmp_row = []
+            # probes_values
+            for i in range(tmp_points_count):
+                tmp_row.append(des.parse_double())
+            # append row to matrix
+            tmp_values.append(tmp_row)
+            
+            # probes values
+            probes_row = []
+            # probes_values
+            for i in range(probes_count):
+                probes_row.append(des.parse_double())
+            # append row to matrix
+            probes_values.append(probes_row)
+        
+        return tmp_values, probes_values
+
         

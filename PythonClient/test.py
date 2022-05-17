@@ -11,8 +11,8 @@ c = client.Client(SERVER_ADDR, SERVER_PORT)
 
 
 # test get_tmp_bsp_values
-print("Test get_tmp_bsp_values_probes")
-tmp_values, bsp_values = c.get_tmp_bsp_values_probes()
+print("Test get_tmp_bsp_values_probes_2")
+tmp_values, bsp_values = c.get_tmp_bsp_values_probes_2()
 print("tmp_values: {}x{}, bsp_values: {}x{}".format(len(tmp_values), len(tmp_values[0]), len(bsp_values), len(bsp_values[0])))
 print("")
 

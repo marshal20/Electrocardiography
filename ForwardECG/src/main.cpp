@@ -301,6 +301,7 @@ enum RequestType
 	REQUEST_GET_TMP_BSP_VALUES = 7,
 	REQUEST_SET_TMP_VALUES = 8,
 	REQUEST_GET_TMP_BSP_VALUES_PROBES = 9,
+	REQUEST_GET_TMP_BSP_VALUES_PROBES_2 = 10,
 };
 
 static std::string request_type_to_string(const RequestType req_type)
@@ -325,6 +326,8 @@ static std::string request_type_to_string(const RequestType req_type)
 		return "REQUEST_SET_TMP_VALUES";
 	case REQUEST_GET_TMP_BSP_VALUES_PROBES:
 		return "REQUEST_GET_TMP_BSP_VALUES_PROBES";
+	case REQUEST_GET_TMP_BSP_VALUES_PROBES_2:
+		return "REQUEST_GET_TMP_BSP_VALUES_PROBES_2";
 	default:
 		return "UNKNOWN";
 	}
@@ -655,6 +658,35 @@ static std::vector<Probe> cast_probes_in_sphere(const MeshPlot& mesh, int rows, 
 	return probes;
 }
 
+static void print_progress_bar(int percentage, bool return_carriage = true)
+{
+	// limit percentage
+	percentage = clamp_value<int>(percentage, 0, 100);
+
+	// buffer the line before printing
+	char buffer[128];
+	int buffer_it = 0;
+
+	// return carriage
+	if (return_carriage)
+	{
+		buffer[buffer_it++] = '\r';
+	}
+
+	// progress bar
+	buffer[buffer_it++] = '[';
+	for (int i = 0; i < 100; i++)
+	{
+		buffer[buffer_it++] = (i < percentage) ? '=' : '-';
+	}
+	buffer[buffer_it++] = ']';
+
+	// null termination
+	buffer[buffer_it++] = '\0';
+
+	printf("%s %d%%   ", buffer, percentage);
+}
+
 class ForwardECGApp
 {
 public:
@@ -912,6 +944,8 @@ public:
 					sample_count = TMP_total_duration/TMP_dt + 1;
 					probes_values.resize(probes.size(), sample_count);
 					heart_probes_values.resize(heart_probes.size(), sample_count);
+					// heart_probes_values_temp
+					heart_probes_values_temp.resize(1, heart_probes.size());
 
 					for (int step = 0; step < TMP_steps_per_frame; step++)
 					{
@@ -926,6 +960,39 @@ public:
 						for (int i = 0; i < heart_mesh->vertices.size(); i++)
 						{
 							QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+						}
+
+						if (use_interpolation_for_action_potential)
+						{	
+							// update heart TMP from action potential parameters
+							for (int i = 0; i < M; i++)
+							{
+								QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+							}
+
+							// update heart probes values
+							for (int i = 0; i < heart_mesh->vertices.size(); i++)
+							{
+								heart_mesh->vertices[i].value = QH(i);
+							}
+							for (int i = 0; i < heart_probes.size(); i++)
+							{
+								heart_probes_values_temp(i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+							}
+
+							// use interpolation for heart potentials using heart probes
+							if (heart_probes.size() > 0)
+							{
+								QH = tmp_probes_interpolation_matrix*heart_probes_values_temp;
+							}
+							else
+							{
+								// set values to 0
+								for (int i = 0; i < heart_mesh->vertices.size(); i++)
+								{
+									QH(i) = 0;
+								}
+							}
 						}
 
 						// calculate body surface potentials
@@ -1809,6 +1876,7 @@ private:
 			ImGui::DragReal("drawing brush radius", &drawing_values_radius, 0.01, 0.001, 1);
 			ImGui::InputReal("drawing value", &drawing_value);
 			ImGui::Checkbox("view target channel", &drawing_view_target_channel);
+			ImGui::Checkbox("use interpolation intermediate step", &use_interpolation_for_action_potential);
 			if (ImGui::Button("Import parameters"))
 			{
 				// open file dialog
@@ -3316,7 +3384,88 @@ private:
 					{
 						ser.push_double(TMP_BSP_values(i, j));
 					}
+				}
 			}
+			else if (request_type == REQUEST_GET_TMP_BSP_VALUES_PROBES_2)
+			{
+				Timer generating_timer;
+				generating_timer.start();
+
+				// progress bar
+				print_progress_bar(0);
+
+				// calculate BSP probes values
+				MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, heart_probes.size()+probes.size());
+				heart_probes_values_temp.resize(1, heart_probes.size());
+				for (int sample = 0; sample < sample_count; sample++)
+				{
+					Real t_current = sample*TMP_dt;
+
+					// update heart TMP from action potential parameters
+					for (int i = 0; i < M; i++)
+					{
+						QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+					}
+
+					// update heart probes values
+					for (int i = 0; i < heart_mesh->vertices.size(); i++)
+					{
+						heart_mesh->vertices[i].value = QH(i);
+					}
+					for (int i = 0; i < heart_probes.size(); i++)
+					{
+						heart_probes_values_temp(i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+					}
+
+					// use interpolation for heart potentials using heart probes
+					if (heart_probes.size() > 0)
+					{
+						QH = tmp_probes_interpolation_matrix*heart_probes_values_temp;
+					}
+					else
+					{
+						// set values to 0
+						for (int i = 0; i < heart_mesh->vertices.size(); i++)
+						{
+							QH(i) = 0;
+						}
+					}
+
+					// calculate body surface potentials
+					calculate_potentials();
+
+					// fill the matrix
+					for (int i = 0; i < heart_probes.size(); i++)
+					{
+						TMP_BSP_values(sample, i) = heart_probes_values_temp(i);
+					}
+
+					for (int i = 0; i < probes.size(); i++)
+					{
+						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_probe(*torso, probes[i]);
+					}
+
+					print_progress_bar((sample*100)/sample_count);
+				}
+
+				print_progress_bar(100);
+				printf("\n");
+
+				printf("Generated BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
+
+				// serialize data
+				ser.push_u32(sample_count); // sample count
+				ser.push_u32(heart_probes.size()); // heart probes count
+				ser.push_u32(probes.size()); // probes count
+
+				// serialize matrix SAMPLE_COUNTx(HEART_PROBES_COUNT+PROBES_COUNT)
+				for (int i = 0; i < TMP_BSP_values.rows(); i++)
+				{
+					for (int j = 0; j < TMP_BSP_values.cols(); j++)
+					{
+						ser.push_double(TMP_BSP_values(i, j));
+					}
+				}
 			}
 			else
 			{
@@ -3460,6 +3609,8 @@ private:
 	// TMP direct values source
 	TMPValuesSource tmp_source = TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS;
 	MatrixX<Real> tmp_direct_values; // SAMPLE_COUNTxPROBES_COUNT matrix
+	bool use_interpolation_for_action_potential = false;
+	MatrixX<Real> heart_probes_values_temp;
 
 	// update rate
 	int TMP_update_refresh_rate = 1; // updates per x frames
