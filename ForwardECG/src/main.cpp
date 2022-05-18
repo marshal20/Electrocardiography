@@ -617,6 +617,51 @@ static bool export_tmp_bsp_values_csv(const std::string& file_name, const Matrix
 	return true;
 }
 
+static bool dump_matrix_to_csv(const std::string& file_name, const std::vector<std::string>& names, const MatrixX<Real>& matrix)
+{
+	FILE* file = fopen(file_name.c_str(), "w");
+	if (!file)
+	{
+		return false;
+	}
+
+	std::string line = "";
+
+	// column names
+	for (int i = 0; i < names.size(); i++)
+	{
+		if (i != 0)
+		{
+			line += ", ";
+		}
+		line += names[i];
+	}
+	line += "\n";
+	fwrite(line.c_str(), sizeof(char), line.size(), file);
+
+	// values
+	for (int i = 0; i < matrix.rows(); i++)
+	{
+		line = "";
+
+		// TMP values
+		for (int j = 0; j < matrix.cols(); j++)
+		{
+			if (j != 0)
+			{
+				line += ", ";
+			}
+			line += std::to_string(matrix(i, j));
+		}
+
+		line += "\n";
+		fwrite(line.c_str(), sizeof(char), line.size(), file);
+	}
+
+	fclose(file);
+	return true;
+}
+
 
 enum DrawingMode
 {
@@ -1001,19 +1046,19 @@ public:
 						// update probes
 						for (int i = 0; i < heart_probes.size(); i++)
 						{
-							heart_probes_values(current_sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+							heart_probes_values(i, current_sample) = evaluate_probe(*heart_mesh, heart_probes[i]);
 						}
 
 						// calculate probes values at time point
 						for (int i = 0; i < probes.size(); i++)
 						{
-							Real probe_value = evaluate_probe(*torso, probes[i]);
-							probes_values(i, current_sample) = probe_value;
+							probes_values(i, current_sample) = evaluate_probe(*torso, probes[i]);
 						}
 
 						// clear probes graph
 						if (probes_graph_clear_at_t0 && current_sample == 0)
 						{
+							heart_probes_values.setZero();
 							probes_values.setZero();
 						}
 					}
@@ -1056,19 +1101,19 @@ public:
 						// update probes
 						for (int i = 0; i < heart_probes.size(); i++)
 						{
-							heart_probes_values(current_sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+							heart_probes_values(i, current_sample) = evaluate_probe(*heart_mesh, heart_probes[i]);
 						}
 
 						// calculate probes values at time point
 						for (int i = 0; i < probes.size(); i++)
 						{
-							Real probe_value = evaluate_probe(*torso, probes[i]);
-							probes_values(i, current_sample) = probe_value;
+							probes_values(i, current_sample) = evaluate_probe(*torso, probes[i]);
 						}
 
 						// clear probes graph
 						if (probes_graph_clear_at_t0 && current_sample == 0)
 						{
+							heart_probes_values.setZero();
 							probes_values.setZero();
 						}
 					}
@@ -2406,7 +2451,7 @@ private:
 					if (ray_mesh_intersect(*torso, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
 					{
 						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-						probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+						probes.push_back(Probe{ tri_idx, intersection_point, std::string("B_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
 					}
 				}
 			}
@@ -2433,7 +2478,7 @@ private:
 					if (ray_mesh_intersect(*torso, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
 					{
 						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-						probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+						probes.push_back(Probe{ tri_idx, intersection_point, std::string("B_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
 					}
 				}
 			}
@@ -2483,9 +2528,13 @@ private:
 
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		// view probes graph
-		if (ImGui::Button("Probes graph"))
+		if (ImGui::Button("Torso Probes graph"))
 		{
 			probes_graph = true;
+		}
+		if (ImGui::Button("Heart Probes graph"))
+		{
+			heart_probes_graph = true;
 		}
 		ImGui::Checkbox("Clear graph at (t = 0)", &probes_graph_clear_at_t0);
 		// dump to csv
@@ -2507,7 +2556,60 @@ private:
 					printf("Failed to dump probes to \"%s\"\n", file_name.c_str());
 				}
 			}
-		}		
+		}
+		if (ImGui::Button("Dump TMP BSP Probes to CSV"))
+		{
+			Timer generating_timer;
+			generating_timer.start();
+
+			// calculate BSP probes values
+			std::vector<std::string> names(heart_probes.size()+probes.size(), "");
+			MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, heart_probes.size()+probes.size());
+			for (int sample = 0; sample < sample_count; sample++)
+			{
+				Real t_current = sample*TMP_dt;
+
+				// update heart TMP from action potential parameters
+				for (int i = 0; i < M; i++)
+				{
+					QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+				}
+
+				// calculate body surface potentials
+				calculate_potentials();
+
+				for (int i = 0; i < heart_probes.size(); i++)
+				{
+					names[i] = heart_probes[i].name;
+					TMP_BSP_values(sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+				}
+
+				for (int i = 0; i < probes.size(); i++)
+				{
+					names[heart_probes.size()+i] = probes[i].name;
+					TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_probe(*torso, probes[i]);
+				}
+			}
+
+			printf("Generated TMP BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
+
+			// save to file
+			std::string file_name = save_file_dialog("TMP_BSP_values.csv", "CSV File (.csv)\0*.csv\0");
+
+			// dump
+			if (file_name != "")
+			{
+				bool res = dump_matrix_to_csv(file_name, names, TMP_BSP_values);
+				if (res)
+				{
+					printf("Successfuly dumped probes to \"%s\"\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to dump probes to \"%s\"\n", file_name.c_str());
+				}
+			}
+		}
 
 		// heart probes
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -2627,7 +2729,7 @@ private:
 					if (ray_mesh_intersect(*heart_mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
 					{
 						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-						heart_probes.push_back(Probe{ tri_idx, intersection_point, std::string("B_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+						heart_probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
 					}
 				}
 			}
@@ -2654,7 +2756,7 @@ private:
 					if (ray_mesh_intersect(*heart_mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
 					{
 						Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-						heart_probes.push_back(Probe{ tri_idx, intersection_point, std::string("B_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+						heart_probes.push_back(Probe{ tri_idx, intersection_point, std::string("H_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
 					}
 				}
 			}
@@ -2759,7 +2861,6 @@ private:
 				values_diff[values_diff.size()-1] = values_diff[values_diff.size()-2];
 				if (probes_differentiation)
 				{
-					ImGui::SameLine();
 					ImGui::PlotLines((probes[i].name + "_differential").c_str(), &values_diff[0], values_diff.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height });
 
 				}
@@ -2790,7 +2891,7 @@ private:
 				{
 					values[j] = heart_probes_values(i, j);
 				}
-				ImGui::PlotLines(heart_probes[i].name.c_str(), &values[0], values.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height });
+				ImGui::PlotLines(heart_probes[i].name.c_str(), &values[0], values.size(), 0, NULL, FLT_MAX, FLT_MAX, { heart_probes_graph_width, heart_probes_graph_height });
 			}
 
 			ImGui::End();
