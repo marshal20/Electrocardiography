@@ -673,7 +673,7 @@ enum DrawingMode
 };
 
 
-static std::vector<Probe> cast_probes_in_sphere(const MeshPlot& mesh, int rows, int cols)
+static std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols)
 {
 	std::vector<Probe> probes;
 
@@ -683,8 +683,8 @@ static std::vector<Probe> cast_probes_in_sphere(const MeshPlot& mesh, int rows, 
 		Real theta = map_value_to_range<Real>(((Real)theta_i+0.5), 0, rows, -PI/2, PI/2);
 		for (int phi_i = 0; phi_i < cols; phi_i++)
 		{
-			// calculate ray
 			Real phi = map_value_to_range<Real>(((Real)phi_i+0.5), 0, cols, 0, 2*PI);
+			// calculate ray
 			Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
 			ray_direction.normalize();
 			Ray cast_ray = { {0, 0, 0}, ray_direction };
@@ -695,7 +695,38 @@ static std::vector<Probe> cast_probes_in_sphere(const MeshPlot& mesh, int rows, 
 			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
 			{
 				Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-				probes.push_back(Probe{ tri_idx, intersection_point, std::string("P_")+std::to_string(theta_i)+"_"+std::to_string(phi_i) });
+				std::string probe_name = prefix + "_" + std::to_string(theta_i) + "_" + std::to_string(phi_i);
+				probes.push_back(Probe{ tri_idx, intersection_point, probe_name });
+			}
+		}
+	}
+
+	return probes;
+}
+
+static std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_plane, Real z_direction, Real x_min, Real x_max, Real y_min, Real y_max)
+{
+	std::vector<Probe> probes;
+
+	// spherical coordinates to cartisian
+	for (int i = 0; i < rows; i++)
+	{
+		Real y = map_value_to_range<Real>((Real)i, 0, rows-1, y_min, y_max);
+		for (int j = 0; j < cols; j++)
+		{
+			Real x = map_value_to_range<Real>((Real)j, 0, cols-1, x_min, x_max);
+			
+			// calculate ray
+			Ray cast_ray = { {x, y, z_plane}, {0, 0, z_direction} };
+
+			// intersect ray with mesh
+			Real t;
+			int tri_idx;
+			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+			{
+				Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+				std::string probe_name = prefix + "_" + std::to_string(i) + "_" + std::to_string(j);
+				probes.push_back(Probe{ tri_idx, intersection_point, probe_name });
 			}
 		}
 	}
@@ -2396,6 +2427,11 @@ private:
 			ImGui::SameLine();
 			ImGui::Text("Click to add a probe");
 		}
+		// Clear all torso probes
+		if (ImGui::Button("Clear Torso Probes"))
+		{
+			probes.resize(0);
+		}
 		// reset reference probe value
 		if (reference_probe >= probes.size())
 		{
@@ -2427,7 +2463,7 @@ private:
 		torso_cast_probes_cols = clamp_value<int>(torso_cast_probes_cols, 0, 1000000);
 		if (ImGui::Button("Cast torso probes in sphere"))
 		{
-			probes = cast_probes_in_sphere(*torso, torso_cast_probes_rows, torso_cast_probes_cols);
+			probes = cast_probes_in_sphere("B", *torso, torso_cast_probes_rows, torso_cast_probes_cols);
 		}
 		// cast probes rays
 		if (ImGui::Button("OLD cast probes in sphere"))
@@ -2482,6 +2518,18 @@ private:
 					}
 				}
 			}
+		}
+		// Plane probes cast (front and back)
+		ImGui::InputReal("Torso Probes x min", &torso_cast_probes_x_min);
+		ImGui::InputReal("Torso Probes x max", &torso_cast_probes_x_max);
+		ImGui::InputReal("Torso Probes y min", &torso_cast_probes_y_min);
+		ImGui::InputReal("Torso Probes y max", &torso_cast_probes_y_max);
+		if (ImGui::Button("Cast Torso Probes In Plane (Front and Back)"))
+		{
+			std::vector<Probe> front_probes = cast_probes_in_plane("B_F", *torso, torso_cast_probes_rows, torso_cast_probes_cols, 1, -1, torso_cast_probes_x_min, torso_cast_probes_x_max, torso_cast_probes_y_min, torso_cast_probes_y_max);
+			std::vector<Probe> back_probes = cast_probes_in_plane("B_B", *torso, torso_cast_probes_rows, torso_cast_probes_cols, -1, 1, torso_cast_probes_x_min, torso_cast_probes_x_max, torso_cast_probes_y_min, torso_cast_probes_y_max);
+			probes = front_probes;
+			probes.insert(probes.end(), back_probes.begin(), back_probes.end());
 		}
 		// Import probes locations
 		if (ImGui::Button("Import probes"))
@@ -2698,6 +2746,11 @@ private:
 			ImGui::SameLine();
 			ImGui::Text("Click to add a heart probe");
 		}
+		// Clear all heart probes
+		if (ImGui::Button("Clear heart Probes"))
+		{
+			heart_probes.resize(0);
+		}
 		// cast heart probes rays
 		ImGui::InputInt("Heart Probes Rows", &heart_cast_probes_rows);
 		heart_cast_probes_rows = clamp_value<int>(heart_cast_probes_rows, 0, 1000000);
@@ -2705,7 +2758,7 @@ private:
 		heart_cast_probes_cols = clamp_value<int>(heart_cast_probes_cols, 0, 1000000);
 		if (ImGui::Button("Cast heart probes in sphere"))
 		{
-			heart_probes = cast_probes_in_sphere(*heart_mesh, heart_cast_probes_rows, heart_cast_probes_cols);
+			heart_probes = cast_probes_in_sphere("H", *heart_mesh, heart_cast_probes_rows, heart_cast_probes_cols);
 		}
 		// cast heart probes rays
 		if (ImGui::Button("OLD cast heart probes in sphere"))
@@ -3756,6 +3809,10 @@ private:
 	int torso_cast_probes_cols = 10;
 	int heart_cast_probes_rows = 12;
 	int heart_cast_probes_cols = 12;
+	Real torso_cast_probes_x_min = -0.3;
+	Real torso_cast_probes_x_max = 0.3;
+	Real torso_cast_probes_y_min = 0;
+	Real torso_cast_probes_y_max = 0.6;
 
 };
 
