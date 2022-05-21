@@ -97,6 +97,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)gl3w\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
+      <PreprocessToFile>false</PreprocessToFile>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -114,6 +115,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)gl3w\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN32\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
+      <PreprocessToFile>false</PreprocessToFile>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -131,6 +133,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)gl3w\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN64\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
+      <PreprocessToFile>false</PreprocessToFile>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -148,6 +151,7 @@
       <PreprocessorDefinitions>_CRT_SECURE_NO_WARNINGS;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <AdditionalIncludeDirectories>$(SolutionDir)deps\glm\include\;$(SolutionDir)gl3w\include\;$(SolutionDir)deps\glfw-3.3.6.bin.WIN64\include\;$(SolutionDir)deps\assimp_lib\include\;$(SolutionDir)deps\eigen-3.4.0\include\</AdditionalIncludeDirectories>
+      <PreprocessToFile>false</PreprocessToFile>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -200,6 +204,7 @@
     <ClCompile Include="src\stb\stb_image.c" />
     <ClCompile Include="src\timer.cpp" />
     <ClCompile Include="src\transform.cpp" />
+    <ClCompile Include="src\wave_propagation_simulation.cpp" />
     <ClCompile Include="src\window.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -247,6 +252,7 @@
     <ClInclude Include="src\stb\stb_image.h" />
     <ClInclude Include="src\timer.h" />
     <ClInclude Include="src\transform.h" />
+    <ClInclude Include="src\wave_propagation_simulation.h" />
     <ClInclude Include="src\window.h" />
   </ItemGroup>
   <ItemGroup>

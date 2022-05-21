@@ -30,6 +30,7 @@
 #include "timer.h"
 #include "random.h"
 #include "file_io.h"
+#include "wave_propagation_simulation.h"
 
 
 using namespace Eigen;
@@ -355,6 +356,7 @@ enum TMPValuesSource
 {
 	TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS = 1,
 	TMP_SOURCE_TMP_DIRECT_VALUES = 2,
+	TMP_WAVE_PROPAGATION = 3,
 };
 
 struct ActionPotentialParameters
@@ -399,6 +401,7 @@ static Real s_3rd_order_curve_transition(Real t)
 		 + (1<=t) * 1;
 }
 
+/*
 static Real action_potential_value_2(Real t, const ActionPotentialParameters& params)
 {
 	const Real depolarization_slope_duration = 0.020;
@@ -414,6 +417,37 @@ static Real action_potential_value_2(Real t, const ActionPotentialParameters& pa
 		mixing_percentage = s_3rd_order_curve_transition((t-(params.depolarization_time-depolarization_slope_duration))/depolarization_slope_duration);
 	}
 	else if (params.depolarization_time <= t && t <= params.repolarization_time)
+	{
+		mixing_percentage = 1;
+	}
+	else if (t > params.repolarization_time && t <= params.repolarization_time+repolarization_slope_duration)
+	{
+		mixing_percentage = 1-s_3rd_order_curve_transition((t-params.repolarization_time)/repolarization_slope_duration);
+	}
+	else
+	{
+		mixing_percentage = 0;
+	}
+
+	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage;
+}
+*/
+
+static Real action_potential_value_2(Real t, const ActionPotentialParameters& params)
+{
+	const Real depolarization_slope_duration = 0.020;
+	const Real repolarization_slope_duration = 0.050;
+	Real mixing_percentage = 0;
+
+	if (t < params.depolarization_time)
+	{
+		mixing_percentage = 0;
+	}
+	else if (t < params.depolarization_time+depolarization_slope_duration)
+	{
+		mixing_percentage = s_3rd_order_curve_transition((t-params.depolarization_time)/depolarization_slope_duration);
+	}
+	else if (params.depolarization_time+depolarization_slope_duration <= t && t <= params.repolarization_time)
 	{
 		mixing_percentage = 1;
 	}
@@ -831,6 +865,9 @@ public:
 		color_n = { 0, 0, 1, 1 };
 		color_p = { 1, 0, 0, 1 };
 		color_probes = { 0, 0.25, 0, 1 };
+
+		// wave propagation
+		wave_prop.set_mesh(heart_mesh);
 		
 
 		// mesh plot renderer
@@ -1147,6 +1184,38 @@ public:
 							heart_probes_values.setZero();
 							probes_values.setZero();
 						}
+					}
+				}
+				else if (tmp_source == TMP_WAVE_PROPAGATION)
+				{
+					wave_prop.simulation_step();
+					sample_count = wave_prop.get_sample_count();
+					current_sample = wave_prop.get_current_sample();
+					//wave_prop.update_mesh_values();
+					QH = wave_prop.get_potentials();
+					probes_values.resize(probes.size(), sample_count);
+					heart_probes_values.resize(heart_probes.size(), sample_count);
+
+					// calculate body surface potentials
+					calculate_potentials();
+
+					// update probes
+					for (int i = 0; i < heart_probes.size(); i++)
+					{
+						heart_probes_values(i, current_sample) = evaluate_probe(*heart_mesh, heart_probes[i]);
+					}
+
+					// calculate probes values at time point
+					for (int i = 0; i < probes.size(); i++)
+					{
+						probes_values(i, current_sample) = evaluate_probe(*torso, probes[i]);
+					}
+
+					// clear probes graph
+					if (probes_graph_clear_at_t0 && current_sample == 0)
+					{
+						heart_probes_values.setZero();
+						probes_values.setZero();
 					}
 				}
 			}
@@ -1836,6 +1905,11 @@ private:
 			Renderer3D::drawPoint(eigen2glm(heart_pos + heart_adding_probe_intersection), { 0, 0, 0, 1 }, 2);
 		}
 
+		if (tmp_source == TMP_WAVE_PROPAGATION)
+		{
+			wave_prop.render();
+		}
+
 		// render drawing preview
 		if (drawing_values_enabled && drawing_values_preview.size() >= 2)
 		{
@@ -1939,8 +2013,8 @@ private:
 		{
 			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 			int im_tmp_source = (int)tmp_source - 1;
-			ImGui::Combo("TMP Source", (int*)&im_tmp_source, "Action Potential Parameters\0Direct Values\0", 2);
-			tmp_source = (TMPValuesSource)clamp_value<int>(im_tmp_source+1, 1, 2);
+			ImGui::Combo("TMP Source", (int*)&im_tmp_source, "Action Potential Parameters\0Direct Values\0Wave Propagation\0", 3);
+			tmp_source = (TMPValuesSource)clamp_value<int>(im_tmp_source+1, 1, 3);
 		}
 		if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
 		{
@@ -2145,6 +2219,12 @@ private:
 
 			ImGui::SliderInt("TMP steps per frame", &TMP_steps_per_frame, 0, 100);
 			ImGui::SliderInt("TMP update refresh every FPS", &TMP_update_refresh_rate, 1, 100);
+		}
+		else if (tmp_source == TMP_WAVE_PROPAGATION)
+		{
+			ImGui::SliderInt("TMP steps per frame", &TMP_steps_per_frame, 0, 100);
+			ImGui::SliderInt("TMP update refresh every FPS", &TMP_update_refresh_rate, 1, 100);
+			wave_prop.render_gui();
 		}
 
 
@@ -3813,6 +3893,9 @@ private:
 	Real torso_cast_probes_x_max = 0.3;
 	Real torso_cast_probes_y_min = 0;
 	Real torso_cast_probes_y_max = 0.6;
+
+	// wave propagation
+	WavePropagationSimulation wave_prop;
 
 };
 
