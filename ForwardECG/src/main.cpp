@@ -1336,9 +1336,6 @@ private:
 
 
 		// BEM solver (bounded conductor with defined TMP distribution)
-		const Real CLOSE_RANGE_THRESHOLD = -1;
-		const Real r_power = 2;
-		const bool ignore_negative_dot_product = false;
 		// Matrices derived from potentials at the torso
 
 		// PBB (NxN)
@@ -1366,7 +1363,7 @@ private:
 				Real const_val = 1/(4*PI)*solid_angle;
 
 				// skip for close region triangles
-				if ((center-r).norm() < CLOSE_RANGE_THRESHOLD)
+				if ((center-r).norm() < close_range_threshold)
 				{
 					continue;
 				}
@@ -1515,7 +1512,7 @@ private:
 				Real const_val = -1/(4*PI)*solid_angle;
 
 				// skip for close region triangles
-				if ((center-r).norm() < CLOSE_RANGE_THRESHOLD)
+				if ((center-r).norm() < close_range_threshold)
 				{
 					continue;
 				}
@@ -1559,7 +1556,7 @@ private:
 				Real const_val = -1/(4*PI) / r_vec.norm();
 
 				// skip for close region triangles
-				if ((center-r).norm() < CLOSE_RANGE_THRESHOLD)
+				if ((center-r).norm() < close_range_threshold)
 				{
 					continue;
 				}
@@ -1718,12 +1715,20 @@ private:
 
 	void render()
 	{
-		// calculate maximum value
-		Real max_abs_torso = 1e-6;
+		// calculate torso maximum and minimum values
+		Real torso_potential_max = -1e12;
+		Real torso_potential_min = 1e12;
 		for (MeshPlotVertex& vertex : torso->vertices)
 		{
-			max_abs_torso = rmax(rabs(vertex.value), max_abs_torso);
+			torso_potential_min = rmin(torso_potential_min, vertex.value);
+			torso_potential_max = rmax(torso_potential_max, vertex.value);
 		}
+		// limit min and max to 0
+		torso_potential_max = rmax(torso_potential_max, 0);
+		torso_potential_min = rmin(torso_potential_min, 0);
+		Real torso_potential_max_abs = rmax(rabs(torso_potential_max), rabs(torso_potential_min));
+		torso_potential_max = torso_potential_max_abs;
+		torso_potential_min = -torso_potential_max_abs;
 
 		// update torso potential values at GPU
 		torso->update_gpu_buffers();
@@ -1802,7 +1807,7 @@ private:
 		const Real alpha = 1;
 		mpr->set_colors(color_p, color_n);
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		mpr->set_values_range(-max_abs_torso, max_abs_torso);
+		mpr->set_values_range(torso_potential_min, torso_potential_max);
 		mpr->render_mesh_plot(glm::mat4(1), torso);
 		torso_fb->unbind();
 		gldev->bindBackbuffer();
@@ -1967,6 +1972,10 @@ private:
 		ImGui::InputReal("Air Conductivity", &air_conductivity, 0.01, 10);
 		ImGui::InputReal("Torso Conductivity", &toso_conductivity, 0.01, 10);
 		ImGui::InputReal("Heart Conductivity", &heart_conductivity, 0.01, 10);
+		// transfer matrix parameters
+		ImGui::InputReal("Close Range Threshold", &close_range_threshold, 0.01, 10);
+		ImGui::InputReal("1/R Power", &r_power, 0.1, 20);
+		ImGui::Checkbox("Ignore Faces Opposite To R Vector", &ignore_negative_dot_product);
 		// recalculate coefficients matrix
 		if (ImGui::Button("Recalculate Coefficients Matrix"))
 		{
@@ -2722,7 +2731,7 @@ private:
 			printf("Generated TMP BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
 
 			// save to file
-			std::string file_name = save_file_dialog("TMP_BSP_values.csv", "CSV File (.csv)\0*.csv\0");
+			std::string file_name = save_file_dialog("TMP_BSP_values.csv", "All\0*.*\0CSV File (.csv)\0*.csv\0");
 
 			// dump
 			if (file_name != "")
@@ -3893,6 +3902,11 @@ private:
 	Real torso_cast_probes_x_max = 0.3;
 	Real torso_cast_probes_y_min = 0;
 	Real torso_cast_probes_y_max = 0.6;
+
+	// transfer matrix parameters
+	Real close_range_threshold = 0;
+	Real r_power = 2;
+	bool ignore_negative_dot_product = true;
 
 	// wave propagation
 	WavePropagationSimulation wave_prop;
