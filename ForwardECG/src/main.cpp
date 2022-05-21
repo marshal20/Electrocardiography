@@ -856,7 +856,7 @@ public:
 		heart_conductivity = 10;
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
-		heart_mesh = load_mesh_plot("models/heart_model_5.fbx");
+		heart_mesh = load_mesh_plot("models/heart_model_5_fixed.fbx");
 		heart_action_potential_params.resize(heart_mesh->vertices.size(), ActionPotentialParameters{-80e-3, 15e-3, 150e-3, 500e-3});
 
 		// torso mesh plot
@@ -1136,6 +1136,7 @@ public:
 					// update probes_values size
 					sample_count = tmp_direct_values.rows() > 0 ? tmp_direct_values.rows() : 1;
 					probes_values.resize(probes.size(), sample_count);
+					heart_probes_values.resize(heart_probes.size(), sample_count);
 
 					for (int step = 0; step < TMP_steps_per_frame; step++)
 					{
