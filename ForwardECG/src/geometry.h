@@ -31,3 +31,6 @@ Eigen::Vector2<Real> get_point_in_triangle_basis(const Triangle& triangle, const
 
 bool ray_mesh_intersect(const MeshPlot& mesh, const Eigen::Vector3<Real>& mesh_position, const Ray& ray, Real& t, int& tri_idx);
 
+// checks if line (v1, v2) intersected a plane (p, n)
+bool line_plane_intersect(const Eigen::Vector3<Real>& v1, const Eigen::Vector3<Real>& v2, const Eigen::Vector3<Real>& p, const Eigen::Vector3<Real>& n, Real& t);
+

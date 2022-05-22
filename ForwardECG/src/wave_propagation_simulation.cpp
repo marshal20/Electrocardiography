@@ -1,6 +1,7 @@
 #include "wave_propagation_simulation.h"
 #include "imgui/imgui.h"
 #include "imgui/imgui_my_types.h"
+#include "geometry.h"
 
 
 #define POTENTIAL_REST -0.08
@@ -18,15 +19,24 @@ struct ActionPotentialParameters
 static Real action_potential_value_2(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.05, Real repolarization_slope_duration = 0.1);
 
 
-void WavePropagationSimulation::set_mesh(MeshPlot * mesh)
+void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<Real>& mesh_pos)
 {
+	// test operator (plane cut)
+	m_operators.push_back(std::shared_ptr<WavePropagationPlaneCut>(new WavePropagationPlaneCut({0, 0, 0}, {-1, 1, 0})));
+
 	m_mesh = mesh;
+	m_mesh_pos = mesh_pos;
 
 	m_vars.resize(m_mesh->vertices.size());
 	m_links.resize(m_mesh->vertices.size());
 	m_potentials.resize(m_mesh->vertices.size());
 	recalculate_links();
 	reset();
+}
+
+void WavePropagationSimulation::set_mesh_pos(const Eigen::Vector3<Real>& mesh_pos)
+{
+	m_mesh_pos = mesh_pos;
 }
 
 void WavePropagationSimulation::reset()
@@ -43,6 +53,12 @@ void WavePropagationSimulation::reset()
 	// (TODO: add with operator)
 	m_vars[0].is_depolarized = true;
 	m_vars[0].depolarization_time = 0.1;
+
+	// apply operators
+	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
+	{
+		op->apply_reset(*this);
+	}
 
 }
 
@@ -175,7 +191,11 @@ void WavePropagationSimulation::recalculate_links()
 	}
 	
 	// apply operators
-	// [TODO]
+	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
+	{
+		op->apply_links(*this);
+	}
+
 }
 
 
@@ -214,4 +234,57 @@ static Real action_potential_value_2(Real t, const ActionPotentialParameters& pa
 	}
 
 	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage;
+}
+
+
+WavePropagationOperator::WavePropagationOperator(const std::string & type)
+{
+	m_type = type;
+}
+
+void WavePropagationOperator::apply_reset(WavePropagationSimulation & prop_sim)
+{
+}
+
+void WavePropagationOperator::apply_links(WavePropagationSimulation & prop_sim)
+{
+}
+
+void WavePropagationOperator::render()
+{
+}
+
+void WavePropagationOperator::render_gui()
+{
+}
+
+void WavePropagationOperator::handle_input()
+{
+}
+
+WavePropagationPlaneCut::WavePropagationPlaneCut(const Vector3<Real>& point, const Vector3<Real>& normal)
+	:WavePropagationOperator("Plane Cut")
+{
+	m_point = point;
+	m_normal = normal.normalized();
+}
+
+void WavePropagationPlaneCut::apply_links(WavePropagationSimulation & prop_sim)
+{
+	//line_plane_intersect
+	for (int i = 0; i < prop_sim.m_links.size(); i++)
+	{
+		WavePropagationSimulation::VertexLink& link = prop_sim.m_links[i];
+		Vector3<Real> v1 = glm2eigen(prop_sim.m_mesh->vertices[link.v1_idx].pos);
+		Vector3<Real> v2 = glm2eigen(prop_sim.m_mesh->vertices[link.v2_idx].pos);
+
+		// delete current link if intersected with out plane
+		Real t;
+		if (line_plane_intersect(v1, v2, m_point, m_normal, t))
+		{
+			prop_sim.m_links.erase(prop_sim.m_links.begin() + i);
+			i--;
+			printf("Intersection\n");
+		}
+	}
 }

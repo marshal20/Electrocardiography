@@ -105,3 +105,13 @@ bool ray_mesh_intersect(const MeshPlot& mesh, const Eigen::Vector3<Real>& mesh_p
 	return intersected;
 }
 
+bool line_plane_intersect(const Eigen::Vector3<Real>& v1, const Eigen::Vector3<Real>& v2, const Eigen::Vector3<Real>& p, const Eigen::Vector3<Real>& n, Real& t)
+{
+	Eigen::Vector3<Real> line_direction = (v2-v1).normalized();
+	float RHS = n.dot(p) - n.dot(v1); // n.p - n.origin
+	float LHS = line_direction.dot(n); // direction . n
+	t = RHS / LHS;
+
+	return t <= (v1-v2).norm();
+}
+

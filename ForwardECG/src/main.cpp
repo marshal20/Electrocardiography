@@ -867,7 +867,7 @@ public:
 		color_probes = { 0, 0.25, 0, 1 };
 
 		// wave propagation
-		wave_prop.set_mesh(heart_mesh);
+		wave_prop.set_mesh(heart_mesh, heart_pos);
 		
 
 		// mesh plot renderer
