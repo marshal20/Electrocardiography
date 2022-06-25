@@ -914,6 +914,7 @@ public:
 			camera.aspect = aspect;
 			// resize frame buffer with window resize
 			torso_fb->resize(width, height);
+			Input::setWindowSize(width, height);
 
 
 			// timer
@@ -1602,8 +1603,12 @@ private:
 		// Q_B = ZBH * Q_H
 		//ZBH = (PBB - GBH*GHH.inverse()*PHB).inverse() * (GBH*GHH.inverse()*PHH - PBH); // with potential gradient effect
 
+		// TODO: Restore
+		/*
 		// ZBH = PBB^-1 * PBH
 		ZBH = PBB.inverse() * PBH; // without potential gradient effect
+		*/
+		ZBH = MatrixX<Real>::Zero(N, M);
 
 		//ZBH = PBH; // without potential gradient effect
 
@@ -1728,6 +1733,7 @@ private:
 		torso_potential_max = rmax(torso_potential_max, 0);
 		torso_potential_min = rmin(torso_potential_min, 0);
 		Real torso_potential_max_abs = rmax(rabs(torso_potential_max), rabs(torso_potential_min));
+		torso_potential_max_abs = rmax(1e-12, torso_potential_max_abs);
 		torso_potential_max = torso_potential_max_abs;
 		torso_potential_min = -torso_potential_max_abs;
 
@@ -1791,6 +1797,10 @@ private:
 		// set alpha mode
 		gldev->setAlpha(Alpha{ true, Alpha::SRC_ALPHA, Alpha::ONE_MINUS_SRC_ALPHA });
 
+
+		// render wave propagation
+		Renderer3D::setProjection(camera.calculateViewProjection());
+		wave_prop.render();
 
 		// set mesh plot ambient
 		mpr->set_ambient(mesh_plot_ambient);
@@ -3366,6 +3376,8 @@ private:
 				}
 			}
 		}
+
+		wave_prop.handle_input(camera);
 	}
 
 	void handle_server_requests()

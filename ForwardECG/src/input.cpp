@@ -7,6 +7,7 @@ static InputEvent button_events[256];
 static InputState button_states[256];
 static double xpos_cur, ypos_cur, xpos_last, ypos_last, xpos_next, ypos_next;
 static double scroll_cur, scroll_last, scroll_next;
+static double window_width = 1, window_height = 1;
 
 void Input::newFrame()
 {
@@ -70,6 +71,12 @@ void Input::cursorPositionCallback(double xpos, double ypos)
 void Input::scrollCallback(double xoffset, double yoffset)
 {
 	scroll_next += yoffset;
+}
+
+void Input::setWindowSize(double width, double height)
+{
+	window_width = width;
+	window_height = height;
 }
 
 // Keys.
@@ -146,6 +153,16 @@ double Input::getCursorXPos()
 double Input::getCursorYPos()
 {
 	return ypos_cur;
+}
+
+double Input::getCursorXPosNorm()
+{
+	return (double)getCursorXPos()/window_width*2 - 1;
+}
+
+double Input::getCursorYPosNorm()
+{
+	return -((double)getCursorYPos()/window_height*2 - 1);
 }
 
 double Input::getCursorXDelta()

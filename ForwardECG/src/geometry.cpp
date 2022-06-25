@@ -1,6 +1,9 @@
 #include "geometry.h"
 
 
+using namespace Eigen;
+
+
 // Checks if a point (p) is inside a triangle (a, b, c).
 bool is_point_in_triangle(const Triangle& triangle, const Eigen::Vector3<Real>& p)
 {
@@ -113,5 +116,19 @@ bool line_plane_intersect(const Eigen::Vector3<Real>& v1, const Eigen::Vector3<R
 	t = RHS / LHS;
 
 	return t <= (v1-v2).norm();
+}
+
+Ray camera_screen_to_world_ray(const LookAtCamera & camera, Real x_norm, Real y_norm)
+{
+	// camera axis
+	Vector3<Real> forward = glm2eigen(camera.look_at-camera.eye).normalized();
+	Vector3<Real> up = glm2eigen(camera.up).normalized();
+	Vector3<Real> right = forward.cross(up).normalized();
+	// calculate the pointer direction
+	Vector3<Real> direction = forward + up*tan(0.5*y_norm*camera.fov) + right*tan(0.5*x_norm*camera.aspect*camera.fov);
+	direction = direction.normalized();
+
+	return Ray{ glm2eigen(camera.eye), direction };
+
 }
 

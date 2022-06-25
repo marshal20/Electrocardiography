@@ -16,6 +16,7 @@ public:
 	static void handleButtonEvent(uint8_t button, InputEvent event);
 	static void cursorPositionCallback(double xpos, double ypos);
 	static void scrollCallback(double xoffset, double yoffset);
+	static void setWindowSize(double width, double height);
 
 
 	// Keys
@@ -37,6 +38,8 @@ public:
 	// Mouse position
 	static double getCursorXPos();
 	static double getCursorYPos();
+	static double getCursorXPosNorm();
+	static double getCursorYPosNorm();
 	static double getCursorXDelta();
 	static double getCursorYDelta();
 

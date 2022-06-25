@@ -5,6 +5,8 @@
 #include <Eigen/Dense>
 #include "math.h"
 #include <memory>
+#include "input.h"
+#include "camera.h"
 
 
 using namespace Eigen;
@@ -15,15 +17,20 @@ class WavePropagationSimulation;
 class WavePropagationOperator
 {
 public:
-	WavePropagationOperator(const std::string& type);
+	WavePropagationOperator(WavePropagationSimulation* prop_sim, const std::string& type);
 	virtual ~WavePropagationOperator() = default;
 
-	virtual void apply_reset(WavePropagationSimulation& prop_sim);
-	virtual void apply_links(WavePropagationSimulation& prop_sim);
+	virtual void apply_reset();
+	virtual void apply_links();
 
 	virtual void render();
 	virtual void render_gui();
-	virtual void handle_input();
+	virtual void handle_input(const LookAtCamera& camera);
+
+	virtual std::string get_type() const;
+
+protected:
+	WavePropagationSimulation* m_prop_sim;
 
 private:
 	std::string m_type;
@@ -33,19 +40,61 @@ private:
 class WavePropagationPlaneCut: public WavePropagationOperator
 {
 public:
-	WavePropagationPlaneCut(const Vector3<Real>& point = {0, 0, 0}, const Vector3<Real>& normal = {0, 0, 1});
+	WavePropagationPlaneCut(WavePropagationSimulation* prop_sim, const Vector3<Real>& point = {0, 0, 0}, const Vector3<Real>& normal = {0, 0, 1});
 	virtual ~WavePropagationPlaneCut() = default;
 
-	virtual void apply_links(WavePropagationSimulation& prop_sim) override;
+	virtual void apply_links() override;
 
-	//virtual void render() override;
-	//virtual void render_gui() override;
-	//virtual void handle_input() override;
+	virtual void render() override;
+	virtual void render_gui() override;
+	virtual void handle_input(const LookAtCamera& camera) override;
 
 private:
 	Vector3<Real> m_point;
 	Vector3<Real> m_normal;
 
+};
+
+class CircularBrush
+{
+public:
+	CircularBrush(bool enable_drawing = false, Real brush_radius = 0.1, bool only_vertices_facing_camera = true);
+	~CircularBrush() = default;
+	
+	void render();
+	void render_gui();
+	void handle_input(const LookAtCamera& camera, MeshPlot* mesh, const Vector3<Real>& mesh_pos = {0, 0, 0});
+	const std::vector<bool>& get_intersected() const;
+
+private:
+	std::vector<bool> m_intersected;
+	bool m_enable_drawing;
+	Real m_brush_radius;
+	bool m_only_vertices_facing_camera;
+	// preview
+	bool m_drawing_is_intersected;
+	std::vector<glm::vec3> m_drawing_values_preview;
+	int m_drawing_values_points_count = 32;
+};
+
+class WavePropagationForceDepolarization : public WavePropagationOperator
+{
+public:
+	WavePropagationForceDepolarization(WavePropagationSimulation* prop_sim, int vertex_count = 0, Real depolarization_time = 0.1);
+	virtual ~WavePropagationForceDepolarization() = default;
+
+	virtual void apply_reset();
+
+	virtual void render() override;
+	virtual void render_gui() override;
+	virtual void handle_input(const LookAtCamera& camera) override;
+
+private:
+	std::vector<bool> m_selected;
+	Real m_depolarization_time;
+	CircularBrush m_brush;
+	bool m_brush_select = false;
+	bool m_view_drawing = false;
 };
 
 
@@ -66,7 +115,7 @@ public:
 	//void update_mesh_values();
 	void render();
 	void render_gui();
-	void handle_input();
+	void handle_input(const LookAtCamera& camera);
 
 private:
 	void recalculate_links();
@@ -104,8 +153,12 @@ private:
 	VectorX<Real> m_potentials;
 	std::vector<std::shared_ptr<WavePropagationOperator>> m_operators;
 
+	// gui
+	int m_selected_operator = -1;
+
 	friend class WavePropagationOperator;
 	friend class WavePropagationPlaneCut;
+	friend class WavePropagationForceDepolarization;
 
 };
 

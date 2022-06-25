@@ -2,6 +2,8 @@
 #include "imgui/imgui.h"
 #include "imgui/imgui_my_types.h"
 #include "geometry.h"
+#include "renderer3d.h"
+#include "GLFW/glfw3.h"
 
 
 #define POTENTIAL_REST -0.08
@@ -22,7 +24,8 @@ static Real action_potential_value_2(Real t, const ActionPotentialParameters& pa
 void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<Real>& mesh_pos)
 {
 	// test operator (plane cut)
-	m_operators.push_back(std::shared_ptr<WavePropagationPlaneCut>(new WavePropagationPlaneCut({0, 0, 0}, {-1, 1, 0})));
+	m_operators.push_back(std::shared_ptr<WavePropagationPlaneCut>(new WavePropagationPlaneCut(this, mesh_pos + Vector3<Real>(0, 0, 0), {-1, 1, 0})));
+	m_operators.push_back(std::shared_ptr<WavePropagationForceDepolarization>(new WavePropagationForceDepolarization(this, mesh->vertices.size())));
 
 	m_mesh = mesh;
 	m_mesh_pos = mesh_pos;
@@ -49,17 +52,13 @@ void WavePropagationSimulation::reset()
 		m_vars[i] = { false, 0 };
 	}
 
-	// apply force depolarization
-	// (TODO: add with operator)
-	m_vars[0].is_depolarized = true;
-	m_vars[0].depolarization_time = 0.1;
-
-	// apply operators
+	// apply operators reset
 	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
 	{
-		op->apply_reset(*this);
+		op->apply_reset();
 	}
 
+	recalculate_links();
 }
 
 int WavePropagationSimulation::get_sample_count()
@@ -149,10 +148,11 @@ void WavePropagationSimulation::update_mesh_values()
 
 void WavePropagationSimulation::render()
 {
-
-
-	// maybe render selected plane
-	// [TODO]
+	// operators render
+	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
+	{
+		op->render();
+	}
 
 }
 
@@ -176,6 +176,49 @@ void WavePropagationSimulation::render_gui()
 		reset();
 	}
 
+	// operators list
+	if (ImGui::ListBoxHeader("Operators", { 0, 120 }))
+	{
+		for (int i = 0; i < m_operators.size(); i++)
+		{
+			bool is_selected = i==m_selected_operator;
+			ImGui::Selectable(std::to_string(i).c_str(), &is_selected);
+			if (is_selected)
+			{
+				m_selected_operator = i;
+			}
+			
+			// type
+			ImGui::SameLine();
+			ImGui::Text("%s", m_operators[i]->get_type().c_str());
+
+		}
+		ImGui::ListBoxFooter();
+	}
+	
+	// operator controls
+	if (m_selected_operator != -1 && m_selected_operator < m_operators.size())
+	{
+		bool operator_controls = true;
+		ImGui::Begin("Operator Controls", &operator_controls);
+		m_operators[m_selected_operator]->render_gui();
+		ImGui::End();
+		if (!operator_controls)
+		{
+			m_selected_operator = -1;
+		}
+	}
+
+	
+}
+
+void WavePropagationSimulation::handle_input(const LookAtCamera& camera)
+{
+	// operators handle input
+	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
+	{
+		op->handle_input(camera);
+	}
 }
 
 void WavePropagationSimulation::recalculate_links()
@@ -193,7 +236,7 @@ void WavePropagationSimulation::recalculate_links()
 	// apply operators
 	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
 	{
-		op->apply_links(*this);
+		op->apply_links();
 	}
 
 }
@@ -236,17 +279,19 @@ static Real action_potential_value_2(Real t, const ActionPotentialParameters& pa
 	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage;
 }
 
+// Wave Propagation Operator
 
-WavePropagationOperator::WavePropagationOperator(const std::string & type)
+WavePropagationOperator::WavePropagationOperator(WavePropagationSimulation* prop_sim, const std::string & type)
 {
 	m_type = type;
+	m_prop_sim = prop_sim;
 }
 
-void WavePropagationOperator::apply_reset(WavePropagationSimulation & prop_sim)
+void WavePropagationOperator::apply_reset()
 {
 }
 
-void WavePropagationOperator::apply_links(WavePropagationSimulation & prop_sim)
+void WavePropagationOperator::apply_links()
 {
 }
 
@@ -258,33 +303,253 @@ void WavePropagationOperator::render_gui()
 {
 }
 
-void WavePropagationOperator::handle_input()
+void WavePropagationOperator::handle_input(const LookAtCamera& camera)
 {
 }
 
-WavePropagationPlaneCut::WavePropagationPlaneCut(const Vector3<Real>& point, const Vector3<Real>& normal)
-	:WavePropagationOperator("Plane Cut")
+std::string WavePropagationOperator::get_type() const
+{
+	return m_type;
+}
+
+// Paper Cut
+
+WavePropagationPlaneCut::WavePropagationPlaneCut(WavePropagationSimulation* prop_sim, const Vector3<Real>& point, const Vector3<Real>& normal)
+	:WavePropagationOperator(prop_sim, "Plane Cut")
 {
 	m_point = point;
 	m_normal = normal.normalized();
 }
 
-void WavePropagationPlaneCut::apply_links(WavePropagationSimulation & prop_sim)
+void WavePropagationPlaneCut::apply_links()
 {
 	//line_plane_intersect
-	for (int i = 0; i < prop_sim.m_links.size(); i++)
+	for (int i = 0; i < m_prop_sim->m_links.size(); i++)
 	{
-		WavePropagationSimulation::VertexLink& link = prop_sim.m_links[i];
-		Vector3<Real> v1 = glm2eigen(prop_sim.m_mesh->vertices[link.v1_idx].pos);
-		Vector3<Real> v2 = glm2eigen(prop_sim.m_mesh->vertices[link.v2_idx].pos);
+		WavePropagationSimulation::VertexLink& link = m_prop_sim->m_links[i];
+		Vector3<Real> v1 = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[link.v1_idx].pos);
+		Vector3<Real> v2 = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[link.v2_idx].pos);
 
 		// delete current link if intersected with out plane
 		Real t;
 		if (line_plane_intersect(v1, v2, m_point, m_normal, t))
 		{
-			prop_sim.m_links.erase(prop_sim.m_links.begin() + i);
+			m_prop_sim->m_links.erase(m_prop_sim->m_links.begin() + i);
 			i--;
-			printf("Intersection\n");
 		}
 	}
 }
+
+void WavePropagationPlaneCut::render()
+{
+	//line_plane_intersect
+	for (int i = 0; i < m_prop_sim->m_links.size(); i++)
+	{
+		WavePropagationSimulation::VertexLink& link = m_prop_sim->m_links[i];
+		Vector3<Real> v1 = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[link.v1_idx].pos);
+		Vector3<Real> v2 = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[link.v2_idx].pos);
+
+		// delete current link if intersected with out plane
+		Real t;
+		if (line_plane_intersect(v1, v2, m_point, m_normal, t))
+		{
+			
+		}
+	}
+}
+
+void WavePropagationPlaneCut::render_gui()
+{
+	ImGui::DragVector3Eigen("Point", m_point);
+	ImGui::DragVector3Eigen("Normal", m_normal);
+}
+
+void WavePropagationPlaneCut::handle_input(const LookAtCamera & camera)
+{
+}
+
+// Force Depolarization
+
+WavePropagationForceDepolarization::WavePropagationForceDepolarization(WavePropagationSimulation* prop_sim, int vertex_count, Real depolarization_time)
+	:WavePropagationOperator(prop_sim, "Force Depolarization")
+{
+	m_selected.resize(vertex_count);
+	m_depolarization_time = depolarization_time;
+}
+
+void WavePropagationForceDepolarization::apply_reset()
+{
+	m_selected.resize(m_prop_sim->m_mesh->vertices.size());
+	for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
+	{
+		if (m_selected[i])
+		{
+			m_prop_sim->m_vars[i] = WavePropagationSimulation::VertexVars{ true, m_depolarization_time };
+		}
+	}
+}
+
+void WavePropagationForceDepolarization::render()
+{
+	m_brush.render();
+
+}
+
+void WavePropagationForceDepolarization::render_gui()
+{
+	m_brush.render_gui();
+	ImGui::Checkbox("Select", &m_brush_select);
+	ImGui::InputReal("Depolarization Time", &m_depolarization_time);
+	ImGui::Checkbox("View Drawing", &m_view_drawing);
+
+}
+
+void WavePropagationForceDepolarization::handle_input(const LookAtCamera & camera)
+{
+	m_brush.handle_input(camera, m_prop_sim->m_mesh, m_prop_sim->m_mesh_pos);
+
+	for (int i = 0; i < m_brush.get_intersected().size(); i++)
+	{
+		if (m_brush.get_intersected()[i])
+		{
+			m_selected[i] = m_brush_select;
+		}
+	}
+}
+
+CircularBrush::CircularBrush(bool enable_drawing, Real brush_radius, bool only_vertices_facing_camera)
+{
+	m_enable_drawing = enable_drawing;
+	m_brush_radius = brush_radius;
+	m_only_vertices_facing_camera = only_vertices_facing_camera;
+	m_drawing_values_preview.resize(m_drawing_values_points_count);
+}
+
+void CircularBrush::render()
+{
+	// render drawing preview
+	if (m_enable_drawing && m_drawing_is_intersected && m_drawing_values_preview.size() >= 2)
+	{
+		Renderer3D::setStyle(Renderer3D::Style(true, 1, { 1, 1, 1, 1 }, true, { 0.75, 0, 0, 0.2 }));
+		m_drawing_values_preview.push_back(m_drawing_values_preview[0]);
+		Renderer3D::drawPolygon(&m_drawing_values_preview[0], m_drawing_values_preview.size(), false);
+	}
+
+}
+
+void CircularBrush::render_gui()
+{
+	ImGui::Checkbox("Enable Drawing", &m_enable_drawing);
+	ImGui::Checkbox("Draw Only Vertices Facing Camera", &m_only_vertices_facing_camera);
+	ImGui::DragReal("Drawing Brush Radius", &m_brush_radius, 0.01, 0.001, 1);
+	// HANDLED BY THE CALLER
+	//ImGui::InputReal("drawing value", &drawing_value);
+	//ImGui::Checkbox("view target channel", &drawing_view_target_channel);
+}
+
+void CircularBrush::handle_input(const LookAtCamera & camera, MeshPlot * mesh, const Vector3<Real>& mesh_pos)
+{
+	m_drawing_is_intersected = false;
+	m_intersected.resize(mesh->vertices.size());
+
+	for (int i = 0; i < m_intersected.size(); i++)
+	{
+		m_intersected[i] = false;
+	}
+
+	if (!m_enable_drawing)
+	{
+		return;
+	}
+
+	// drawing
+	
+	// normalized screen coordinates
+	Real x = Input::getCursorXPosNorm();
+	Real y = Input::getCursorYPosNorm();
+
+	// camera axis
+	Vector3<Real> forward = glm2eigen(camera.look_at-camera.eye).normalized();
+	Vector3<Real> up = glm2eigen(camera.up).normalized();
+	Vector3<Real> right = forward.cross(up).normalized();
+	// calculate the pointer direction
+	Vector3<Real> direction = forward + up*tan(0.5*y*camera.fov) + right*tan(0.5*x*camera.aspect*camera.fov);
+	direction = direction.normalized();
+
+	std::vector<Vector3<Real>> origin_points(m_drawing_values_points_count, Vector3<Real>(0, 0, 0));
+
+	// generate origin points
+	for (int i = 0; i < m_drawing_values_points_count; i++)
+	{
+		Real theta = ((Real)i/(Real)m_drawing_values_points_count)*2*PI;
+		origin_points[i] = glm2eigen(camera.eye) + m_brush_radius*sin(theta)*up + m_brush_radius*cos(theta)*right;
+	}
+
+	// intersect preview
+	m_drawing_values_preview.resize(0);
+	Ray ray = { glm2eigen(camera.eye), direction };
+	// calculate average t
+	Real t_min = 10e19;
+	Real t_average = 0;
+	int intersected_points = 0;
+	for (int i = 0; i < m_drawing_values_points_count; i++)
+	{
+		Real t;
+		int tri_idx;
+		ray.origin = origin_points[i];
+		if (ray_mesh_intersect(*mesh, mesh_pos, ray, t, tri_idx))
+		{
+			m_drawing_is_intersected = true;
+			t_average += t;
+			t_min = rmin(t_min, t);
+			intersected_points++;
+		}
+	}
+	t_average /= intersected_points;
+
+	// actual intersection
+	Real t;
+	int tri_idx;
+	for (int i = 0; i < m_drawing_values_points_count; i++)
+	{
+		ray.origin = origin_points[i];
+		if (!ray_mesh_intersect(*mesh, mesh_pos, ray, t, tri_idx))
+		{
+			t = t_min; // set t to t_average when no intersection
+		}
+
+		m_drawing_values_preview.push_back(eigen2glm(ray.point_at_dir(t)));
+	}
+
+	// apply drawing value to mesh vertices
+	if (Input::isButtonDown(GLFW_MOUSE_BUTTON_LEFT))
+	{
+		std::vector<int> intersected_values;
+		for (int i = 0; i < mesh->vertices.size(); i++)
+		{
+			if (perpendicular_distance(glm2eigen(camera.eye), glm2eigen(camera.eye)+direction, mesh_pos+glm2eigen(mesh->vertices[i].pos)) < m_brush_radius)
+			{
+				if (m_only_vertices_facing_camera && glm2eigen(mesh->vertices[i].normal).dot(-forward) > 0)
+				{
+					intersected_values.push_back(i);
+				}
+				else if (!m_only_vertices_facing_camera)
+				{
+					intersected_values.push_back(i);
+				}
+			}
+		}
+
+		// set value
+		for (int i = 0; i < intersected_values.size(); i++)
+		{
+			m_intersected[intersected_values[i]] = true;
+		}
+	}
+}
+
+const std::vector<bool>& CircularBrush::get_intersected() const
+{
+	return m_intersected;
+}
+
