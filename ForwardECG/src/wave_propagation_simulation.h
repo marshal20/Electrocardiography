@@ -52,6 +52,7 @@ public:
 private:
 	Vector3<Real> m_point;
 	Vector3<Real> m_normal;
+	std::vector<glm::vec3> m_cut_links_lines;
 
 };
 

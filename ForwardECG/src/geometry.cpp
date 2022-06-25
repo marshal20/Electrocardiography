@@ -118,6 +118,13 @@ bool line_plane_intersect(const Eigen::Vector3<Real>& v1, const Eigen::Vector3<R
 	return t <= (v1-v2).norm();
 }
 
+bool is_line_plane_intersect(const Eigen::Vector3<Real>& v1, const Eigen::Vector3<Real>& v2, const Eigen::Vector3<Real>& p, const Eigen::Vector3<Real>& n)
+{
+	Real d1 = (v1-p).dot(n);
+	Real d2 = (v2-p).dot(n);
+	return  (d1 < 0 && d2 > 0) || (d1 > 0 && d2 < 0);
+}
+
 Ray camera_screen_to_world_ray(const LookAtCamera & camera, Real x_norm, Real y_norm)
 {
 	// camera axis

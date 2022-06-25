@@ -35,6 +35,8 @@ bool ray_mesh_intersect(const MeshPlot& mesh, const Eigen::Vector3<Real>& mesh_p
 // checks if line (v1, v2) intersected a plane (p, n)
 bool line_plane_intersect(const Eigen::Vector3<Real>& v1, const Eigen::Vector3<Real>& v2, const Eigen::Vector3<Real>& p, const Eigen::Vector3<Real>& n, Real& t);
 
+bool is_line_plane_intersect(const Eigen::Vector3<Real>& v1, const Eigen::Vector3<Real>& v2, const Eigen::Vector3<Real>& p, const Eigen::Vector3<Real>& n);
+
 // casts a ray from screen coordinates (x_norm, y_norm) to world coordinates
 // x_norm = [-1:1]
 // y_norm = [-1:1]

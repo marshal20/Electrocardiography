@@ -1,5 +1,6 @@
 #pragma once
 #include <glm/glm.hpp>
+#include <vector>
 
 // TODO: fix fill.
 
@@ -40,6 +41,7 @@ public:
 
 	static void fill(const glm::vec4& color);
 	static void drawLine(const glm::vec3& p1, const glm::vec3& p2);
+	static void drawLineList(const std::vector<glm::vec3>& line_list);
 	static void drawPolygon(const glm::vec3* points, int count, bool loop = false);
 	static void drawPoint(const glm::vec3& point, const glm::vec4& color = { 0, 0, 0, 1 }, float size = 2.0);
 };

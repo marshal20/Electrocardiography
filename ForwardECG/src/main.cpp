@@ -356,7 +356,7 @@ enum TMPValuesSource
 {
 	TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS = 1,
 	TMP_SOURCE_TMP_DIRECT_VALUES = 2,
-	TMP_WAVE_PROPAGATION = 3,
+	TMP_SOURCE_WAVE_PROPAGATION = 3,
 };
 
 struct ActionPotentialParameters
@@ -1188,7 +1188,7 @@ public:
 						}
 					}
 				}
-				else if (tmp_source == TMP_WAVE_PROPAGATION)
+				else if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
 				{
 					wave_prop.simulation_step();
 					sample_count = wave_prop.get_sample_count();
@@ -1921,7 +1921,7 @@ private:
 			Renderer3D::drawPoint(eigen2glm(heart_pos + heart_adding_probe_intersection), { 0, 0, 0, 1 }, 2);
 		}
 
-		if (tmp_source == TMP_WAVE_PROPAGATION)
+		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
 		{
 			wave_prop.render();
 		}
@@ -2240,7 +2240,7 @@ private:
 			ImGui::SliderInt("TMP steps per frame", &TMP_steps_per_frame, 0, 100);
 			ImGui::SliderInt("TMP update refresh every FPS", &TMP_update_refresh_rate, 1, 100);
 		}
-		else if (tmp_source == TMP_WAVE_PROPAGATION)
+		else if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
 		{
 			ImGui::SliderInt("TMP steps per frame", &TMP_steps_per_frame, 0, 100);
 			ImGui::SliderInt("TMP update refresh every FPS", &TMP_update_refresh_rate, 1, 100);
@@ -3876,7 +3876,7 @@ private:
 	int drawing_values_points_count = 32;
 	bool drawing_view_target_channel = true;
 	// TMP direct values source
-	TMPValuesSource tmp_source = TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS;
+	TMPValuesSource tmp_source = TMP_SOURCE_WAVE_PROPAGATION;
 	MatrixX<Real> tmp_direct_values; // SAMPLE_COUNTxPROBES_COUNT matrix
 	bool use_interpolation_for_action_potential = false;
 	MatrixX<Real> heart_probes_values_temp;

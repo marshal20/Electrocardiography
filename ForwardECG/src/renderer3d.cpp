@@ -129,6 +129,29 @@ void Renderer3D::drawLine(const glm::vec3 & p1, const glm::vec3 & p2)
 	}
 }
 
+void Renderer3D::drawLineList(const std::vector<glm::vec3>& line_list)
+{
+	for (int i = 0; i < line_list.size(); i += MAX_VERTICES)
+	{
+		int count = min(MAX_VERTICES, line_list.size()-i);
+
+		for (int j = 0; j < count; j++)
+			vertices[j] = { line_list[i+j] };
+		bind_global_buffers();
+		simple_shader->setMat4("model", glm::mat4(1));
+		// Update buffer.
+		vertex_buffer->update(0, count * sizeof(Vertex), vertices);
+
+		// Draw command.
+		if (style.stroke)
+		{
+			simple_shader->setVec4("color", style.stroke_color);
+			glLineWidth(style.stroke_width);
+			gdevGet()->drawArrays(TOPOLOGY_LINE_LIST, 0, count);
+		}
+	}
+}
+
 void Renderer3D::drawPolygon(const glm::vec3* points, int count, bool loop)
 {
 	int new_count = (count <= MAX_VERTICES) ? count : MAX_VERTICES;

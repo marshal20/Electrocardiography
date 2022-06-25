@@ -3,7 +3,9 @@
 #include "imgui/imgui_my_types.h"
 #include "geometry.h"
 #include "renderer3d.h"
+#include "opengl/gl_headers.h"
 #include "GLFW/glfw3.h"
+#include "main_dev.h"
 
 
 #define POTENTIAL_REST -0.08
@@ -149,11 +151,10 @@ void WavePropagationSimulation::update_mesh_values()
 void WavePropagationSimulation::render()
 {
 	// operators render
-	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
+	if (m_selected_operator != -1 && m_selected_operator < m_operators.size())
 	{
-		op->render();
+		m_operators[m_selected_operator]->render();
 	}
-
 }
 
 void WavePropagationSimulation::render_gui()
@@ -215,9 +216,9 @@ void WavePropagationSimulation::render_gui()
 void WavePropagationSimulation::handle_input(const LookAtCamera& camera)
 {
 	// operators handle input
-	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
+	if (m_selected_operator != -1 && m_selected_operator < m_operators.size())
 	{
-		op->handle_input(camera);
+		m_operators[m_selected_operator]->handle_input(camera);
 	}
 }
 
@@ -323,6 +324,8 @@ WavePropagationPlaneCut::WavePropagationPlaneCut(WavePropagationSimulation* prop
 
 void WavePropagationPlaneCut::apply_links()
 {
+	m_cut_links_lines.clear();
+
 	//line_plane_intersect
 	for (int i = 0; i < m_prop_sim->m_links.size(); i++)
 	{
@@ -331,31 +334,24 @@ void WavePropagationPlaneCut::apply_links()
 		Vector3<Real> v2 = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[link.v2_idx].pos);
 
 		// delete current link if intersected with out plane
-		Real t;
-		if (line_plane_intersect(v1, v2, m_point, m_normal, t))
+		if (is_line_plane_intersect(v1, v2, m_point, m_normal))
 		{
 			m_prop_sim->m_links.erase(m_prop_sim->m_links.begin() + i);
 			i--;
+
+			// add a new cut line
+			m_cut_links_lines.push_back(eigen2glm(v1));
+			m_cut_links_lines.push_back(eigen2glm(v2));
 		}
 	}
 }
 
 void WavePropagationPlaneCut::render()
 {
-	//line_plane_intersect
-	for (int i = 0; i < m_prop_sim->m_links.size(); i++)
-	{
-		WavePropagationSimulation::VertexLink& link = m_prop_sim->m_links[i];
-		Vector3<Real> v1 = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[link.v1_idx].pos);
-		Vector3<Real> v2 = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[link.v2_idx].pos);
+	gdevGet()->depthTest(STATE_ENABLED);
+	Renderer3D::setStyle(Renderer3D::Style(true, 1, { 0.8, 0, 0, 1 }, false, { 0.75, 0, 0 ,1 }));
+	Renderer3D::drawLineList(m_cut_links_lines);
 
-		// delete current link if intersected with out plane
-		Real t;
-		if (line_plane_intersect(v1, v2, m_point, m_normal, t))
-		{
-			
-		}
-	}
 }
 
 void WavePropagationPlaneCut::render_gui()
@@ -441,7 +437,9 @@ void CircularBrush::render_gui()
 {
 	ImGui::Checkbox("Enable Drawing", &m_enable_drawing);
 	ImGui::Checkbox("Draw Only Vertices Facing Camera", &m_only_vertices_facing_camera);
-	ImGui::DragReal("Drawing Brush Radius", &m_brush_radius, 0.01, 0.001, 1);
+	Real im_brush_radius = log10(m_brush_radius);
+	ImGui::DragReal("Drawing Brush Radius", &im_brush_radius, 0.01);
+	m_brush_radius = pow(10, im_brush_radius);
 	// HANDLED BY THE CALLER
 	//ImGui::InputReal("drawing value", &drawing_value);
 	//ImGui::Checkbox("view target channel", &drawing_view_target_channel);
