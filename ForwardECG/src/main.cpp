@@ -16,7 +16,6 @@
 #include "camera.h"
 #include "forward_renderer.h"
 #include "mesh_plot.h"
-#include <Eigen/Dense>
 #include "math.h"
 #include "axis_renderer.h"
 #include "imgui/imgui_impl_glfw.h"

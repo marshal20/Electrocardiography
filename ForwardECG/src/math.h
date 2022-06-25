@@ -1,5 +1,7 @@
 #pragma once
-#include <Eigen/Dense>
+//#include <Eigen/Dense>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 #include <glm/glm.hpp>
 
 

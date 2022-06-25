@@ -392,11 +392,12 @@ void CircularBrush::render()
 	// render drawing preview
 	if (m_enable_drawing && m_drawing_is_intersected && m_drawing_values_preview.size() >= 2)
 	{
-		gdevGet()->depthTest(STATE_DISABLED);
-		Renderer3D::setStyle(Renderer3D::Style(true, 1, { 1, 1, 1, 1 }, true, { 0.75, 0, 0, 0.2 }));
+		//gdevGet()->depthTest(STATE_DISABLED);
+		gdevGet()->depthTest(STATE_ENABLED);
+		Renderer3D::setStyle(Renderer3D::Style(true, 1, { 1, 1, 1, 1 }, false, { 0.75, 0, 0, 0.2 }));
 		m_drawing_values_preview.push_back(m_drawing_values_preview[0]);
 		Renderer3D::drawPolygon(&m_drawing_values_preview[0], m_drawing_values_preview.size(), false);
-		gdevGet()->depthTest(STATE_ENABLED);
+		//gdevGet()->depthTest(STATE_ENABLED);
 	}
 
 }
@@ -452,10 +453,10 @@ void CircularBrush::handle_input(const LookAtCamera & camera, MeshPlot * mesh, c
 	}
 
 	// intersect preview
-	m_drawing_values_preview.resize(0);
+	m_drawing_values_preview.clear();
 	Ray ray = { glm2eigen(camera.eye), direction };
 	// calculate average t
-	Real t_min = 10e19;
+	Real t_min = 1e3;
 	Real t_average = 0;
 	int intersected_points = 0;
 	for (int i = 0; i < m_drawing_values_points_count; i++)
@@ -481,8 +482,9 @@ void CircularBrush::handle_input(const LookAtCamera & camera, MeshPlot * mesh, c
 		ray.origin = origin_points[i];
 		if (!ray_mesh_intersect(*mesh, mesh_pos, ray, t, tri_idx))
 		{
-			t = t_average; // set t to t_average when no intersection
+			t = t_min; // set t to t_average when no intersection
 		}
+		t = t_min; // set t to t_average when no intersection
 
 		m_drawing_values_preview.push_back(eigen2glm(ray.point_at_dir(t)));
 	}

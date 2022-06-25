@@ -1,5 +1,4 @@
 #pragma once
-#include <Eigen/Dense>
 #include "math.h"
 #include "mesh_plot.h"
 #include "camera.h"
