@@ -1174,11 +1174,11 @@ private:
 		//ZBH = (PBB - GBH*GHH.inverse()*PHB).inverse() * (GBH*GHH.inverse()*PHH - PBH); // with potential gradient effect
 
 		// TODO: Restore
-		/*
+		
 		// ZBH = PBB^-1 * PBH
 		ZBH = PBB.inverse() * PBH; // without potential gradient effect
-		*/
-		ZBH = MatrixX<Real>::Zero(N, M);
+		
+		//ZBH = MatrixX<Real>::Zero(N, M);
 
 		//ZBH = PBH; // without potential gradient effect
 
