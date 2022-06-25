@@ -389,6 +389,15 @@ void WavePropagationForceDepolarization::render()
 {
 	m_brush.render();
 
+
+	// update mesh values
+	if (m_view_drawing)
+	{
+		for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
+		{
+			m_prop_sim->m_mesh->vertices[i].value = -0.085*!m_selected[i] + 0.015*m_selected[i];
+		}
+	}
 }
 
 void WavePropagationForceDepolarization::render_gui()

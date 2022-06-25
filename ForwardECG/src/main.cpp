@@ -1800,7 +1800,24 @@ private:
 
 		// render wave propagation
 		Renderer3D::setProjection(camera.calculateViewProjection());
-		wave_prop.render();
+		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
+		{
+			wave_prop.render();
+
+			/*
+			// calculate heart maximum and minimum values
+			heart_potential_max = -1e12;
+			heart_potential_min = 1e12;
+			for (int i = 0; i < heart_mesh->vertices.size(); i++)
+			{
+				heart_potential_min = rmin(heart_potential_min, heart_mesh->vertices[i].value);
+				heart_potential_max = rmax(heart_potential_max, heart_mesh->vertices[i].value);
+			}
+			*/
+
+			// update torso potential values at GPU
+			heart_mesh->update_gpu_buffers();
+		}
 
 		// set mesh plot ambient
 		mpr->set_ambient(mesh_plot_ambient);
@@ -1919,11 +1936,6 @@ private:
 		if (heart_adding_probe && heart_adding_probe_intersected)
 		{
 			Renderer3D::drawPoint(eigen2glm(heart_pos + heart_adding_probe_intersection), { 0, 0, 0, 1 }, 2);
-		}
-
-		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
-		{
-			wave_prop.render();
 		}
 
 		// render drawing preview
