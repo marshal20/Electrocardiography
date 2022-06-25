@@ -1,4 +1,5 @@
 #include "bezier_curve.h"
+#include <stdio.h>
 
 
 // t is normalized [0:1]
@@ -98,4 +99,87 @@ Eigen::Vector3<Real> BezierCurve::point_at(const Real t) const
 							  points[segment_idx*3 + 2],
 							  points[segment_idx*3 + 3],
 							  (t-t_begin)/segments_duratoins[segment_idx]);
+}
+
+
+
+
+struct PointSerialized
+{
+	double x, y, z;
+};
+
+static bool import_bezier_curve(const std::string& file_name, BezierCurve& curve)
+{
+	FILE* file = fopen(file_name.c_str(), "rb");
+	if (!file)
+	{
+		return false;
+	}
+
+	BezierCurve new_curve;
+
+	// read points count
+	int points_count = 0;
+	fread(&points_count, sizeof(points_count), 1, file);
+	int durations_count = 0;
+	fread(&durations_count, sizeof(durations_count), 1, file);
+
+	// read points
+	PointSerialized serialized_point;
+	new_curve.points.reserve(points_count);
+	for (int i = 0; i < points_count; i++)
+	{
+		fread(&serialized_point, sizeof(serialized_point), 1, file);
+		new_curve.points.push_back({ serialized_point.x, serialized_point.y, serialized_point.z });
+	}
+
+	// read durations
+	double temp;
+	new_curve.segments_duratoins.reserve(durations_count);
+	for (int i = 0; i < durations_count; i++)
+	{
+		fread(&temp, sizeof(temp), 1, file);
+		new_curve.segments_duratoins.push_back(temp);
+	}
+
+	// assign imported probes
+	curve = new_curve;
+
+	fclose(file);
+	return true;
+}
+
+static bool export_bezier_curve(const std::string& file_name, const BezierCurve& curve)
+{
+	FILE* file = fopen(file_name.c_str(), "wb");
+	if (!file)
+	{
+		return false;
+	}
+
+	// read points count
+	const int points_count = curve.points.size();
+	fwrite(&points_count, sizeof(points_count), 1, file);
+	const int durations_count = curve.segments_duratoins.size();
+	fwrite(&durations_count, sizeof(durations_count), 1, file);
+
+	// write points
+	PointSerialized serialized_point;
+	for (int i = 0; i < points_count; i++)
+	{
+		serialized_point = { curve.points[i].x(), curve.points[i].y(), curve.points[i].z() };
+		fwrite(&serialized_point, sizeof(serialized_point), 1, file);
+	}
+
+	// read durations
+	double temp;
+	for (int i = 0; i < durations_count; i++)
+	{
+		temp = curve.segments_duratoins[i];
+		fwrite(&temp, sizeof(temp), 1, file);
+	}
+
+	fclose(file);
+	return true;
 }

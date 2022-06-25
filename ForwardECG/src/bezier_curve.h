@@ -17,3 +17,7 @@ struct BezierCurve
 	Eigen::Vector3<Real> point_at(const Real t) const;
 };
 
+
+// serializing
+bool import_bezier_curve(const std::string& file_name, BezierCurve& curve);
+bool export_bezier_curve(const std::string& file_name, const BezierCurve& curve);

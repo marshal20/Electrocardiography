@@ -6,21 +6,7 @@
 #include "opengl/gl_headers.h"
 #include "GLFW/glfw3.h"
 #include "main_dev.h"
-
-
-#define POTENTIAL_REST -0.08
-#define POTENTIAL_PEAK 0.015
-
-
-struct ActionPotentialParameters
-{
-	Real resting_potential;
-	Real peak_potential;
-	Real depolarization_time;
-	Real repolarization_time;
-};
-
-static Real action_potential_value_2(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.05, Real repolarization_slope_duration = 0.1);
+#include "action_potential.h"
 
 
 void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<Real>& mesh_pos)
@@ -127,11 +113,11 @@ void WavePropagationSimulation::simulation_step()
 	{
 		if (m_vars[i].is_depolarized && m_t > m_vars[i].depolarization_time)
 		{
-			m_potentials(i) = action_potential_value_2(m_t, { POTENTIAL_REST, POTENTIAL_PEAK, m_vars[i].depolarization_time, m_vars[i].depolarization_time+m_depolarization_duration }, m_depolarization_slope_duration, m_repolarization_slope_duration);
+			m_potentials(i) = action_potential_value_2(m_t, { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, m_vars[i].depolarization_time, m_vars[i].depolarization_time+m_depolarization_duration }, m_depolarization_slope_duration, m_repolarization_slope_duration);
 		}
 		else
 		{
-			m_potentials(i) = POTENTIAL_REST;
+			m_potentials(i) = ACTION_POTENTIAL_RESTING_POTENTIAL;
 		}
 	}
 
@@ -252,34 +238,6 @@ static Real s_3rd_order_curve_transition(Real t)
 		+ (1<=t) * 1;
 }
 
-static Real action_potential_value_2(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration, Real repolarization_slope_duration)
-{
-	Real mixing_percentage = 0;
-
-	if (t < params.depolarization_time)
-	{
-		mixing_percentage = 0;
-	}
-	else if (t < params.depolarization_time+depolarization_slope_duration)
-	{
-		mixing_percentage = s_3rd_order_curve_transition((t-params.depolarization_time)/depolarization_slope_duration);
-	}
-	else if (params.depolarization_time+depolarization_slope_duration <= t && t <= params.repolarization_time)
-	{
-		mixing_percentage = 1;
-	}
-	else if (t > params.repolarization_time && t <= params.repolarization_time+repolarization_slope_duration)
-	{
-		mixing_percentage = 1-s_3rd_order_curve_transition((t-params.repolarization_time)/repolarization_slope_duration);
-	}
-	else
-	{
-		mixing_percentage = 0;
-	}
-
-	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage;
-}
-
 // Wave Propagation Operator
 
 WavePropagationOperator::WavePropagationOperator(WavePropagationSimulation* prop_sim, const std::string & type)
@@ -389,13 +347,12 @@ void WavePropagationForceDepolarization::render()
 {
 	m_brush.render();
 
-
 	// update mesh values
 	if (m_view_drawing)
 	{
 		for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
 		{
-			m_prop_sim->m_mesh->vertices[i].value = -0.085*!m_selected[i] + 0.015*m_selected[i];
+			m_prop_sim->m_mesh->vertices[i].value = ACTION_POTENTIAL_RESTING_POTENTIAL*!m_selected[i] + ACTION_POTENTIAL_PEAK_POTENTIAL*m_selected[i];
 		}
 	}
 }
@@ -435,9 +392,11 @@ void CircularBrush::render()
 	// render drawing preview
 	if (m_enable_drawing && m_drawing_is_intersected && m_drawing_values_preview.size() >= 2)
 	{
+		gdevGet()->depthTest(STATE_DISABLED);
 		Renderer3D::setStyle(Renderer3D::Style(true, 1, { 1, 1, 1, 1 }, true, { 0.75, 0, 0, 0.2 }));
 		m_drawing_values_preview.push_back(m_drawing_values_preview[0]);
 		Renderer3D::drawPolygon(&m_drawing_values_preview[0], m_drawing_values_preview.size(), false);
+		gdevGet()->depthTest(STATE_ENABLED);
 	}
 
 }
@@ -522,7 +481,7 @@ void CircularBrush::handle_input(const LookAtCamera & camera, MeshPlot * mesh, c
 		ray.origin = origin_points[i];
 		if (!ray_mesh_intersect(*mesh, mesh_pos, ray, t, tri_idx))
 		{
-			t = t_min; // set t to t_average when no intersection
+			t = t_average; // set t to t_average when no intersection
 		}
 
 		m_drawing_values_preview.push_back(eigen2glm(ray.point_at_dir(t)));

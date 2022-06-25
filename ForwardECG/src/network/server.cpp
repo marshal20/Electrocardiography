@@ -122,7 +122,7 @@ void Server::server_thread_routine()
 		// read request
 		int read_size = 0;
 		std::vector<uint8_t> request_bytes(request_size, 0);
-		read_size = new_sock.recv((char*)&request_bytes[0], request_bytes.size());
+		read_size = new_sock.recv_large((char*)&request_bytes[0], request_bytes.size());
 		request_bytes.resize(read_size);
 
 		m_request_bytes = request_bytes;

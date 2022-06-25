@@ -31,49 +31,13 @@
 #include "random.h"
 #include "file_io.h"
 #include "wave_propagation_simulation.h"
+#include "action_potential.h"
+#include "probe.h"
 
 
 using namespace Eigen;
 
 const LookAtCamera default_camera({ 0, 0, 5 }, { 0, 0, 0 }, { 0, 1, 0 }, (float)(45*PI/180), 1.0f, 0.1f, 1000.0f);
-
-
-struct Probe
-{
-	int triangle_idx;
-	Eigen::Vector3<Real> point;
-
-	std::string name;
-};
-
-static Real evaluate_probe(const MeshPlot& mesh, const Probe& probe)
-{
-	// check that tringle index exists
-	if (probe.triangle_idx >= mesh.faces.size())
-	{
-		return 0;
-	}
-
-	const MeshPlotFace& face = mesh.faces[probe.triangle_idx];
-	Triangle tri = { glm2eigen(mesh.vertices[face.idx[0]].pos),
-					 glm2eigen(mesh.vertices[face.idx[1]].pos),
-					 glm2eigen(mesh.vertices[face.idx[2]].pos) };
-
-	if (is_point_in_triangle(tri, probe.point))
-	{
-		Real scaler_a = perpendicular_distance(tri.b, tri.c, probe.point);
-		Real scaler_b = perpendicular_distance(tri.a, tri.c, probe.point);
-		Real scaler_c = perpendicular_distance(tri.a, tri.b, probe.point);
-		Real total = scaler_a+scaler_b+scaler_c;
-		scaler_a /= total;
-		scaler_b /= total;
-		scaler_c /= total;
-
-		return scaler_a*mesh.vertices[face.idx[0]].value + scaler_b*mesh.vertices[face.idx[1]].value + scaler_c*mesh.vertices[face.idx[2]].value;
-	}
-
-	return 0;
-}
 
 static bool dump_probes_values_to_csv(
 	const char* file_name,
@@ -135,162 +99,6 @@ static bool dump_probes_values_to_csv(
 	return true;
 }
 
-
-struct ProbeSerialized
-{
-	int tri;
-	double px, py, pz;
-	char name[16];
-};
-
-static bool import_probes(const std::string& file_name, std::vector<Probe>& probes)
-{
-	FILE* file = fopen(file_name.c_str(), "rb");
-	if (!file)
-	{
-		return false;
-	}
-
-	std::vector<Probe> new_probes;
-
-	// read probes count
-	int probes_count = 0;
-	fread(&probes_count, sizeof(probes_count), 1, file);
-
-	// read probes
-	ProbeSerialized serialized_probe;
-	new_probes.reserve(probes_count);
-	for (int i = 0; i < probes_count; i++)
-	{
-		fread(&serialized_probe, sizeof(serialized_probe), 1, file);
-		new_probes.push_back({serialized_probe.tri, {serialized_probe.px, serialized_probe.py, serialized_probe.pz}, serialized_probe.name });
-	}
-
-	// assign imported probes
-	probes = new_probes;
-
-	fclose(file);
-	return true;
-}
-
-static bool export_probes(const std::string& file_name, const std::vector<Probe>& probes)
-{
-	FILE* file = fopen(file_name.c_str(), "wb");
-	if (!file)
-	{
-		return false;
-	}
-
-	// write probes count
-	const int probes_count = probes.size();
-	fwrite(&probes_count, sizeof(probes_count), 1, file);
-
-	// write probes
-	ProbeSerialized serialized_probe;
-	for (int i = 0; i < probes_count; i++)
-	{
-		const Probe& probe = probes[i];
-		serialized_probe = { probe.triangle_idx, probe.point.x(), probe.point.y(), probe.point.z() };
-		strncpy(serialized_probe.name, probe.name.c_str(), sizeof(serialized_probe.name)-1);
-		serialized_probe.name[sizeof(serialized_probe.name)-1] = '\0';
-
-		fwrite(&serialized_probe, sizeof(serialized_probe), 1, file);
-	}
-
-	fclose(file);
-	return true;
-}
-
-
-struct PointSerialized
-{
-	double x, y, z;
-};
-
-static bool import_curve(const std::string& file_name, BezierCurve& curve)
-{
-	FILE* file = fopen(file_name.c_str(), "rb");
-	if (!file)
-	{
-		return false;
-	}
-
-	BezierCurve new_curve;
-
-	// read points count
-	int points_count = 0;
-	fread(&points_count, sizeof(points_count), 1, file);
-	int durations_count = 0;
-	fread(&durations_count, sizeof(durations_count), 1, file);
-
-	// read points
-	PointSerialized serialized_point;
-	new_curve.points.reserve(points_count);
-	for (int i = 0; i < points_count; i++)
-	{
-		fread(&serialized_point, sizeof(serialized_point), 1, file);
-		new_curve.points.push_back({ serialized_point.x, serialized_point.y, serialized_point.z });
-	}
-
-	// read durations
-	double temp;
-	new_curve.segments_duratoins.reserve(durations_count);
-	for (int i = 0; i < durations_count; i++)
-	{
-		fread(&temp, sizeof(temp), 1, file);
-		new_curve.segments_duratoins.push_back(temp);
-	}
-
-	// assign imported probes
-	curve = new_curve;
-
-	fclose(file);
-	return true;
-}
-
-static bool export_curve(const std::string& file_name, const BezierCurve& curve)
-{
-	FILE* file = fopen(file_name.c_str(), "wb");
-	if (!file)
-	{
-		return false;
-	}
-
-	// read points count
-	const int points_count = curve.points.size();
-	fwrite(&points_count, sizeof(points_count), 1, file);
-	const int durations_count = curve.segments_duratoins.size();
-	fwrite(&durations_count, sizeof(durations_count), 1, file);
-
-	// write points
-	PointSerialized serialized_point;
-	for (int i = 0; i < points_count; i++)
-	{
-		serialized_point = { curve.points[i].x(), curve.points[i].y(), curve.points[i].z() };
-		fwrite(&serialized_point, sizeof(serialized_point), 1, file);
-	}
-
-	// read durations
-	double temp;
-	for (int i = 0; i < durations_count; i++)
-	{
-		temp = curve.segments_duratoins[i];
-		fwrite(&temp, sizeof(temp), 1, file);
-	}
-
-	fclose(file);
-	return true;
-}
-
-template<typename T>
-static void swap(T& a, T& b)
-{
-	T temp = a;
-	a = b;
-	b = temp;
-}
-
-
 enum RequestType
 {
 	REQUEST_GET_VALUES = 1,
@@ -342,188 +150,12 @@ enum ValuesSource
 	VALUES_SOURCE_VALUES_LIST = 3
 };
 
-
-static Vector3<Real> calculate_triangle_normal(MeshPlot* mesh, int tri_idx)
-{
-	Vector3<Real> a = glm2eigen(mesh->vertices[mesh->faces[tri_idx].idx[0]].pos);
-	Vector3<Real> b = glm2eigen(mesh->vertices[mesh->faces[tri_idx].idx[1]].pos);
-	Vector3<Real> c = glm2eigen(mesh->vertices[mesh->faces[tri_idx].idx[2]].pos);
-	return (b-a).cross(c-a).normalized();
-}
-
-
 enum TMPValuesSource
 {
 	TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS = 1,
 	TMP_SOURCE_TMP_DIRECT_VALUES = 2,
 	TMP_SOURCE_WAVE_PROPAGATION = 3,
 };
-
-struct ActionPotentialParameters
-{
-	Real resting_potential;
-	Real peak_potential;
-	Real depolarization_time;
-	Real repolarization_time;
-};
-
-static Real action_potential_value(Real t, const ActionPotentialParameters& params)
-{
-	const Real depolarization_slope_duration = 0.08;
-	Real mixing_percentage = 1;
-
-	if (t < params.depolarization_time-depolarization_slope_duration*(params.repolarization_time-params.depolarization_time))
-	{
-		mixing_percentage = 1;
-	}
-	else if (t < params.depolarization_time)
-	{
-		mixing_percentage = (params.depolarization_time-t)/(depolarization_slope_duration*(params.repolarization_time-params.depolarization_time));
-	}
-	else if (params.depolarization_time <= t && t <= params.repolarization_time)
-	{
-		mixing_percentage = (exp(4*(t-params.depolarization_time)/(params.repolarization_time-params.depolarization_time)-2) - exp(-2))/(-exp(-2)+exp(2))*0.75;
-	}
-	else if (t > params.repolarization_time)
-	{
-		mixing_percentage = 1-0.25*exp(-(t-params.repolarization_time)*10/(params.repolarization_time-params.depolarization_time));
-	}
-
-	return params.peak_potential - (params.peak_potential-params.resting_potential)*mixing_percentage;
-}
-
-// returns a 3rd order transition between 0 and 1, for t [0:1] 
-static Real s_3rd_order_curve_transition(Real t)
-{
-	return (0<t) * 0
-		 + (0<=t&&t<0.5) * 0.5*pow((t*2), 3)
-		 + (0.5<=t&&t<1) * (1-0.5*pow((2-t*2), 3))
-		 + (1<=t) * 1;
-}
-
-/*
-static Real action_potential_value_2(Real t, const ActionPotentialParameters& params)
-{
-	const Real depolarization_slope_duration = 0.020;
-	const Real repolarization_slope_duration = 0.050;
-	Real mixing_percentage = 0;
-
-	if (t < params.depolarization_time-depolarization_slope_duration)
-	{
-		mixing_percentage = 0;
-	}
-	else if (t < params.depolarization_time)
-	{
-		mixing_percentage = s_3rd_order_curve_transition((t-(params.depolarization_time-depolarization_slope_duration))/depolarization_slope_duration);
-	}
-	else if (params.depolarization_time <= t && t <= params.repolarization_time)
-	{
-		mixing_percentage = 1;
-	}
-	else if (t > params.repolarization_time && t <= params.repolarization_time+repolarization_slope_duration)
-	{
-		mixing_percentage = 1-s_3rd_order_curve_transition((t-params.repolarization_time)/repolarization_slope_duration);
-	}
-	else
-	{
-		mixing_percentage = 0;
-	}
-
-	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage;
-}
-*/
-
-static Real action_potential_value_2(Real t, const ActionPotentialParameters& params)
-{
-	const Real depolarization_slope_duration = 0.020;
-	const Real repolarization_slope_duration = 0.050;
-	Real mixing_percentage = 0;
-
-	if (t < params.depolarization_time)
-	{
-		mixing_percentage = 0;
-	}
-	else if (t < params.depolarization_time+depolarization_slope_duration)
-	{
-		mixing_percentage = s_3rd_order_curve_transition((t-params.depolarization_time)/depolarization_slope_duration);
-	}
-	else if (params.depolarization_time+depolarization_slope_duration <= t && t <= params.repolarization_time)
-	{
-		mixing_percentage = 1;
-	}
-	else if (t > params.repolarization_time && t <= params.repolarization_time+repolarization_slope_duration)
-	{
-		mixing_percentage = 1-s_3rd_order_curve_transition((t-params.repolarization_time)/repolarization_slope_duration);
-	}
-	else
-	{
-		mixing_percentage = 0;
-	}
-
-	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage;
-}
-
-static bool import_parameters(const std::string& file_name, std::vector<ActionPotentialParameters>& params)
-{
-	size_t contents_size;
-	uint8_t* contents = file_read(file_name.c_str(), &contents_size);
-	if (!contents)
-	{
-		return false;
-	}
-
-	Deserializer des(contents, contents_size);
-
-	// parse
-
-	std::vector<ActionPotentialParameters> new_params;
-
-	// vertex count
-	uint32_t vertex_count = des.parse_u32();
-	if (vertex_count != params.size())
-	{
-		printf("vertex count doesn't match\n");
-		free(contents);
-		return false;
-	}
-	new_params.reserve(vertex_count);
-
-	for (uint32_t i = 0; i < vertex_count; i++)
-	{
-		ActionPotentialParameters param;
-		param.resting_potential = des.parse_double();
-		param.peak_potential = des.parse_double();
-		param.depolarization_time = des.parse_double();
-		param.repolarization_time = des.parse_double();
-		new_params.push_back(param);
-	}
-
-	// set parameters
-	params = new_params;
-
-	free(contents);
-	return true;
-}
-
-static bool export_parameters(const std::string& file_name, const std::vector<ActionPotentialParameters>& params)
-{
-	Serializer ser;
-
-	// write
-
-	// vertex count
-	ser.push_u32(params.size());
-
-	for (const ActionPotentialParameters& param : params)
-	{
-		ser.push_double(param.resting_potential);
-		ser.push_double(param.peak_potential);
-		ser.push_double(param.depolarization_time);
-		ser.push_double(param.repolarization_time);
-	}
-
-	return file_write(file_name.c_str(), ser.get_data());
-}
 
 
 static bool import_tmp_direct_values(const std::string& file_name, MatrixX<Real>& tmp_direct_values, int tmp_points_count)
@@ -706,68 +338,6 @@ enum DrawingMode
 	DRAW_REPOLARIZATION_TIME = 4
 };
 
-
-static std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols)
-{
-	std::vector<Probe> probes;
-
-	// spherical coordinates to cartisian
-	for (int theta_i = 0; theta_i < rows; theta_i++)
-	{
-		Real theta = map_value_to_range<Real>(((Real)theta_i+0.5), 0, rows, -PI/2, PI/2);
-		for (int phi_i = 0; phi_i < cols; phi_i++)
-		{
-			Real phi = map_value_to_range<Real>(((Real)phi_i+0.5), 0, cols, 0, 2*PI);
-			// calculate ray
-			Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
-			ray_direction.normalize();
-			Ray cast_ray = { {0, 0, 0}, ray_direction };
-
-			// intersect ray with mesh
-			Real t;
-			int tri_idx;
-			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
-			{
-				Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-				std::string probe_name = prefix + "_" + std::to_string(theta_i) + "_" + std::to_string(phi_i);
-				probes.push_back(Probe{ tri_idx, intersection_point, probe_name });
-			}
-		}
-	}
-
-	return probes;
-}
-
-static std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_plane, Real z_direction, Real x_min, Real x_max, Real y_min, Real y_max)
-{
-	std::vector<Probe> probes;
-
-	// spherical coordinates to cartisian
-	for (int i = 0; i < rows; i++)
-	{
-		Real y = map_value_to_range<Real>((Real)i, 0, rows-1, y_min, y_max);
-		for (int j = 0; j < cols; j++)
-		{
-			Real x = map_value_to_range<Real>((Real)j, 0, cols-1, x_min, x_max);
-			
-			// calculate ray
-			Ray cast_ray = { {x, y, z_plane}, {0, 0, z_direction} };
-
-			// intersect ray with mesh
-			Real t;
-			int tri_idx;
-			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
-			{
-				Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
-				std::string probe_name = prefix + "_" + std::to_string(i) + "_" + std::to_string(j);
-				probes.push_back(Probe{ tri_idx, intersection_point, probe_name });
-			}
-		}
-	}
-
-	return probes;
-}
-
 static void print_progress_bar(int percentage, bool return_carriage = true)
 {
 	// limit percentage
@@ -857,7 +427,8 @@ public:
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
 		heart_mesh = load_mesh_plot("models/heart_model_5_fixed.fbx");
-		heart_action_potential_params.resize(heart_mesh->vertices.size(), ActionPotentialParameters{-80e-3, 15e-3, 150e-3, 500e-3});
+		heart_action_potential_params.resize(heart_mesh->vertices.size(), 
+			ActionPotentialParameters{ ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, ACTION_POTENTIAL_DEPOLARIZATION_TIME, ACTION_POTENTIAL_REPOLARIZATION_TIME });
 
 		// torso mesh plot
 		torso = new MeshPlot();
@@ -2070,7 +1641,7 @@ private:
 				// import
 				if (file_name != "")
 				{
-					if (import_parameters(file_name, heart_action_potential_params))
+					if (import_action_potential_parameters(file_name, heart_action_potential_params))
 					{
 						printf("Imported \"%s\" parameters\n", file_name.c_str());
 					}
@@ -2089,7 +1660,7 @@ private:
 				// export
 				if (file_name != "")
 				{
-					if (export_parameters(file_name, heart_action_potential_params))
+					if (export_action_potential_parameters(file_name, heart_action_potential_params))
 					{
 						printf("Exported \"%s\" parameters\n", file_name.c_str());
 					}
@@ -2350,7 +1921,7 @@ private:
 				// import
 				if (file_name != "")
 				{
-					if (import_curve(file_name, dipole_curve))
+					if (import_bezier_curve(file_name, dipole_curve))
 					{
 						printf("Imported \"%s\" curve\n", file_name.c_str());
 					}
@@ -2370,7 +1941,7 @@ private:
 				// export
 				if (file_name != "")
 				{
-					if (export_curve(file_name, dipole_curve))
+					if (export_bezier_curve(file_name, dipole_curve))
 					{
 						printf("Exported \"%s\" curve\n", file_name.c_str());
 					}

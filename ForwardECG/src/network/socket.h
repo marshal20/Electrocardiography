@@ -66,6 +66,7 @@ public:
 	Socket accept(Address& connected_addr, Port& connected_port);
 
 	int recv(char* buff, int len);
+	int recv_large(char* buff, int len);
 	int send(const char* buff, int len);
 	void send_all(const char* buff, int len);
 

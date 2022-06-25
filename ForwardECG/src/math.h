@@ -17,6 +17,14 @@ glm::vec3 eigen2glm(const Eigen::Vector3<Real>& v3);
 
 
 template<typename T>
+void swap(T& a, T& b)
+{
+	T temp = a;
+	a = b;
+	b = temp;
+}
+
+template<typename T>
 T clamp_value(T value, T min, T max)
 {
 	if (value < min)
@@ -41,3 +49,6 @@ T map_value_to_range(T value, T min1, T max1, T min2, T max2)
 
 
 Eigen::Vector3<Real> rodrigues_rotate(const Eigen::Vector3<Real>& v, const Eigen::Vector3<Real>& axis, Real theta);
+
+// returns a 3rd order transition between 0 and 1, for t [0:1] 
+Real s_3rd_order_curve_transition(Real t);

@@ -139,3 +139,73 @@ Ray camera_screen_to_world_ray(const LookAtCamera & camera, Real x_norm, Real y_
 
 }
 
+Eigen::Vector3<Real> calculate_triangle_normal(MeshPlot* mesh, int tri_idx)
+{
+	Vector3<Real> a = glm2eigen(mesh->vertices[mesh->faces[tri_idx].idx[0]].pos);
+	Vector3<Real> b = glm2eigen(mesh->vertices[mesh->faces[tri_idx].idx[1]].pos);
+	Vector3<Real> c = glm2eigen(mesh->vertices[mesh->faces[tri_idx].idx[2]].pos);
+	return (b-a).cross(c-a).normalized();
+}
+
+
+
+std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols)
+{
+	std::vector<Probe> probes;
+
+	// spherical coordinates to cartisian
+	for (int theta_i = 0; theta_i < rows; theta_i++)
+	{
+		Real theta = map_value_to_range<Real>(((Real)theta_i+0.5), 0, rows, -PI/2, PI/2);
+		for (int phi_i = 0; phi_i < cols; phi_i++)
+		{
+			Real phi = map_value_to_range<Real>(((Real)phi_i+0.5), 0, cols, 0, 2*PI);
+			// calculate ray
+			Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
+			ray_direction.normalize();
+			Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+			// intersect ray with mesh
+			Real t;
+			int tri_idx;
+			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+			{
+				Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+				std::string probe_name = prefix + "_" + std::to_string(theta_i) + "_" + std::to_string(phi_i);
+				probes.push_back(Probe{ tri_idx, intersection_point, probe_name });
+			}
+		}
+	}
+
+	return probes;
+}
+
+std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_plane, Real z_direction, Real x_min, Real x_max, Real y_min, Real y_max)
+{
+	std::vector<Probe> probes;
+
+	// spherical coordinates to cartisian
+	for (int i = 0; i < rows; i++)
+	{
+		Real y = map_value_to_range<Real>((Real)i, 0, rows-1, y_min, y_max);
+		for (int j = 0; j < cols; j++)
+		{
+			Real x = map_value_to_range<Real>((Real)j, 0, cols-1, x_min, x_max);
+
+			// calculate ray
+			Ray cast_ray = { {x, y, z_plane}, {0, 0, z_direction} };
+
+			// intersect ray with mesh
+			Real t;
+			int tri_idx;
+			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+			{
+				Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
+				std::string probe_name = prefix + "_" + std::to_string(i) + "_" + std::to_string(j);
+				probes.push_back(Probe{ tri_idx, intersection_point, probe_name });
+			}
+		}
+	}
+
+	return probes;
+}

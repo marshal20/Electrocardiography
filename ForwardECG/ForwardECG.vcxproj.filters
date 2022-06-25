@@ -144,6 +144,12 @@
     <ClCompile Include="src\wave_propagation_simulation.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\action_potential.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\probe.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\window.h">
@@ -282,6 +288,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\wave_propagation_simulation.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\action_potential.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\probe.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

@@ -249,6 +249,22 @@ int Socket::recv(char* buff, int len)
 	return recieved;
 }
 
+int Socket::recv_large(char* buff, int len)
+{
+	int elapsed = len;
+
+	int recieved;
+	while ((recieved = ::recv(m_sock, (char*)buff, elapsed, 0)) != -1 && recieved != 0)
+	{
+		buff += recieved;
+		elapsed -= recieved;
+
+		m_stats.recv += recieved;
+	}
+
+	return recieved;
+}
+
 int Socket::send(const char* buff, int len)
 {
 	int sent;
