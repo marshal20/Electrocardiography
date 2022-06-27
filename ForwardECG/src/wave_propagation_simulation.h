@@ -81,7 +81,7 @@ private:
 class WavePropagationForceDepolarization : public WavePropagationOperator
 {
 public:
-	WavePropagationForceDepolarization(WavePropagationSimulation* prop_sim, int vertex_count = 0, Real depolarization_time = 0.1);
+	WavePropagationForceDepolarization(WavePropagationSimulation* prop_sim, Real depolarization_time = 0.1);
 	virtual ~WavePropagationForceDepolarization() = default;
 
 	virtual void apply_reset();
@@ -97,6 +97,31 @@ private:
 	bool m_brush_select = false;
 	bool m_view_drawing = false;
 };
+
+class WavePropagationLinkTwoGroups : public WavePropagationOperator
+{
+public:
+	WavePropagationLinkTwoGroups(WavePropagationSimulation* prop_sim);
+	virtual ~WavePropagationLinkTwoGroups() = default;
+
+	virtual void apply_links() override;
+
+	virtual void render() override;
+	virtual void render_gui() override;
+	virtual void handle_input(const LookAtCamera& camera) override;
+
+private:
+	Real m_multiply_speed = 1; // scaler multiplied to the base speed
+	Real m_constant_speed = 0; // constant speed added to the base speed
+	Real m_constant_delay = 0; // constant delay added to the links between the two groups
+	int m_selected_group = 0; // 0 = group A, 1 = group B
+	std::vector<bool> m_group_a_selected;
+	std::vector<bool> m_group_b_selected;
+	CircularBrush m_brush;
+	bool m_brush_select = false;
+	bool m_view_drawing = false;
+};
+
 
 
 class WavePropagationSimulation
@@ -136,6 +161,7 @@ private:
 		int v2_idx; // second vertex index
 		Real multiply_speed; // scaler multiplied to the base speed
 		Real constant_speed; // constant speed added to the base speed
+		Real m_constant_delay; // constant delay added to the links between the two groups
 	};
 
 	MeshPlot* m_mesh = nullptr;
@@ -160,6 +186,7 @@ private:
 	friend class WavePropagationOperator;
 	friend class WavePropagationPlaneCut;
 	friend class WavePropagationForceDepolarization;
+	friend class WavePropagationLinkTwoGroups;
 
 };
 

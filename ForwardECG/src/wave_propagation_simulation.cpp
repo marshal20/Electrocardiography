@@ -13,7 +13,8 @@ void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<R
 {
 	// test operator (plane cut)
 	m_operators.push_back(std::shared_ptr<WavePropagationPlaneCut>(new WavePropagationPlaneCut(this, mesh_pos + Vector3<Real>(0, 0, 0), {-1, 1, 0})));
-	m_operators.push_back(std::shared_ptr<WavePropagationForceDepolarization>(new WavePropagationForceDepolarization(this, mesh->vertices.size())));
+	m_operators.push_back(std::shared_ptr<WavePropagationForceDepolarization>(new WavePropagationForceDepolarization(this)));
+	m_operators.push_back(std::shared_ptr<WavePropagationLinkTwoGroups>(new WavePropagationLinkTwoGroups(this)));
 
 	m_mesh = mesh;
 	m_mesh_pos = mesh_pos;
@@ -215,9 +216,9 @@ void WavePropagationSimulation::recalculate_links()
 	// add links for vertices connected together with faces
 	for (const MeshPlotFace& face : m_mesh->faces)
 	{
-		m_links.push_back({ face.idx[0], face.idx[1], 1, 0 });
-		m_links.push_back({ face.idx[0], face.idx[2], 1, 0 });
-		m_links.push_back({ face.idx[1], face.idx[2], 1, 0 });
+		m_links.push_back({ face.idx[0], face.idx[1], 1, 0, 0 });
+		m_links.push_back({ face.idx[0], face.idx[2], 1, 0, 0 });
+		m_links.push_back({ face.idx[1], face.idx[2], 1, 0, 0 });
 	}
 	
 	// apply operators
@@ -324,10 +325,13 @@ void WavePropagationPlaneCut::handle_input(const LookAtCamera & camera)
 
 // Force Depolarization
 
-WavePropagationForceDepolarization::WavePropagationForceDepolarization(WavePropagationSimulation* prop_sim, int vertex_count, Real depolarization_time)
+WavePropagationForceDepolarization::WavePropagationForceDepolarization(WavePropagationSimulation* prop_sim, Real depolarization_time)
 	:WavePropagationOperator(prop_sim, "Force Depolarization")
 {
-	m_selected.resize(vertex_count);
+	if (m_prop_sim->m_mesh)
+	{
+		m_selected.resize(m_prop_sim->m_mesh->vertices.size());
+	}
 	m_depolarization_time = depolarization_time;
 }
 
@@ -359,15 +363,19 @@ void WavePropagationForceDepolarization::render()
 
 void WavePropagationForceDepolarization::render_gui()
 {
+	ImGui::InputReal("Depolarization Time", &m_depolarization_time);
+
+	ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 	m_brush.render_gui();
 	ImGui::Checkbox("Select", &m_brush_select);
-	ImGui::InputReal("Depolarization Time", &m_depolarization_time);
 	ImGui::Checkbox("View Drawing", &m_view_drawing);
 
 }
 
 void WavePropagationForceDepolarization::handle_input(const LookAtCamera & camera)
 {
+	m_selected.resize(m_prop_sim->m_mesh->vertices.size());
+
 	m_brush.handle_input(camera, m_prop_sim->m_mesh, m_prop_sim->m_mesh_pos);
 
 	for (int i = 0; i < m_brush.get_intersected().size(); i++)
@@ -378,6 +386,8 @@ void WavePropagationForceDepolarization::handle_input(const LookAtCamera & camer
 		}
 	}
 }
+
+// Circular Brush
 
 CircularBrush::CircularBrush(bool enable_drawing, Real brush_radius, bool only_vertices_facing_camera)
 {
@@ -519,5 +529,94 @@ void CircularBrush::handle_input(const LookAtCamera & camera, MeshPlot * mesh, c
 const std::vector<bool>& CircularBrush::get_intersected() const
 {
 	return m_intersected;
+}
+
+
+// Link Two Groups
+
+WavePropagationLinkTwoGroups::WavePropagationLinkTwoGroups(WavePropagationSimulation* prop_sim)
+	:WavePropagationOperator(prop_sim, "Link Two Groups")
+{
+	if (m_prop_sim->m_mesh)
+	{
+		m_group_a_selected.resize(m_prop_sim->m_mesh->vertices.size());
+		m_group_b_selected.resize(m_prop_sim->m_mesh->vertices.size());
+	}
+}
+
+void WavePropagationLinkTwoGroups::apply_links()
+{
+	m_group_a_selected.resize(m_prop_sim->m_mesh->vertices.size());
+	m_group_b_selected.resize(m_prop_sim->m_mesh->vertices.size());
+
+	for (int i = 0; i < m_group_a_selected.size(); i++)
+	{
+		for (int j = 0; j < m_group_b_selected.size(); j++)
+		{
+			if (m_group_a_selected[i] && m_group_b_selected[j])
+			{
+				// connect between two vertices in group A and B
+				m_prop_sim->m_links.push_back({ i, j, m_multiply_speed, m_constant_speed, m_constant_delay });
+			}
+		}
+	}
+}
+
+void WavePropagationLinkTwoGroups::render()
+{
+	m_brush.render();
+
+	// update mesh values
+	if (m_view_drawing)
+	{
+		for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
+		{
+			if (m_selected_group == 0)
+			{
+				m_prop_sim->m_mesh->vertices[i].value = ACTION_POTENTIAL_RESTING_POTENTIAL*!m_group_a_selected[i] + ACTION_POTENTIAL_PEAK_POTENTIAL*m_group_a_selected[i];
+			}
+			else if (m_selected_group == 1)
+			{
+				m_prop_sim->m_mesh->vertices[i].value = ACTION_POTENTIAL_RESTING_POTENTIAL*!m_group_b_selected[i] + ACTION_POTENTIAL_PEAK_POTENTIAL*m_group_b_selected[i];
+			}
+		}
+	}
+}
+
+void WavePropagationLinkTwoGroups::render_gui()
+{
+	ImGui::InputReal("Multiply Speed", &m_multiply_speed);
+	ImGui::InputReal("Constant Speed", &m_constant_speed);
+	ImGui::InputReal("Constant Delay", &m_constant_delay);
+
+	ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+	const char* group_select_choices[] = {"Group A", "Group B"};
+	ImGui::ListBox("Group Select", &m_selected_group, group_select_choices, 2, 2);
+	m_brush.render_gui();
+	ImGui::Checkbox("Select", &m_brush_select);
+	ImGui::Checkbox("View Drawing", &m_view_drawing);
+}
+
+void WavePropagationLinkTwoGroups::handle_input(const LookAtCamera& camera)
+{
+	m_group_a_selected.resize(m_prop_sim->m_mesh->vertices.size());
+	m_group_b_selected.resize(m_prop_sim->m_mesh->vertices.size());
+
+	m_brush.handle_input(camera, m_prop_sim->m_mesh, m_prop_sim->m_mesh_pos);
+
+	for (int i = 0; i < m_brush.get_intersected().size(); i++)
+	{
+		if (m_brush.get_intersected()[i])
+		{
+			if (m_selected_group == 0)
+			{
+				m_group_a_selected[i] = m_brush_select;
+			}
+			else if (m_selected_group == 1)
+			{
+				m_group_b_selected[i] = m_brush_select;
+			}
+		}
+	}
 }
 
