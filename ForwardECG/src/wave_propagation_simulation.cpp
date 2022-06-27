@@ -11,16 +11,21 @@
 
 void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<Real>& mesh_pos)
 {
+	// set mesh
+	m_mesh = mesh;
+	m_mesh_pos = mesh_pos;
+
 	// test operator (plane cut)
 	m_operators.push_back(std::shared_ptr<WavePropagationPlaneCut>(new WavePropagationPlaneCut(this, mesh_pos + Vector3<Real>(0, 0, 0), {-1, 1, 0})));
 	m_operators.push_back(std::shared_ptr<WavePropagationForceDepolarization>(new WavePropagationForceDepolarization(this)));
 	m_operators.push_back(std::shared_ptr<WavePropagationLinkTwoGroups>(new WavePropagationLinkTwoGroups(this)));
 
-	m_mesh = mesh;
-	m_mesh_pos = mesh_pos;
+	// resize operators options
+	m_operators_enable.resize(m_operators.size(), true);
+	m_operators_render.resize(m_operators.size(), false);
 
+	// update variables size and reset
 	m_vars.resize(m_mesh->vertices.size());
-	m_links.resize(m_mesh->vertices.size());
 	m_potentials.resize(m_mesh->vertices.size());
 	recalculate_links();
 	reset();
@@ -42,9 +47,12 @@ void WavePropagationSimulation::reset()
 	}
 
 	// apply operators reset
-	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
+	for (int i = 0; i < m_operators.size(); i++)
 	{
-		op->apply_reset();
+		if (m_operators_enable[i])
+		{
+			m_operators[i]->apply_reset();
+		}
 	}
 
 	recalculate_links();
@@ -86,7 +94,7 @@ void WavePropagationSimulation::simulation_step()
 	{
 		Real distance = glm2eigen(m_mesh->vertices[link.v1_idx].pos - m_mesh->vertices[link.v2_idx].pos).norm();
 		Real link_speed = m_base_speed*link.multiply_speed + link.constant_speed;
-		Real link_lag = distance/link_speed;
+		Real link_lag = distance/link_speed + link.constant_delay;
 
 		if (m_vars[link.v1_idx].is_depolarized && !m_vars[link.v2_idx].is_depolarized)
 		{
@@ -138,9 +146,12 @@ void WavePropagationSimulation::update_mesh_values()
 void WavePropagationSimulation::render()
 {
 	// operators render
-	if (m_selected_operator != -1 && m_selected_operator < m_operators.size())
+	for (int i = 0; i < m_operators.size(); i++)
 	{
-		m_operators[m_selected_operator]->render();
+		if (m_operators_render[i] || i == m_selected_operator)
+		{
+			m_operators[i]->render();
+		}
 	}
 }
 
@@ -164,11 +175,29 @@ void WavePropagationSimulation::render_gui()
 		reset();
 	}
 
+	// resize operators options
+	m_operators_enable.resize(m_operators.size(), true);
+	m_operators_render.resize(m_operators.size(), false);
+
 	// operators list
-	if (ImGui::ListBoxHeader("Operators", { 0, 120 }))
+	ImGui::Text("Operators");
+	if (ImGui::BeginTable("Operators", 4, ImGuiTableFlags_Resizable | ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_Borders))
 	{
+		ImGui::TableNextRow();
+		ImGui::TableNextColumn();
+		ImGui::Text("Index");
+		ImGui::TableNextColumn();
+		ImGui::Text("Type");
+		ImGui::TableNextColumn();
+		ImGui::Text("Enabled");
+		ImGui::TableNextColumn();
+		ImGui::Text("Render");
+
 		for (int i = 0; i < m_operators.size(); i++)
 		{
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+
 			bool is_selected = i==m_selected_operator;
 			ImGui::Selectable(std::to_string(i).c_str(), &is_selected);
 			if (is_selected)
@@ -177,11 +206,23 @@ void WavePropagationSimulation::render_gui()
 			}
 			
 			// type
-			ImGui::SameLine();
+			ImGui::TableNextColumn();
 			ImGui::Text("%s", m_operators[i]->get_type().c_str());
 
+			// is enabled
+			ImGui::TableNextColumn();
+			bool op_enable = m_operators_enable[i];
+			ImGui::Checkbox(("E" + std::to_string(i)).c_str(), &op_enable);
+			m_operators_enable[i] = op_enable;
+
+			// render
+			ImGui::TableNextColumn();
+			bool op_render = m_operators_render[i];
+			ImGui::Checkbox(("R" + std::to_string(i)).c_str(), &op_render);
+			m_operators_render[i] = op_render;
+
 		}
-		ImGui::ListBoxFooter();
+		ImGui::EndTable();
 	}
 	
 	// operator controls

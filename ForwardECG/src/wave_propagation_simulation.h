@@ -161,7 +161,7 @@ private:
 		int v2_idx; // second vertex index
 		Real multiply_speed; // scaler multiplied to the base speed
 		Real constant_speed; // constant speed added to the base speed
-		Real m_constant_delay; // constant delay added to the links between the two groups
+		Real constant_delay; // constant delay added to the links between the two groups
 	};
 
 	MeshPlot* m_mesh = nullptr;
@@ -179,6 +179,8 @@ private:
 	std::vector<VertexVars> m_vars; // vertex vars
 	VectorX<Real> m_potentials;
 	std::vector<std::shared_ptr<WavePropagationOperator>> m_operators;
+	std::vector<bool> m_operators_enable;
+	std::vector<bool> m_operators_render;
 
 	// gui
 	int m_selected_operator = -1;
