@@ -643,7 +643,7 @@ public:
 						// update heart TMP from action potential parameters
 						for (int i = 0; i < heart_mesh->vertices.size(); i++)
 						{
-							QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+							QH(i) = extracellular_potential(t, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
 						}
 
 						if (use_interpolation_for_action_potential)
@@ -651,7 +651,7 @@ public:
 							// update heart TMP from action potential parameters
 							for (int i = 0; i < M; i++)
 							{
-								QH(i) = action_potential_value_2(t, heart_action_potential_params[i]);
+								QH(i) = extracellular_potential(t, dt, heart_action_potential_params[i]); //action_potential_value_2
 							}
 
 							// update heart probes values
@@ -1353,6 +1353,9 @@ private:
 			heart_potential_min = rmin(heart_potential_min, heart_action_potential_params[i].resting_potential);
 			heart_potential_max = rmax(heart_potential_max, heart_action_potential_params[i].peak_potential);
 		}
+		
+		// update heart_potential_max_abs_value
+		heart_potential_max_abs_value = rmax(heart_potential_max_abs_value, rabs(max_abs_heart));
 
 		// update torso potential values at GPU
 		heart_mesh->update_gpu_buffers();
@@ -1395,7 +1398,7 @@ private:
 
 		// render heart mesh plot
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		mpr->set_values_range(heart_potential_min, heart_potential_max);
+		mpr->set_values_range(-heart_potential_max_abs_value, heart_potential_max_abs_value);
 		mpr->render_mesh_plot(translate(eigen2glm(heart_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
 
 		// render torso to torso_fb
@@ -1692,7 +1695,7 @@ private:
 					// update heart TMP from action potential parameters
 					for (int i = 0; i < M; i++)
 					{
-						QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
 					}
 
 					// calculate body surface potentials
@@ -1726,7 +1729,7 @@ private:
 
 						for (int i = 0; i < M; i++)
 						{
-							tmp_direct_values_temporary(sample, i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+							tmp_direct_values_temporary(sample, i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
 						}
 					}
 
@@ -2019,6 +2022,11 @@ private:
 			ImGui::Checkbox("Render Dipole Vector Values Vectors", &render_dipole_vec_values_vectors);
 			ImGui::Checkbox("Render Dipole Vector Values Locus", &render_dipole_vec_values_locus);
 		}
+		ImGui::DragReal("Heart Plot Scale (max value)", &heart_potential_max_abs_value, 0.001);
+		if (ImGui::Button("Reset Heart Plot Scale"))
+		{
+			heart_potential_max_abs_value = 0;
+		}
 
 		// probes
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -2302,7 +2310,7 @@ private:
 				// update heart TMP from action potential parameters
 				for (int i = 0; i < M; i++)
 				{
-					QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+					QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
 				}
 
 				// calculate body surface potentials
@@ -3124,7 +3132,7 @@ private:
 					// update heart TMP from action potential parameters
 					for (int i = 0; i < M; i++)
 					{
-						QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
 					}
 
 					// calculate body surface potentials
@@ -3204,7 +3212,7 @@ private:
 					// update heart TMP from action potential parameters
 					for (int i = 0; i < M; i++)
 					{
-						QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
 					}
 
 					// calculate body surface potentials
@@ -3255,7 +3263,7 @@ private:
 					// update heart TMP from action potential parameters
 					for (int i = 0; i < M; i++)
 					{
-						QH(i) = action_potential_value_2(t_current, heart_action_potential_params[i]);
+						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
 					}
 
 					// update heart probes values
@@ -3411,6 +3419,8 @@ private:
 	bool render_dipole_vec_values_locus = true;
 	// rendering scale
 	float dipole_vector_scale = 0.5;
+	// Heart potentials range
+	Real heart_potential_max_abs_value = 0;
 
 	// probes
 	bool adding_probe = false;
@@ -3425,7 +3435,7 @@ private:
 	float probes_graph_width = 120;
 	std::vector<Probe> probes;
 	int reference_probe = -1;
-	bool probes_differentiation = true;
+	bool probes_differentiation = false;
 
 	// server
 	Server server;

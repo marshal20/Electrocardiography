@@ -172,7 +172,7 @@ private:
 	int m_sample_count;
 	int m_sample = 0; // current sample
 	Real m_base_speed = 2;
-	Real m_depolarization_duration = 0.5;
+	Real m_depolarization_duration = 0.250;
 	Real m_depolarization_slope_duration = 0.050;
 	Real m_repolarization_slope_duration = 0.200;
 	std::vector<VertexLink> m_links; // vertex links

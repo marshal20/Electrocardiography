@@ -121,6 +121,13 @@ Real action_potential_value_2(Real t, const ActionPotentialParameters& params, R
 	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage;
 }
 
+Real extracellular_potential(Real t, Real dt, const ActionPotentialParameters& params, Real depolarization_slope_duration, Real repolarization_slope_duration)
+{
+	return (action_potential_value_2(t+dt, params, depolarization_slope_duration, repolarization_slope_duration)
+		- action_potential_value_2(t, params, depolarization_slope_duration, repolarization_slope_duration))/dt;
+}
+
+
 
 bool import_action_potential_parameters(const std::string& file_name, std::vector<ActionPotentialParameters>& params)
 {

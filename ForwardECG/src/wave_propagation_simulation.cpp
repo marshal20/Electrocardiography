@@ -122,11 +122,11 @@ void WavePropagationSimulation::simulation_step()
 	{
 		if (m_vars[i].is_depolarized && m_t > m_vars[i].depolarization_time)
 		{
-			m_potentials(i) = action_potential_value_2(m_t, { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, m_vars[i].depolarization_time, m_vars[i].depolarization_time+m_depolarization_duration }, m_depolarization_slope_duration, m_repolarization_slope_duration);
+			m_potentials(i) = extracellular_potential(m_t, m_dt, { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, m_vars[i].depolarization_time, m_vars[i].depolarization_time+m_depolarization_duration }, m_depolarization_slope_duration, m_repolarization_slope_duration); // action_potential_value_2
 		}
 		else
 		{
-			m_potentials(i) = ACTION_POTENTIAL_RESTING_POTENTIAL;
+			m_potentials(i) = 0; // ACTION_POTENTIAL_RESTING_POTENTIAL
 		}
 	}
 
