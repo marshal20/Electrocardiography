@@ -61,6 +61,13 @@ bool Ray::intersect_triangle(const Triangle& triangle, Real& t) const
 	return false;
 }
 
+Real Ray::point_perpendicular_distance(const Eigen::Vector3<Real>& p) const
+{
+	Real ab_dot = (p-origin).dot(direction.normalized());
+	Real pointa = (p-origin).norm();
+	return sqrt(pointa*pointa - ab_dot*ab_dot);
+}
+
 
 Eigen::Vector2<Real> get_point_in_triangle_basis(const Triangle& triangle, const Eigen::Vector3<Real>& p)
 {

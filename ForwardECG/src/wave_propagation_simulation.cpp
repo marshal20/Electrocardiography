@@ -19,6 +19,7 @@ void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<R
 	m_operators.push_back(std::shared_ptr<WavePropagationPlaneCut>(new WavePropagationPlaneCut(this, mesh_pos + Vector3<Real>(0, 0, 0), {-1, 1, 0})));
 	m_operators.push_back(std::shared_ptr<WavePropagationForceDepolarization>(new WavePropagationForceDepolarization(this)));
 	m_operators.push_back(std::shared_ptr<WavePropagationLinkTwoGroups>(new WavePropagationLinkTwoGroups(this)));
+	m_operators.push_back(std::shared_ptr<WavePropagationConductionPath>(new WavePropagationConductionPath(this)));
 
 	// resize operators options
 	m_operators_enable.resize(m_operators.size(), true);
@@ -660,4 +661,129 @@ void WavePropagationLinkTwoGroups::handle_input(const LookAtCamera& camera)
 		}
 	}
 }
+
+// Conduction Path
+
+WavePropagationConductionPath::WavePropagationConductionPath(WavePropagationSimulation* prop_sim)
+	:WavePropagationOperator(prop_sim, "Conduction Path")
+{
+	
+}
+
+void WavePropagationConductionPath::apply_links()
+{
+	// add links for the conduction path
+	for (int i = 1; i < m_points_list.size(); i++)
+	{
+		m_prop_sim->m_links.push_back({ m_points_list[i-1], m_points_list[i], m_multiply_speed, m_constant_speed, m_constant_delay});
+	}
+}
+
+void WavePropagationConductionPath::render()
+{
+	// construct line points
+	std::vector<glm::vec3> points_list;
+	points_list.resize(m_points_list.size());
+	for (int i = 0; i < m_points_list.size(); i++)
+	{
+		points_list[i] = eigen2glm(m_prop_sim->m_mesh_pos) + m_prop_sim->m_mesh->vertices[m_points_list[i]].pos;
+	}
+
+	// render line
+	Renderer3D::setStyle(Renderer3D::Style(true, 2, { 0.8, 0, 0, 1 }, false, { 0.75, 0, 0 ,1 }));
+	Renderer3D::drawPolygon(&points_list[0], points_list.size());
+
+	// selected point
+	if (m_selected_point != -1 && m_selected_point < m_points_list.size())
+	{
+		Renderer3D::drawPoint(points_list[m_selected_point], { 0, 0.8, 0, 1 }, 3);
+	}
+
+	// adding point preview
+	if (m_adding_points && m_adding_points_preview_idx != -1 && m_adding_points_preview_idx < m_points_list.size())
+	{
+		Renderer3D::drawPoint(eigen2glm(m_prop_sim->m_mesh_pos) + m_prop_sim->m_mesh->vertices[m_adding_points_preview_idx].pos, { 0, 0, 0.8, 1 }, 3);
+	}
+}
+
+void WavePropagationConductionPath::render_gui()
+{
+	ImGui::InputReal("Multiply Speed", &m_multiply_speed);
+	ImGui::InputReal("Constant Speed", &m_constant_speed);
+	ImGui::InputReal("Constant Delay", &m_constant_delay);
+
+	ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+	if (ImGui::ListBoxHeader("Points List", { 0, 120 }))
+	{
+		for (int i = 0; i < m_points_list.size(); i++)
+		{
+			bool is_selected = i==m_selected_point;
+			ImGui::Selectable(std::to_string(i).c_str(), &is_selected);
+			if (is_selected)
+			{
+				m_selected_point = i;
+			}
+
+			// value
+			ImGui::SameLine();
+			ImGui::Text(" %d, (%.3f, %.3f, %.3f)", m_points_list[i],
+				(eigen2glm(m_prop_sim->m_mesh_pos) + m_prop_sim->m_mesh->vertices[m_points_list[i]].pos).x,
+				(eigen2glm(m_prop_sim->m_mesh_pos) + m_prop_sim->m_mesh->vertices[m_points_list[i]].pos).y,
+				(eigen2glm(m_prop_sim->m_mesh_pos) + m_prop_sim->m_mesh->vertices[m_points_list[i]].pos).z);
+		}
+		ImGui::ListBoxFooter();
+	}
+	if (ImGui::Button("Remove Point"))
+	{
+		if (m_selected_point != -1 && m_selected_point < m_points_list.size())
+		{
+			m_points_list.erase(m_points_list.begin() + m_selected_point);
+		}
+	}
+	if (ImGui::Button("Clear Points List"))
+	{
+		m_points_list.clear();
+	}
+	ImGui::Checkbox("Adding Points", &m_adding_points);
+}
+
+void WavePropagationConductionPath::handle_input(const LookAtCamera& camera)
+{
+	if (m_adding_points)
+	{
+		// camera mouse ray
+		Ray mouse_ray = camera_screen_to_world_ray(camera, Input::getCursorXPosNorm(), Input::getCursorYPosNorm());
+		
+		// find the nearest point
+		int nearest_point_idx = -1;
+		Real nearest_point_perpendicular_distance = 0.1;
+		for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
+		{
+			Eigen::Vector3<Real> current_point_pos = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[i].pos);
+			Real current_point_perpendicular_distance = mouse_ray.point_perpendicular_distance(current_point_pos);
+
+			if (current_point_perpendicular_distance < 0.1 && current_point_perpendicular_distance < nearest_point_perpendicular_distance)
+			{
+				nearest_point_idx = i;
+				nearest_point_perpendicular_distance = current_point_perpendicular_distance;
+			}
+		}
+
+		// set preview
+		m_adding_points_preview_idx = nearest_point_idx;
+
+		// add point at left mouse click
+		if (Input::isButtonPressed(GLFW_MOUSE_BUTTON_LEFT) && nearest_point_idx != -1)
+		{
+			m_points_list.push_back(nearest_point_idx);
+		}
+	}
+
+	// Escape: cancel adding points
+	if (Input::isKeyPressed(GLFW_KEY_ESCAPE))
+	{
+		m_adding_points = false;
+	}
+}
+
 

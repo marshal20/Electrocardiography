@@ -26,6 +26,8 @@ struct Ray
 	Real intersect_plane(const Eigen::Vector3<Real>& p, const Eigen::Vector3<Real>& n) const;
 
 	bool intersect_triangle(const Triangle& triangle, Real& t) const;
+
+	Real point_perpendicular_distance(const Eigen::Vector3<Real>& p) const;
 };
 
 Eigen::Vector2<Real> get_point_in_triangle_basis(const Triangle& triangle, const Eigen::Vector3<Real>& p);
