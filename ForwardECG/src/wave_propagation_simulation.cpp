@@ -7,6 +7,9 @@
 #include "GLFW/glfw3.h"
 #include "main_dev.h"
 #include "action_potential.h"
+#include "file_io.h"
+#include "filedialog.h"
+#include "network/serializer.h"
 
 
 void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<Real>& mesh_pos)
@@ -225,6 +228,79 @@ void WavePropagationSimulation::render_gui()
 		}
 		ImGui::EndTable();
 	}
+
+	// selected operator add
+	const char* im_add_operator_type_items[] = { "Plane Cut", "Force Depolarization", "Link Two Groups", "Conduction Path" };
+	ImGui::Combo("Add Operator Type", &m_selected_operator_add, im_add_operator_type_items, 4);
+	if (ImGui::Button("Add Operator") && m_selected_operator_add != -1)
+	{
+		switch (m_selected_operator_add)
+		{
+		case 0:
+			m_operators.push_back(std::shared_ptr<WavePropagationPlaneCut>(new WavePropagationPlaneCut(this, m_mesh_pos + Vector3<Real>(0, 0, 0), { -1, 1, 0 })));
+			break;
+		case 1:
+			m_operators.push_back(std::shared_ptr<WavePropagationForceDepolarization>(new WavePropagationForceDepolarization(this)));
+			break;
+		case 2:
+			m_operators.push_back(std::shared_ptr<WavePropagationLinkTwoGroups>(new WavePropagationLinkTwoGroups(this)));
+			break;
+		case 3:
+			m_operators.push_back(std::shared_ptr<WavePropagationConductionPath>(new WavePropagationConductionPath(this)));
+			break;
+		default:
+			break;
+		}
+	}
+
+	// selected operator remove
+	if (ImGui::Button("Remove Operator"))
+	{
+		if (m_selected_operator != -1 && m_selected_operator < m_operators.size())
+		{
+			m_operators.erase(m_operators.begin() + m_selected_operator);
+		}
+	}
+
+	// Import probes locations
+	if (ImGui::Button("Load Wave Propagation Configuration"))
+	{
+		// open file dialog
+		std::string file_name = open_file_dialog("", "All\0*.*\0");
+
+		// import
+		if (file_name != "")
+		{
+			if (load_from_file(file_name))
+			{
+				printf("Loaded wave propagation configuration to \"%s\" to file\n", file_name.c_str());
+			}
+			else
+			{
+				printf("Failed to load wave propagation configuration to \"%s\" file\n", file_name.c_str());
+			}
+		}
+	}
+	// Export probes locations
+	if (ImGui::Button("Save Wave Propagation Configuration"))
+	{
+		// save file dialog
+		std::string file_name = save_file_dialog("", "All\0*.*\0");
+
+		// export
+		if (file_name != "")
+		{
+			if (save_to_file(file_name))
+			{
+				printf("Saved wave propagation configuration to \"%s\" to file\n", file_name.c_str());
+			}
+			else
+			{
+				printf("Failed to save wave propagation configuration to \"%s\" file\n", file_name.c_str());
+			}
+		}
+	}
+
 	
 	// operator controls
 	if (m_selected_operator != -1 && m_selected_operator < m_operators.size())
@@ -263,12 +339,26 @@ void WavePropagationSimulation::recalculate_links()
 		m_links.push_back({ face.idx[1], face.idx[2], 1, 0, 0 });
 	}
 	
-	// apply operators
-	for (std::shared_ptr<WavePropagationOperator> op : m_operators)
+	// apply operators links
+	for (int i = 0; i < m_operators.size(); i++)
 	{
-		op->apply_links();
+		if (m_operators_enable[i])
+		{
+			m_operators[i]->apply_links();
+		}
 	}
+}
 
+bool WavePropagationSimulation::load_from_file(const std::string& path)
+{
+
+	return false;
+}
+
+bool WavePropagationSimulation::save_to_file(const std::string& path)
+{
+
+	return false;
 }
 
 

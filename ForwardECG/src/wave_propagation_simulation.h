@@ -169,6 +169,9 @@ public:
 private:
 	void recalculate_links();
 
+	bool load_from_file(const std::string& path);
+	bool save_to_file(const std::string& path);
+
 private:
 	// vertex variables
 	struct VertexVars
@@ -204,6 +207,7 @@ private:
 	std::vector<std::shared_ptr<WavePropagationOperator>> m_operators;
 	std::vector<bool> m_operators_enable;
 	std::vector<bool> m_operators_render;
+	int m_selected_operator_add = 0;
 
 	// gui
 	int m_selected_operator = -1;
