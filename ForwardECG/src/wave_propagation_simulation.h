@@ -7,6 +7,7 @@
 #include <memory>
 #include "input.h"
 #include "camera.h"
+#include "network/serializer.h"
 
 
 using namespace Eigen;
@@ -29,6 +30,9 @@ public:
 
 	virtual std::string get_type() const;
 
+	virtual void serialize(Serializer& ser);
+	virtual void deserialize(Deserializer& des);
+
 protected:
 	WavePropagationSimulation* m_prop_sim;
 
@@ -48,6 +52,9 @@ public:
 	virtual void render() override;
 	virtual void render_gui() override;
 	virtual void handle_input(const LookAtCamera& camera) override;
+
+	virtual void serialize(Serializer& ser) override;
+	virtual void deserialize(Deserializer& des) override;
 
 private:
 	Vector3<Real> m_point;
@@ -90,6 +97,9 @@ public:
 	virtual void render_gui() override;
 	virtual void handle_input(const LookAtCamera& camera) override;
 
+	virtual void serialize(Serializer& ser) override;
+	virtual void deserialize(Deserializer& des) override;
+
 private:
 	std::vector<bool> m_selected;
 	Real m_depolarization_time;
@@ -109,6 +119,9 @@ public:
 	virtual void render() override;
 	virtual void render_gui() override;
 	virtual void handle_input(const LookAtCamera& camera) override;
+
+	virtual void serialize(Serializer& ser) override;
+	virtual void deserialize(Deserializer& des) override;
 
 private:
 	Real m_multiply_speed = 1; // scaler multiplied to the base speed
@@ -133,6 +146,9 @@ public:
 	virtual void render() override;
 	virtual void render_gui() override;
 	virtual void handle_input(const LookAtCamera& camera) override;
+
+	virtual void serialize(Serializer& ser) override;
+	virtual void deserialize(Deserializer& des) override;
 
 private:
 	Real m_multiply_speed = 1; // scaler multiplied to the base speed

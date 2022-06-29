@@ -237,7 +237,7 @@ double Deserializer::parse_double()
 std::string Deserializer::parse_string()
 {
 	// parse size
-	uint32_t size = parse_u32();
+	uint16_t size = parse_u16();
 
 	// parse null-terminated string
 	std::vector<uint8_t> bytes = parse_bytes(size+1);
@@ -250,7 +250,7 @@ std::string Deserializer::parse_string()
 		return "";
 	}
 
-	return std::string((const char*)bytes[0], size);
+	return std::string((const char*)&bytes[0], size);
 }
 
 std::vector<uint8_t> Deserializer::push_array_u8()

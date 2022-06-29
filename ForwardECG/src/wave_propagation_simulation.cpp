@@ -300,7 +300,6 @@ void WavePropagationSimulation::render_gui()
 			}
 		}
 	}
-
 	
 	// operator controls
 	if (m_selected_operator != -1 && m_selected_operator < m_operators.size())
@@ -314,8 +313,6 @@ void WavePropagationSimulation::render_gui()
 			m_selected_operator = -1;
 		}
 	}
-
-	
 }
 
 void WavePropagationSimulation::handle_input(const LookAtCamera& camera)
@@ -351,14 +348,86 @@ void WavePropagationSimulation::recalculate_links()
 
 bool WavePropagationSimulation::load_from_file(const std::string& path)
 {
+	size_t contents_size;
+	uint8_t* contents = file_read(path.c_str(), &contents_size);
+	if (!contents)
+	{
+		return false;
+	}
 
-	return false;
+	Deserializer des(contents, contents_size);
+
+	// check magic number
+	if (des.parse_u32() != 0x1000)
+	{
+		return false;
+	}
+
+	// serialize variables
+	m_duration = des.parse_double();
+	m_dt = des.parse_double();
+	m_base_speed = des.parse_double();
+	m_depolarization_duration = des.parse_double();
+	m_depolarization_slope_duration = des.parse_double();
+	m_repolarization_slope_duration = des.parse_double();
+
+	// deserialize operators
+	uint32_t operators_count = des.parse_u32();
+	m_operators.clear();
+	for (int i = 0; i < operators_count; i++)
+	{
+		std::string operator_type = des.parse_string();
+		if (operator_type == "Plane Cut")
+		{
+			m_operators.push_back(std::shared_ptr<WavePropagationPlaneCut>(new WavePropagationPlaneCut(this, m_mesh_pos + Vector3<Real>(0, 0, 0), { -1, 1, 0 })));
+		}
+		else if (operator_type == "Force Depolarization")
+		{
+			m_operators.push_back(std::shared_ptr<WavePropagationForceDepolarization>(new WavePropagationForceDepolarization(this)));
+		}
+		else if (operator_type == "Link Two Groups")
+		{
+			m_operators.push_back(std::shared_ptr<WavePropagationLinkTwoGroups>(new WavePropagationLinkTwoGroups(this)));
+		}
+		else if (operator_type == "Conduction Path")
+		{
+			m_operators.push_back(std::shared_ptr<WavePropagationConductionPath>(new WavePropagationConductionPath(this)));
+		}
+		else
+		{
+			return false;
+		}
+
+		m_operators.back()->deserialize(des);
+	}
+
+	return true;
 }
 
 bool WavePropagationSimulation::save_to_file(const std::string& path)
 {
+	Serializer ser;
 
-	return false;
+	// serialize magic number
+	ser.push_u32(0x1000);
+
+	// serialize variables
+	ser.push_double(m_duration);
+	ser.push_double(m_dt);
+	ser.push_double(m_base_speed);
+	ser.push_double(m_depolarization_duration);
+	ser.push_double(m_depolarization_slope_duration);
+	ser.push_double(m_repolarization_slope_duration);
+
+	// serialize operators
+	ser.push_u32(m_operators.size());
+	for (int i = 0; i < m_operators.size(); i++)
+	{
+		ser.push_string(m_operators[i]->get_type());
+		m_operators[i]->serialize(ser);
+	}
+
+	return file_write(path.c_str(), ser.get_data());
 }
 
 
@@ -402,6 +471,14 @@ void WavePropagationOperator::handle_input(const LookAtCamera& camera)
 std::string WavePropagationOperator::get_type() const
 {
 	return m_type;
+}
+
+void WavePropagationOperator::serialize(Serializer & ser)
+{
+}
+
+void WavePropagationOperator::deserialize(Deserializer & des)
+{
 }
 
 // Paper Cut
@@ -453,6 +530,28 @@ void WavePropagationPlaneCut::render_gui()
 
 void WavePropagationPlaneCut::handle_input(const LookAtCamera & camera)
 {
+}
+
+void WavePropagationPlaneCut::serialize(Serializer & ser)
+{
+	ser.push_double(m_point.x());
+	ser.push_double(m_point.y());
+	ser.push_double(m_point.z());
+							 
+	ser.push_double(m_normal.x());
+	ser.push_double(m_normal.y());
+	ser.push_double(m_normal.z());
+}
+
+void WavePropagationPlaneCut::deserialize(Deserializer & des)
+{
+	m_point.x() = des.parse_double();
+	m_point.y() = des.parse_double();
+	m_point.z() = des.parse_double();
+
+	m_normal.x() = des.parse_double();
+	m_normal.y() = des.parse_double();
+	m_normal.z() = des.parse_double();
 }
 
 // Force Depolarization
@@ -517,6 +616,29 @@ void WavePropagationForceDepolarization::handle_input(const LookAtCamera & camer
 			m_selected[i] = m_brush_select;
 		}
 	}
+}
+
+void WavePropagationForceDepolarization::serialize(Serializer & ser)
+{
+	ser.push_u32(m_selected.size());
+	for (int i = 0; i < m_selected.size(); i++)
+	{
+		ser.push_u8(m_selected[i]);
+	}
+
+	ser.push_double(m_depolarization_time);
+}
+
+void WavePropagationForceDepolarization::deserialize(Deserializer & des)
+{
+	uint32_t selected_count = des.parse_u32();
+	m_selected.resize(selected_count);
+	for (int i = 0; i < selected_count; i++)
+	{
+		m_selected[i] = des.parse_u8();
+	}
+
+	m_depolarization_time = des.parse_double();
 }
 
 // Circular Brush
@@ -752,6 +874,50 @@ void WavePropagationLinkTwoGroups::handle_input(const LookAtCamera& camera)
 	}
 }
 
+void WavePropagationLinkTwoGroups::serialize(Serializer & ser)
+{
+	// group A
+	ser.push_u32(m_group_a_selected.size());
+	for (int i = 0; i < m_group_a_selected.size(); i++)
+	{
+		ser.push_u8(m_group_a_selected[i]);
+	}
+
+	// group A
+	ser.push_u32(m_group_b_selected.size());
+	for (int i = 0; i < m_group_b_selected.size(); i++)
+	{
+		ser.push_u8(m_group_b_selected[i]);
+	}
+
+	ser.push_double(m_multiply_speed);
+	ser.push_double(m_constant_speed);
+	ser.push_double(m_constant_delay);
+}
+
+void WavePropagationLinkTwoGroups::deserialize(Deserializer & des)
+{
+	// group A
+	uint32_t selected_count_a = des.parse_u32();
+	m_group_a_selected.resize(selected_count_a);
+	for (int i = 0; i < selected_count_a; i++)
+	{
+		m_group_a_selected[i] = des.parse_u8();
+	}
+
+	// group B
+	uint32_t selected_count_b = des.parse_u32();
+	m_group_b_selected.resize(selected_count_b);
+	for (int i = 0; i < selected_count_b; i++)
+	{
+		m_group_b_selected[i] = des.parse_u8();
+	}
+
+	m_multiply_speed = des.parse_double();
+	m_constant_speed = des.parse_double();
+	m_constant_delay = des.parse_double();
+}
+
 // Conduction Path
 
 WavePropagationConductionPath::WavePropagationConductionPath(WavePropagationSimulation* prop_sim)
@@ -849,6 +1015,11 @@ void WavePropagationConductionPath::handle_input(const LookAtCamera& camera)
 		Real nearest_point_perpendicular_distance = 0.1;
 		for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
 		{
+			if (glm2eigen(m_prop_sim->m_mesh->vertices[i].normal).dot(glm2eigen(camera.look_at-camera.eye)) > 0)
+			{
+				continue;
+			}
+
 			Eigen::Vector3<Real> current_point_pos = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[i].pos);
 			Real current_point_perpendicular_distance = mouse_ray.point_perpendicular_distance(current_point_pos);
 
@@ -873,6 +1044,35 @@ void WavePropagationConductionPath::handle_input(const LookAtCamera& camera)
 	if (Input::isKeyPressed(GLFW_KEY_ESCAPE))
 	{
 		m_adding_points = false;
+	}
+}
+
+void WavePropagationConductionPath::serialize(Serializer & ser)
+{
+	ser.push_double(m_multiply_speed);
+	ser.push_double(m_constant_speed);
+	ser.push_double(m_constant_delay);
+
+	// points list
+	ser.push_u32(m_points_list.size());
+	for (int i = 0; i < m_points_list.size(); i++)
+	{
+		ser.push_i32(m_points_list[i]);
+	}
+}
+
+void WavePropagationConductionPath::deserialize(Deserializer & des)
+{
+	m_multiply_speed = des.parse_double();
+	m_constant_speed = des.parse_double();
+	m_constant_delay = des.parse_double();
+
+	// points list
+	uint32_t points_list_count = des.parse_u32();
+	m_points_list.resize(points_list_count);
+	for (int i = 0; i < points_list_count; i++)
+	{
+		m_points_list[i] = des.parse_i32();
 	}
 }
 
