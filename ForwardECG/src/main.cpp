@@ -680,7 +680,7 @@ public:
 						}
 
 						// calculate body surface potentials
-						calculate_potentials();
+						calculate_torso_potentials();
 
 						// update probes
 						for (int i = 0; i < heart_probes.size(); i++)
@@ -736,7 +736,7 @@ public:
 						}
 
 						// calculate body surface potentials
-						calculate_potentials();
+						calculate_torso_potentials();
 
 						// update probes
 						for (int i = 0; i < heart_probes.size(); i++)
@@ -769,7 +769,7 @@ public:
 					heart_probes_values.resize(heart_probes.size(), sample_count);
 
 					// calculate body surface potentials
-					calculate_potentials();
+					calculate_torso_potentials();
 
 					// update probes
 					for (int i = 0; i < heart_probes.size(); i++)
@@ -1195,7 +1195,7 @@ private:
 		//}
 	}
 
-	void calculate_potentials()
+	void calculate_torso_potentials()
 	{
 		// TODO: DELETE
 		/*
@@ -1715,7 +1715,7 @@ private:
 					}
 
 					// calculate body surface potentials
-					calculate_potentials();
+					calculate_torso_potentials();
 
 					for (int i = 0; i < heart_probes.size(); i++)
 					{
@@ -2328,14 +2328,28 @@ private:
 			{
 				Real t_current = sample*TMP_dt;
 
-				// update heart TMP from action potential parameters
-				for (int i = 0; i < M; i++)
+				// update heart potentials
+				if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
 				{
-					QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+					// update heart TMP from action potential parameters
+					for (int i = 0; i < M; i++)
+					{
+						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+					}
+				}
+				else /*TMP_SOURCE_WAVE_PROPAGATION*/
+				{
+					// wave propagation
+					if (sample == 0)
+					{
+						wave_prop.reset();
+					}
+					wave_prop.simulation_step();
+					QH = wave_prop.get_potentials();
 				}
 
 				// calculate body surface potentials
-				calculate_potentials();
+				calculate_torso_potentials();
 
 				for (int i = 0; i < heart_probes.size(); i++)
 				{
@@ -2467,9 +2481,10 @@ private:
 		heart_cast_probes_rows = clamp_value<int>(heart_cast_probes_rows, 0, 1000000);
 		ImGui::InputInt("Heart Probes Columns", &heart_cast_probes_cols);
 		heart_cast_probes_cols = clamp_value<int>(heart_cast_probes_cols, 0, 1000000);
+		ImGui::InputReal("Heart Probes Z-rotation (degree)", &heart_cast_probes_z_rot);
 		if (ImGui::Button("Cast heart probes in sphere"))
 		{
-			heart_probes = cast_probes_in_sphere("H", *heart_mesh, heart_cast_probes_rows, heart_cast_probes_cols);
+			heart_probes = cast_probes_in_sphere("H", *heart_mesh, heart_cast_probes_rows, heart_cast_probes_cols, heart_cast_probes_z_rot*PI/180);
 		}
 		// cast heart probes rays
 		if (ImGui::Button("OLD cast heart probes in sphere"))
@@ -3081,7 +3096,7 @@ private:
 				new_dipole_vec.y() = des.parse_double();
 				new_dipole_vec.z() = des.parse_double();
 				dipole_vec = new_dipole_vec;
-				calculate_potentials();
+				calculate_torso_potentials();
 
 				ser.push_u32(3 + probes.size()); // vector x, y, z and count of probes
 				// dipole vector
@@ -3106,7 +3121,7 @@ private:
 				for (uint32_t i = 0; i < random_samples_count; i++)
 				{
 					dipole_vec = rnd.next_vector3(maximum_radius);
-					calculate_potentials();
+					calculate_torso_potentials();
 
 					// dipole vector
 					ser.push_double(dipole_vec.x());
@@ -3150,14 +3165,28 @@ private:
 				{
 					Real t_current = sample*TMP_dt;
 
-					// update heart TMP from action potential parameters
-					for (int i = 0; i < M; i++)
+					// update heart potentials
+					if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
 					{
-						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+						// update heart TMP from action potential parameters
+						for (int i = 0; i < M; i++)
+						{
+							QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+						}
+					}
+					else /*TMP_SOURCE_WAVE_PROPAGATION*/
+					{
+						// wave propagation
+						if (sample == 0)
+						{
+							wave_prop.reset();
+						}
+						wave_prop.simulation_step();
+						QH = wave_prop.get_potentials();
 					}
 
 					// calculate body surface potentials
-					calculate_potentials();
+					calculate_torso_potentials();
 
 					for (int i = 0; i < M; i++)
 					{
@@ -3230,14 +3259,28 @@ private:
 				{
 					Real t_current = sample*TMP_dt;
 
-					// update heart TMP from action potential parameters
-					for (int i = 0; i < M; i++)
+					// update heart potentials
+					if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
 					{
-						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+						// update heart TMP from action potential parameters
+						for (int i = 0; i < M; i++)
+						{
+							QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+						}
+					}
+					else /*TMP_SOURCE_WAVE_PROPAGATION*/
+					{
+						// wave propagation
+						if (sample == 0)
+						{
+							wave_prop.reset();
+						}
+						wave_prop.simulation_step();
+						QH = wave_prop.get_potentials();
 					}
 
 					// calculate body surface potentials
-					calculate_potentials();
+					calculate_torso_potentials();
 
 					for (int i = 0; i < heart_probes.size(); i++)
 					{
@@ -3281,10 +3324,24 @@ private:
 				{
 					Real t_current = sample*TMP_dt;
 
-					// update heart TMP from action potential parameters
-					for (int i = 0; i < M; i++)
+					// update heart potentials
+					if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
 					{
-						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+						// update heart TMP from action potential parameters
+						for (int i = 0; i < M; i++)
+						{
+							QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+						}
+					}
+					else /*TMP_SOURCE_WAVE_PROPAGATION*/
+					{
+						// wave propagation
+						if (sample == 0)
+						{
+							wave_prop.reset();
+						}
+						wave_prop.simulation_step();
+						QH = wave_prop.get_potentials();
 					}
 
 					// update heart probes values
@@ -3312,7 +3369,7 @@ private:
 					}
 
 					// calculate body surface potentials
-					calculate_potentials();
+					calculate_torso_potentials();
 
 					// fill the matrix
 					for (int i = 0; i < heart_probes.size(); i++)
@@ -3527,6 +3584,7 @@ private:
 	int torso_cast_probes_cols = 10;
 	int heart_cast_probes_rows = 12;
 	int heart_cast_probes_cols = 12;
+	Real heart_cast_probes_z_rot = -45;
 	Real torso_cast_probes_x_min = -0.3;
 	Real torso_cast_probes_x_max = 0.3;
 	Real torso_cast_probes_y_min = 0;

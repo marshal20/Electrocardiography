@@ -156,7 +156,7 @@ Eigen::Vector3<Real> calculate_triangle_normal(MeshPlot* mesh, int tri_idx)
 
 
 
-std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols)
+std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_rot)
 {
 	std::vector<Probe> probes;
 
@@ -169,6 +169,7 @@ std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPl
 			Real phi = map_value_to_range<Real>(((Real)phi_i+0.5), 0, cols, 0, 2*PI);
 			// calculate ray
 			Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
+			ray_direction = rodrigues_rotate(ray_direction, { 0, 0, 1 }, z_rot); // apply rotation
 			ray_direction.normalize();
 			Ray cast_ray = { {0, 0, 0}, ray_direction };
 
