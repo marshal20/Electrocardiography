@@ -3584,7 +3584,7 @@ private:
 	int torso_cast_probes_cols = 10;
 	int heart_cast_probes_rows = 12;
 	int heart_cast_probes_cols = 12;
-	Real heart_cast_probes_z_rot = -45;
+	Real heart_cast_probes_z_rot = 45;
 	Real torso_cast_probes_x_min = -0.3;
 	Real torso_cast_probes_x_max = 0.3;
 	Real torso_cast_probes_y_min = 0;
