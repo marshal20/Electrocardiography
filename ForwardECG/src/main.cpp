@@ -1338,11 +1338,20 @@ private:
 		}
 
 
-		// calculate maximum value
+		// calculate maximum absolute value
 		Real max_abs_heart = 1e-6;
 		for (MeshPlotVertex& vertex : heart_mesh->vertices)
 		{
 			max_abs_heart = rmax(rabs(vertex.value), max_abs_heart);
+		}
+
+		// calculate heart maximum and minimum values
+		//heart_potential_max_value = -1e12;
+		//heart_potential_min_value = 1e12;
+		for (int i = 0; i < heart_mesh->vertices.size(); i++)
+		{
+			heart_potential_min_value = rmin(heart_potential_min_value, heart_mesh->vertices[i].value);
+			heart_potential_max_value = rmax(heart_potential_max_value, heart_mesh->vertices[i].value);
 		}
 
 		// calculate heart maximum and minimum values
@@ -1398,7 +1407,14 @@ private:
 
 		// render heart mesh plot
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		mpr->set_values_range(-heart_potential_max_abs_value, heart_potential_max_abs_value);
+		if (use_separate_min_max_range)
+		{
+			mpr->set_values_range(heart_potential_min_value, heart_potential_max_value);
+		}
+		else
+		{
+			mpr->set_values_range(-heart_potential_max_abs_value, heart_potential_max_abs_value);
+		}
 		mpr->render_mesh_plot(translate(eigen2glm(heart_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
 
 		// render torso to torso_fb
@@ -2022,10 +2038,15 @@ private:
 			ImGui::Checkbox("Render Dipole Vector Values Vectors", &render_dipole_vec_values_vectors);
 			ImGui::Checkbox("Render Dipole Vector Values Locus", &render_dipole_vec_values_locus);
 		}
-		ImGui::DragReal("Heart Plot Scale (max value)", &heart_potential_max_abs_value, 0.001);
+		ImGui::Checkbox("Use Separate Min Max For The Range", &use_separate_min_max_range);
+		ImGui::DragReal("Heart Plot Scale (max absolute value)", &heart_potential_max_abs_value, 0.001);
+		ImGui::DragReal("Heart Plot max value", &heart_potential_max_value, 0.001);
+		ImGui::DragReal("Heart Plot min value", &heart_potential_min_value, 0.001);
 		if (ImGui::Button("Reset Heart Plot Scale"))
 		{
 			heart_potential_max_abs_value = 0;
+			heart_potential_max_value = -1e12;
+			heart_potential_min_value = 1e12;
 		}
 
 		// probes
@@ -3420,7 +3441,10 @@ private:
 	// rendering scale
 	float dipole_vector_scale = 0.5;
 	// Heart potentials range
+	bool use_separate_min_max_range = false;
 	Real heart_potential_max_abs_value = 0;
+	Real heart_potential_max_value = -1e12;
+	Real heart_potential_min_value = 1e12;
 
 	// probes
 	bool adding_probe = false;
