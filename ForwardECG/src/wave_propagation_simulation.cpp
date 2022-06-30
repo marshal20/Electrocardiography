@@ -30,13 +30,10 @@ void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<R
 
 	// update variables size and reset
 	m_vars.resize(m_mesh->vertices.size());
+	m_params.resize(m_mesh->vertices.size());
 	m_potentials.resize(m_mesh->vertices.size());
 	recalculate_links();
 	reset();
-
-	// set different multiplier
-	m_different_mul_p = mesh_pos;
-	m_different_mul_n = Vector3<Real>({ -0.714, 0.714, 0 }).normalized();
 
 }
 
@@ -48,6 +45,12 @@ void WavePropagationSimulation::set_mesh_pos(const Eigen::Vector3<Real>& mesh_po
 void WavePropagationSimulation::reset()
 {
 	m_sample = 0;
+
+	// reset parameters
+	for (int i = 0; i < m_mesh->vertices.size(); i++)
+	{
+		m_params[i] = { 0.250, 1 };
+	}
 
 	// reset to initial values
 	for (int i = 0; i < m_mesh->vertices.size(); i++)
@@ -131,21 +134,12 @@ void WavePropagationSimulation::simulation_step()
 	{
 		if (m_vars[i].is_depolarized && m_t > m_vars[i].depolarization_time)
 		{
-			m_potentials(i) = extracellular_potential(m_t, m_dt, { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, m_vars[i].depolarization_time, m_vars[i].depolarization_time+m_depolarization_duration }, m_depolarization_slope_duration, m_repolarization_slope_duration); // action_potential_value_2
+			m_potentials(i) = extracellular_potential(m_t, m_dt, { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, m_vars[i].depolarization_time, m_vars[i].depolarization_time+m_params[i].deplorized_duration }, m_depolarization_slope_duration, m_repolarization_slope_duration); // action_potential_value_2
+			m_potentials(i) *= m_params[i].amplitude_multiplier;
 		}
 		else
 		{
 			m_potentials(i) = 0; // ACTION_POTENTIAL_RESTING_POTENTIAL
-		}
-	}
-
-	// set different multiplier
-	for (int i = 0; i < m_mesh->vertices.size(); i++)
-	{
-		Vector3<Real> vertex_pos = m_mesh_pos + glm2eigen(m_mesh->vertices[i].pos);
-		if ((vertex_pos-m_different_mul_p).dot(m_different_mul_n) > 0)
-		{
-			m_potentials(i) *= m_different_mul_value;
 		}
 	}
 
@@ -164,6 +158,9 @@ void WavePropagationSimulation::update_mesh_values()
 
 void WavePropagationSimulation::render()
 {
+	// reset m_mesh_in_preview
+	m_mesh_in_preview = false;
+
 	// operators render
 	for (int i = 0; i < m_operators.size(); i++)
 	{
@@ -245,8 +242,8 @@ void WavePropagationSimulation::render_gui()
 	}
 
 	// selected operator add
-	const char* im_add_operator_type_items[] = { "Plane Cut", "Force Depolarization", "Link Two Groups", "Conduction Path" };
-	ImGui::Combo("Add Operator Type", &m_selected_operator_add, im_add_operator_type_items, 4);
+	const char* im_add_operator_type_items[] = { "Plane Cut", "Force Depolarization", "Link Two Groups", "Conduction Path", "Set Params In Plane"};
+	ImGui::Combo("Add Operator Type", &m_selected_operator_add, im_add_operator_type_items, 5);
 	if (ImGui::Button("Add Operator") && m_selected_operator_add != -1)
 	{
 		switch (m_selected_operator_add)
@@ -262,6 +259,9 @@ void WavePropagationSimulation::render_gui()
 			break;
 		case 3:
 			m_operators.push_back(std::shared_ptr<WavePropagationConductionPath>(new WavePropagationConductionPath(this)));
+			break;
+		case 4:
+			m_operators.push_back(std::shared_ptr<WavePropagationSetParamsInPlane>(new WavePropagationSetParamsInPlane(this, m_mesh_pos + Vector3<Real>(0, 0, 0), { -1, 1, 0 })));
 			break;
 		default:
 			break;
@@ -329,11 +329,6 @@ void WavePropagationSimulation::render_gui()
 		}
 	}
 
-	// set different multiplier
-	ImGui::InputReal("Different Multiplier Value", &m_different_mul_value);
-	ImGui::DragVector3Eigen("Different Multiplier Point", m_different_mul_p);
-	ImGui::DragVector3Eigen("Different Multiplier normal", m_different_mul_n);
-
 }
 
 void WavePropagationSimulation::handle_input(const LookAtCamera& camera)
@@ -343,6 +338,11 @@ void WavePropagationSimulation::handle_input(const LookAtCamera& camera)
 	{
 		m_operators[m_selected_operator]->handle_input(camera);
 	}
+}
+
+bool WavePropagationSimulation::is_mesh_in_preview()
+{
+	return m_mesh_in_preview;
 }
 
 void WavePropagationSimulation::recalculate_links()
@@ -413,6 +413,10 @@ bool WavePropagationSimulation::load_from_file(const std::string& path)
 		else if (operator_type == "Conduction Path")
 		{
 			m_operators.push_back(std::shared_ptr<WavePropagationConductionPath>(new WavePropagationConductionPath(this)));
+		}
+		else if (operator_type == "Set Params In Plane")
+		{
+			m_operators.push_back(std::shared_ptr<WavePropagationSetParamsInPlane>(new WavePropagationSetParamsInPlane(this)));
 		}
 		else
 		{
@@ -608,8 +612,10 @@ void WavePropagationForceDepolarization::render()
 	{
 		for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
 		{
-			m_prop_sim->m_mesh->vertices[i].value = ACTION_POTENTIAL_RESTING_POTENTIAL*!m_selected[i] + ACTION_POTENTIAL_PEAK_POTENTIAL*m_selected[i];
+			m_prop_sim->m_mesh->vertices[i].value = 0*(!m_selected[i]) + 1*m_selected[i];
 		}
+
+		m_prop_sim->m_mesh_in_preview = true;
 	}
 }
 
@@ -848,13 +854,15 @@ void WavePropagationLinkTwoGroups::render()
 		{
 			if (m_selected_group == 0)
 			{
-				m_prop_sim->m_mesh->vertices[i].value = ACTION_POTENTIAL_RESTING_POTENTIAL*!m_group_a_selected[i] + ACTION_POTENTIAL_PEAK_POTENTIAL*m_group_a_selected[i];
+				m_prop_sim->m_mesh->vertices[i].value = 0*(!m_group_a_selected[i]) + 1*m_group_a_selected[i];
 			}
 			else if (m_selected_group == 1)
 			{
-				m_prop_sim->m_mesh->vertices[i].value = ACTION_POTENTIAL_RESTING_POTENTIAL*!m_group_b_selected[i] + ACTION_POTENTIAL_PEAK_POTENTIAL*m_group_b_selected[i];
+				m_prop_sim->m_mesh->vertices[i].value = 0*(!m_group_b_selected[i]) + 1*m_group_b_selected[i];
 			}
 		}
+
+		m_prop_sim->m_mesh_in_preview = true;
 	}
 }
 
@@ -1097,4 +1105,78 @@ void WavePropagationConductionPath::deserialize(Deserializer & des)
 	}
 }
 
+// Set Params In Plane
+
+WavePropagationSetParamsInPlane::WavePropagationSetParamsInPlane(WavePropagationSimulation * prop_sim, const Vector3<Real>& point, const Vector3<Real>& normal)
+	:WavePropagationOperator(prop_sim, "Set Params In Plane")
+{
+	m_point = point;
+	m_normal = normal.normalized();
+}
+
+void WavePropagationSetParamsInPlane::apply_reset()
+{
+	for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
+	{
+		Vector3<Real> vertex_pos = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[i].pos);
+		if ((vertex_pos - m_point).dot(m_normal) > 0)
+		{
+			m_prop_sim->m_params[i] = m_params;
+		}
+	}
+}
+
+void WavePropagationSetParamsInPlane::render()
+{
+	// update mesh values
+	for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
+	{
+		Vector3<Real> vertex_pos = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[i].pos);
+		bool is_selected = ((vertex_pos - m_point).dot(m_normal) > 0);
+		m_prop_sim->m_mesh->vertices[i].value = 0*(!is_selected) + 1*is_selected;
+	}
+
+	m_prop_sim->m_mesh_in_preview = true;
+}
+
+void WavePropagationSetParamsInPlane::render_gui()
+{
+	ImGui::DragVector3Eigen("Point", m_point);
+	ImGui::DragVector3Eigen("Normal", m_normal);
+
+	ImGui::InputReal("Deplorized Duration", &m_params.deplorized_duration);
+	ImGui::InputReal("Amplitude Multiplier", &m_params.amplitude_multiplier);
+}
+
+void WavePropagationSetParamsInPlane::handle_input(const LookAtCamera & camera)
+{
+}
+
+void WavePropagationSetParamsInPlane::serialize(Serializer & ser)
+{
+	ser.push_double(m_point.x());
+	ser.push_double(m_point.y());
+	ser.push_double(m_point.z());
+
+	ser.push_double(m_normal.x());
+	ser.push_double(m_normal.y());
+	ser.push_double(m_normal.z());
+
+	ser.push_double(m_params.deplorized_duration);
+	ser.push_double(m_params.amplitude_multiplier);
+}
+
+void WavePropagationSetParamsInPlane::deserialize(Deserializer & des)
+{
+	m_point.x() = des.parse_double();
+	m_point.y() = des.parse_double();
+	m_point.z() = des.parse_double();
+
+	m_normal.x() = des.parse_double();
+	m_normal.y() = des.parse_double();
+	m_normal.z() = des.parse_double();
+
+	m_params.deplorized_duration = des.parse_double();
+	m_params.amplitude_multiplier = des.parse_double();
+}
 

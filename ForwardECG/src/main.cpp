@@ -1338,48 +1338,6 @@ private:
 		}
 
 
-		// calculate maximum absolute value
-		Real max_abs_heart = 1e-6;
-		for (MeshPlotVertex& vertex : heart_mesh->vertices)
-		{
-			max_abs_heart = rmax(rabs(vertex.value), max_abs_heart);
-		}
-
-		// calculate heart maximum and minimum values
-		//heart_potential_max_value = -1e12;
-		//heart_potential_min_value = 1e12;
-		for (int i = 0; i < heart_mesh->vertices.size(); i++)
-		{
-			heart_potential_min_value = rmin(heart_potential_min_value, heart_mesh->vertices[i].value);
-			heart_potential_max_value = rmax(heart_potential_max_value, heart_mesh->vertices[i].value);
-		}
-
-		// calculate heart maximum and minimum values
-		Real heart_potential_max = -1e12;
-		Real heart_potential_min = 1e12;
-		for (int i = 0; i < heart_mesh->vertices.size(); i++)
-		{
-			heart_potential_min = rmin(heart_potential_min, heart_action_potential_params[i].resting_potential);
-			heart_potential_max = rmax(heart_potential_max, heart_action_potential_params[i].peak_potential);
-		}
-		
-		// update heart_potential_max_abs_value
-		heart_potential_max_abs_value = rmax(heart_potential_max_abs_value, rabs(max_abs_heart));
-
-		// update torso potential values at GPU
-		heart_mesh->update_gpu_buffers();
-
-
-		// clear buffers
-		gldev->clearColorBuffer(color_background.r, color_background.g, color_background.b, color_background.a);
-		gldev->depthTest(STATE_ENABLED);
-		gldev->depthFunc(COMPARISON_LESS);
-		gldev->clearDepthBuffer(1.0);
-
-		// set alpha mode
-		gldev->setAlpha(Alpha{ true, Alpha::SRC_ALPHA, Alpha::ONE_MINUS_SRC_ALPHA });
-
-
 		// render wave propagation
 		Renderer3D::setProjection(camera.calculateViewProjection());
 		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
@@ -1397,9 +1355,47 @@ private:
 			}
 			*/
 
-			// update torso potential values at GPU
-			heart_mesh->update_gpu_buffers();
+			//// update torso potential values at GPU
+			//heart_mesh->update_gpu_buffers();
 		}
+
+		// calculate heart maximum and minimum values
+		Real heart_potential_max = -1e12;
+		Real heart_potential_min = 1e12;
+		for (int i = 0; i < heart_mesh->vertices.size(); i++)
+		{
+			heart_potential_min = rmin(heart_potential_min, heart_mesh->vertices[i].value);
+			heart_potential_max = rmax(heart_potential_max, heart_mesh->vertices[i].value);
+		}
+
+		// calculate maximum absolute value
+		Real max_abs_heart = rmax(rabs(heart_potential_max), max_abs_heart);
+		max_abs_heart = rmax(rabs(heart_potential_min), max_abs_heart);
+
+		// calculate heart maximum and minimum values for the scale
+		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION && !wave_prop.is_mesh_in_preview())
+		{
+			//heart_potential_max_value = -1e12;
+			//heart_potential_min_value = 1e12;
+			heart_potential_min_value = rmin(heart_potential_min_value, heart_potential_min);
+			heart_potential_max_value = rmax(heart_potential_max_value, heart_potential_max);
+
+			// update heart_potential_max_abs_value
+			heart_potential_max_abs_value = rmax(heart_potential_max_abs_value, rabs(max_abs_heart));
+		}
+
+		// update torso potential values at GPU
+		heart_mesh->update_gpu_buffers();
+
+
+		// clear buffers
+		gldev->clearColorBuffer(color_background.r, color_background.g, color_background.b, color_background.a);
+		gldev->depthTest(STATE_ENABLED);
+		gldev->depthFunc(COMPARISON_LESS);
+		gldev->clearDepthBuffer(1.0);
+
+		// set alpha mode
+		gldev->setAlpha(Alpha{ true, Alpha::SRC_ALPHA, Alpha::ONE_MINUS_SRC_ALPHA });
 
 		// set mesh plot ambient
 		mpr->set_ambient(mesh_plot_ambient);
@@ -1407,7 +1403,11 @@ private:
 
 		// render heart mesh plot
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		if (use_separate_min_max_range)
+		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION && wave_prop.is_mesh_in_preview())
+		{
+			mpr->set_values_range(heart_potential_min, heart_potential_max);
+		}
+		else if (use_separate_min_max_range)
 		{
 			mpr->set_values_range(heart_potential_min_value, heart_potential_max_value);
 		}

@@ -13,7 +13,98 @@
 using namespace Eigen;
 
 
-class WavePropagationSimulation;
+class WavePropagationOperator;
+class WavePropagationPlaneCut;
+class WavePropagationForceDepolarization;
+class WavePropagationLinkTwoGroups;
+class WavePropagationConductionPath;
+class WavePropagationSetParamsInPlane;
+
+class WavePropagationSimulation
+{
+public:
+	WavePropagationSimulation() = default;
+	~WavePropagationSimulation() = default;
+
+	void set_mesh(MeshPlot* mesh, const Eigen::Vector3<Real>& mesh_pos = { 0, 0, 0 });
+	void set_mesh_pos(const Eigen::Vector3<Real>& mesh_pos);
+	void reset();
+
+	int get_sample_count();
+	int get_current_sample();
+	const VectorX<Real>& get_potentials() const;
+	void simulation_step();
+	//void update_mesh_values();
+	void render();
+	void render_gui();
+	void handle_input(const LookAtCamera& camera);
+	bool is_mesh_in_preview();
+
+private:
+	void recalculate_links();
+
+	bool load_from_file(const std::string& path);
+	bool save_to_file(const std::string& path);
+
+private:
+	// vertex variables
+	struct VertexVars
+	{
+		bool is_depolarized;
+		Real depolarization_time;
+	};
+
+	// vertex parameters
+	struct VertexParams
+	{
+		Real deplorized_duration;
+		Real amplitude_multiplier;
+	};
+
+	// vertex link
+	struct VertexLink
+	{
+		int v1_idx; // first vertex index
+		int v2_idx; // second vertex index
+		Real multiply_speed; // scaler multiplied to the base speed
+		Real constant_speed; // constant speed added to the base speed
+		Real constant_delay; // constant delay added to the links between the two groups
+	};
+
+	MeshPlot* m_mesh = nullptr;
+	Vector3<Real> m_mesh_pos = { 0, 0, 0 };
+	bool m_mesh_in_preview = false;
+	Real m_t; // simulation time
+	Real m_duration = 1; // simulation duration
+	Real m_dt = 0.001; // simulation time step
+	int m_sample_count;
+	int m_sample = 0; // current sample
+	Real m_base_speed = 2;
+	Real m_depolarization_duration = 0.250;
+	Real m_depolarization_slope_duration = 0.050;
+	Real m_repolarization_slope_duration = 0.200;
+	std::vector<VertexLink> m_links; // vertex links
+	std::vector<VertexVars> m_vars; // vertex vars
+	std::vector<VertexParams> m_params; // vertex params
+	VectorX<Real> m_potentials;
+	std::vector<std::shared_ptr<WavePropagationOperator>> m_operators;
+	std::vector<bool> m_operators_enable;
+	std::vector<bool> m_operators_render;
+	int m_selected_operator_add = 0;
+
+	// gui
+	int m_selected_operator = -1;
+
+	friend class WavePropagationOperator;
+	friend class WavePropagationPlaneCut;
+	friend class WavePropagationForceDepolarization;
+	friend class WavePropagationLinkTwoGroups;
+	friend class WavePropagationConductionPath;
+	friend class WavePropagationSetParamsInPlane;
+
+};
+
+
 
 class WavePropagationOperator
 {
@@ -161,82 +252,25 @@ private:
 	int m_adding_points_preview_idx = -1;
 };
 
-
-
-class WavePropagationSimulation
+class WavePropagationSetParamsInPlane : public WavePropagationOperator
 {
 public:
-	WavePropagationSimulation() = default;
-	~WavePropagationSimulation() = default;
+	WavePropagationSetParamsInPlane(WavePropagationSimulation* prop_sim, const Vector3<Real>& point = { 0, 0, 0 }, const Vector3<Real>& normal = { 0, 0, 1 });
+	virtual ~WavePropagationSetParamsInPlane() = default;
 
-	void set_mesh(MeshPlot* mesh, const Eigen::Vector3<Real>& mesh_pos = { 0, 0, 0 });
-	void set_mesh_pos(const Eigen::Vector3<Real>& mesh_pos);
-	void reset();
+	virtual void apply_reset();
 
-	int get_sample_count();
-	int get_current_sample();
-	const VectorX<Real>& get_potentials() const;
-	void simulation_step();
-	//void update_mesh_values();
-	void render();
-	void render_gui();
-	void handle_input(const LookAtCamera& camera);
+	virtual void render() override;
+	virtual void render_gui() override;
+	virtual void handle_input(const LookAtCamera& camera) override;
+
+	virtual void serialize(Serializer& ser) override;
+	virtual void deserialize(Deserializer& des) override;
 
 private:
-	void recalculate_links();
-
-	bool load_from_file(const std::string& path);
-	bool save_to_file(const std::string& path);
-
-private:
-	// vertex variables
-	struct VertexVars
-	{
-		bool is_depolarized;
-		Real depolarization_time;
-	};
-
-	// vertex link
-	struct VertexLink
-	{
-		int v1_idx; // first vertex index
-		int v2_idx; // second vertex index
-		Real multiply_speed; // scaler multiplied to the base speed
-		Real constant_speed; // constant speed added to the base speed
-		Real constant_delay; // constant delay added to the links between the two groups
-	};
-
-	MeshPlot* m_mesh = nullptr;
-	Vector3<Real> m_mesh_pos = { 0, 0, 0 };
-	Real m_t; // simulation time
-	Real m_duration = 1; // simulation duration
-	Real m_dt = 0.001; // simulation time step
-	int m_sample_count;
-	int m_sample = 0; // current sample
-	Real m_base_speed = 2;
-	Real m_depolarization_duration = 0.250;
-	Real m_depolarization_slope_duration = 0.050;
-	Real m_repolarization_slope_duration = 0.200;
-	std::vector<VertexLink> m_links; // vertex links
-	std::vector<VertexVars> m_vars; // vertex vars
-	VectorX<Real> m_potentials;
-	std::vector<std::shared_ptr<WavePropagationOperator>> m_operators;
-	std::vector<bool> m_operators_enable;
-	std::vector<bool> m_operators_render;
-	int m_selected_operator_add = 0;
-	// set different multiplier
-	Real m_different_mul_value = 0.5;
-	Vector3<Real> m_different_mul_p = { 0, 0, 0 };
-	Vector3<Real> m_different_mul_n = { -0.714, 0.714, 0 };
-
-	// gui
-	int m_selected_operator = -1;
-
-	friend class WavePropagationOperator;
-	friend class WavePropagationPlaneCut;
-	friend class WavePropagationForceDepolarization;
-	friend class WavePropagationLinkTwoGroups;
-	friend class WavePropagationConductionPath;
+	Vector3<Real> m_point;
+	Vector3<Real> m_normal;
+	WavePropagationSimulation::VertexParams m_params = { 0.250, 1 };
 
 };
 
