@@ -33,6 +33,11 @@ void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<R
 	m_potentials.resize(m_mesh->vertices.size());
 	recalculate_links();
 	reset();
+
+	// set different multiplier
+	m_different_mul_p = mesh_pos;
+	m_different_mul_n = Vector3<Real>({ -0.714, 0.714, 0 }).normalized();
+
 }
 
 void WavePropagationSimulation::set_mesh_pos(const Eigen::Vector3<Real>& mesh_pos)
@@ -131,6 +136,16 @@ void WavePropagationSimulation::simulation_step()
 		else
 		{
 			m_potentials(i) = 0; // ACTION_POTENTIAL_RESTING_POTENTIAL
+		}
+	}
+
+	// set different multiplier
+	for (int i = 0; i < m_mesh->vertices.size(); i++)
+	{
+		Vector3<Real> vertex_pos = m_mesh_pos + glm2eigen(m_mesh->vertices[i].pos);
+		if ((vertex_pos-m_different_mul_p).dot(m_different_mul_n) > 0)
+		{
+			m_potentials(i) *= m_different_mul_value;
 		}
 	}
 
@@ -313,6 +328,12 @@ void WavePropagationSimulation::render_gui()
 			m_selected_operator = -1;
 		}
 	}
+
+	// set different multiplier
+	ImGui::InputReal("Different Multiplier Value", &m_different_mul_value);
+	ImGui::DragVector3Eigen("Different Multiplier Point", m_different_mul_p);
+	ImGui::DragVector3Eigen("Different Multiplier normal", m_different_mul_n);
+
 }
 
 void WavePropagationSimulation::handle_input(const LookAtCamera& camera)

@@ -169,7 +169,7 @@ public:
 	WavePropagationSimulation() = default;
 	~WavePropagationSimulation() = default;
 
-	void set_mesh(MeshPlot* mesh, const Eigen::Vector3<Real>& mesh_pos = {0, 0, 0});
+	void set_mesh(MeshPlot* mesh, const Eigen::Vector3<Real>& mesh_pos = { 0, 0, 0 });
 	void set_mesh_pos(const Eigen::Vector3<Real>& mesh_pos);
 	void reset();
 
@@ -224,6 +224,10 @@ private:
 	std::vector<bool> m_operators_enable;
 	std::vector<bool> m_operators_render;
 	int m_selected_operator_add = 0;
+	// set different multiplier
+	Real m_different_mul_value = 0.5;
+	Vector3<Real> m_different_mul_p = { 0, 0, 0 };
+	Vector3<Real> m_different_mul_n = { -0.714, 0.714, 0 };
 
 	// gui
 	int m_selected_operator = -1;
