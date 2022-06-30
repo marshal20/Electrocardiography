@@ -127,6 +127,94 @@ Real extracellular_potential(Real t, Real dt, const ActionPotentialParameters& p
 		- action_potential_value_2(t, params, depolarization_slope_duration, repolarization_slope_duration))/dt;
 }
 
+Real extracellular_potential_negative_t_wave(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration, Real repolarization_slope_duration)
+{
+	Real result = 0;
+
+	if (t < params.depolarization_time)
+	{
+		result = 0;
+	}
+	else if (t < params.depolarization_time+depolarization_slope_duration)
+	{
+		result = bump_2nd_order((t-params.depolarization_time)/depolarization_slope_duration);
+	}
+	else if (params.depolarization_time+depolarization_slope_duration <= t && t <= params.repolarization_time)
+	{
+		result = 0;
+	}
+	else if (t > params.repolarization_time && t <= params.repolarization_time+repolarization_slope_duration)
+	{
+		result = -0.33*bump_2nd_order((t-params.repolarization_time)/repolarization_slope_duration);
+	}
+	else
+	{
+		result = 0;
+	}
+
+	return result;
+}
+
+Real extracellular_potential_positive_t_wave(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration, Real repolarization_slope_duration)
+{
+	Real result = 0;
+
+	if (t < params.depolarization_time)
+	{
+		result = 0;
+	}
+	else if (t < params.depolarization_time+depolarization_slope_duration)
+	{
+		result = bump_2nd_order((t-params.depolarization_time)/depolarization_slope_duration);
+	}
+	else if (params.depolarization_time+depolarization_slope_duration <= t && t <= params.repolarization_time)
+	{
+		result = 0;
+	}
+	else if (t > params.repolarization_time && t <= params.repolarization_time+repolarization_slope_duration)
+	{
+		result = 0.33*bump_2nd_order((t-params.repolarization_time)/repolarization_slope_duration);
+	}
+	else
+	{
+		result = 0;
+	}
+
+	return result;
+}
+
+Real extracellular_potential_positive_t_wave_with_over_depolarization(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration, Real repolarization_slope_duration)
+{
+	Real result = 0;
+
+	if (t < params.depolarization_time)
+	{
+		result = 0;
+	}
+	else if (t < params.depolarization_time+depolarization_slope_duration)
+	{
+		result = bump_2nd_order((t-params.depolarization_time)/depolarization_slope_duration);
+	}
+	else if (t < params.depolarization_time+depolarization_slope_duration*2)
+	{
+		result = -0.33*bump_2nd_order((t-params.depolarization_time-depolarization_slope_duration)/depolarization_slope_duration);
+	}
+	else if (params.depolarization_time+depolarization_slope_duration <= t && t <= params.repolarization_time)
+	{
+		result = 0;
+	}
+	else if (t > params.repolarization_time && t <= params.repolarization_time+repolarization_slope_duration)
+	{
+		result = 0.33*bump_2nd_order((t-params.repolarization_time)/repolarization_slope_duration);
+	}
+	else
+	{
+		result = 0;
+	}
+
+	return result;
+}
+
 
 
 bool import_action_potential_parameters(const std::string& file_name, std::vector<ActionPotentialParameters>& params)

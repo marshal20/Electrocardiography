@@ -21,6 +21,9 @@ Real action_potential_value(Real t, const ActionPotentialParameters& params);
 Real action_potential_value_2(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050);
 
 Real extracellular_potential(Real t, Real dt, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050);
+Real extracellular_potential_negative_t_wave(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050);
+Real extracellular_potential_positive_t_wave(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050);
+Real extracellular_potential_positive_t_wave_with_over_depolarization(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050);
 
 
 bool import_action_potential_parameters(const std::string& file_name, std::vector<ActionPotentialParameters>& params);

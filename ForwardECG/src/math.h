@@ -54,3 +54,7 @@ Eigen::Vector3<Real> rodrigues_rotate(const Eigen::Vector3<Real>& v, const Eigen
 
 // returns a 3rd order transition between 0 and 1, for t [0:1] 
 Real s_3rd_order_curve_transition(Real t);
+
+// returns a 2nd order bump between 0 and 1, for t [0:1] 
+Real bump_2nd_order(Real t);
+

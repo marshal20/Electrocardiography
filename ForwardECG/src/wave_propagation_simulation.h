@@ -91,6 +91,7 @@ private:
 	std::vector<bool> m_operators_enable;
 	std::vector<bool> m_operators_render;
 	int m_selected_operator_add = 0;
+	int m_selected_extracellular_potential_curve = 3;
 
 	// gui
 	int m_selected_operator = -1;

@@ -134,7 +134,26 @@ void WavePropagationSimulation::simulation_step()
 	{
 		if (m_vars[i].is_depolarized && m_t > m_vars[i].depolarization_time)
 		{
-			m_potentials(i) = extracellular_potential(m_t, m_dt, { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, m_vars[i].depolarization_time, m_vars[i].depolarization_time+m_params[i].deplorized_duration }, m_depolarization_slope_duration, m_repolarization_slope_duration); // action_potential_value_2
+			ActionPotentialParameters vertex_action_potential_param = { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, m_vars[i].depolarization_time, m_vars[i].depolarization_time+m_params[i].deplorized_duration };
+			// select from different extracellular potential shapes
+			switch (m_selected_extracellular_potential_curve)
+			{
+			case 0:
+				m_potentials(i) = extracellular_potential(m_t, m_dt, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
+				break;
+			case 1:
+				m_potentials(i) = extracellular_potential_negative_t_wave(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
+				break;
+			case 2:
+				m_potentials(i) = extracellular_potential_positive_t_wave(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
+				break;
+			case 3:
+				m_potentials(i) = extracellular_potential_positive_t_wave_with_over_depolarization(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
+				break;
+			default:
+				m_potentials(i) = 0;
+				break;
+			}
 			m_potentials(i) *= m_params[i].amplitude_multiplier;
 		}
 		else
@@ -190,6 +209,36 @@ void WavePropagationSimulation::render_gui()
 	{
 		reset();
 	}
+	
+	// extracellular potential select
+	const char* im_extracellular_potential_curve_items[] = { "Old Extracellular Potential", "Extracellular Potential (Negative T-Wave)", "Extracellular Potential (Positive T-Wave)", "Extracellular Potential (Positive T-Wave) + Over Depolarization" };
+	ImGui::Combo("Extracellular Potential Curve", &m_selected_extracellular_potential_curve, im_extracellular_potential_curve_items, 4);
+	static std::vector<float> im_extracellular_potential_curve_preview;
+	im_extracellular_potential_curve_preview.resize(250);
+	ActionPotentialParameters preview_parameters = {0, 0, 0.2, 0.7};
+	for (int i = 0; i < im_extracellular_potential_curve_preview.size(); i++)
+	{
+		float t = (float)i/(float)im_extracellular_potential_curve_preview.size();
+		switch(m_selected_extracellular_potential_curve)
+		{
+		case 0:
+			im_extracellular_potential_curve_preview[i] = extracellular_potential(t, 1.0f/((float)im_extracellular_potential_curve_preview.size()), preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
+			break;
+		case 1:
+			im_extracellular_potential_curve_preview[i] = extracellular_potential_negative_t_wave(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
+			break;
+		case 2:
+			im_extracellular_potential_curve_preview[i] = extracellular_potential_positive_t_wave(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
+			break;
+		case 3:
+			im_extracellular_potential_curve_preview[i] = extracellular_potential_positive_t_wave_with_over_depolarization(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
+			break;
+		default:
+			im_extracellular_potential_curve_preview[i] = 0;
+			break;
+		}
+	}
+	ImGui::PlotLines("Extracellular Potential Curve Plot", &im_extracellular_potential_curve_preview[0], im_extracellular_potential_curve_preview.size(), 0, NULL, FLT_MAX, FLT_MAX, ImVec2(0, 120));
 
 	// resize operators options
 	m_operators_enable.resize(m_operators.size(), true);
@@ -455,15 +504,6 @@ bool WavePropagationSimulation::save_to_file(const std::string& path)
 	return file_write(path.c_str(), ser.get_data());
 }
 
-
-// returns a 3rd order transition between 0 and 1, for t [0:1] 
-static Real s_3rd_order_curve_transition(Real t)
-{
-	return (0<t) * 0
-		+ (0<=t&&t<0.5) * 0.5*pow((t*2), 3)
-		+ (0.5<=t&&t<1) * (1-0.5*pow((2-t*2), 3))
-		+ (1<=t) * 1;
-}
 
 // Wave Propagation Operator
 

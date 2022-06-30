@@ -69,3 +69,11 @@ Real s_3rd_order_curve_transition(Real t)
 		+ (0.5<=t&&t<1) * (1-0.5*pow((2-t*2), 3))
 		+ (1<=t) * 1;
 }
+
+// returns a 2nd order bump between 0 and 1, for t [0:1] 
+Real bump_2nd_order(Real t)
+{
+	return (0<t) * 0
+		+ (0<=t&&t<1) * (1-pow((t*2-1), 2))
+		+ (1<=t) * 0;
+}
