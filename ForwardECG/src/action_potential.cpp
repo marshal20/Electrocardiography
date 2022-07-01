@@ -197,7 +197,7 @@ Real extracellular_potential_positive_t_wave_with_over_depolarization(Real t, co
 	}
 	else if (t < params.depolarization_time+depolarization_slope_duration*2)
 	{
-		result = -0.33*bump_2nd_order((t-params.depolarization_time-depolarization_slope_duration)/depolarization_slope_duration);
+		result = -0.1*bump_2nd_order((t-params.depolarization_time-depolarization_slope_duration)/depolarization_slope_duration);
 	}
 	else if (params.depolarization_time+depolarization_slope_duration <= t && t <= params.repolarization_time)
 	{

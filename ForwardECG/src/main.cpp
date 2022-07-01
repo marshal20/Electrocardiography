@@ -1300,12 +1300,29 @@ private:
 			torso_potential_max = rmax(torso_potential_max, vertex.value);
 		}
 		// limit min and max to 0
-		torso_potential_max = rmax(torso_potential_max, 0);
-		torso_potential_min = rmin(torso_potential_min, 0);
+		torso_potential_max = rmax(torso_potential_max, 0+1e-12);
+		torso_potential_min = rmin(torso_potential_min, 0-1e-12);
 		Real torso_potential_max_abs = rmax(rabs(torso_potential_max), rabs(torso_potential_min));
 		torso_potential_max_abs = rmax(1e-12, torso_potential_max_abs);
-		torso_potential_max = torso_potential_max_abs;
-		torso_potential_min = -torso_potential_max_abs;
+		//torso_potential_max = torso_potential_max_abs;
+		//torso_potential_min = -torso_potential_max_abs;
+
+		Real max_abs_torso = rmax(rabs(torso_potential_max), rabs(torso_potential_min));
+
+		if (torso_potential_adaptive_range)
+		{
+			torso_potential_min_value = torso_potential_min;
+			torso_potential_max_value = torso_potential_max;
+			torso_potential_max_abs_value = max_abs_torso;
+		}
+		else
+		{
+			torso_potential_min_value = rmin(torso_potential_min_value, torso_potential_min);
+			torso_potential_max_value = rmax(torso_potential_max_value, torso_potential_max);
+			// update torso_potential_max_abs_value
+			torso_potential_max_abs_value = rmax(torso_potential_max_abs_value, rabs(max_abs_torso));
+		}
+
 
 		// update torso potential values at GPU
 		torso->update_gpu_buffers();
@@ -1343,20 +1360,6 @@ private:
 		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
 		{
 			wave_prop.render();
-
-			/*
-			// calculate heart maximum and minimum values
-			heart_potential_max = -1e12;
-			heart_potential_min = 1e12;
-			for (int i = 0; i < heart_mesh->vertices.size(); i++)
-			{
-				heart_potential_min = rmin(heart_potential_min, heart_mesh->vertices[i].value);
-				heart_potential_max = rmax(heart_potential_max, heart_mesh->vertices[i].value);
-			}
-			*/
-
-			//// update torso potential values at GPU
-			//heart_mesh->update_gpu_buffers();
 		}
 
 		// calculate heart maximum and minimum values
@@ -1368,9 +1371,11 @@ private:
 			heart_potential_max = rmax(heart_potential_max, heart_mesh->vertices[i].value);
 		}
 
+		torso_potential_max = rmax(torso_potential_max, 0+1e-12);
+		torso_potential_min = rmin(torso_potential_min, 0-1e-12);
 		// calculate maximum absolute value
-		Real max_abs_heart = rmax(rabs(heart_potential_max), max_abs_heart);
-		max_abs_heart = rmax(rabs(heart_potential_min), max_abs_heart);
+		Real max_abs_heart = rmax(rabs(heart_potential_max), rabs(heart_potential_min));
+		max_abs_heart = rmax(1e-12, max_abs_heart);
 
 		// calculate heart maximum and minimum values for the scale
 		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION && !wave_prop.is_mesh_in_preview())
@@ -1407,7 +1412,7 @@ private:
 		{
 			mpr->set_values_range(heart_potential_min, heart_potential_max);
 		}
-		else if (use_separate_min_max_range)
+		else if (heart_use_separate_min_max_range)
 		{
 			mpr->set_values_range(heart_potential_min_value, heart_potential_max_value);
 		}
@@ -1424,7 +1429,14 @@ private:
 		const Real alpha = 1;
 		mpr->set_colors(color_p, color_n);
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
-		mpr->set_values_range(torso_potential_min, torso_potential_max);
+		if (torso_use_separate_min_max_range)
+		{
+			mpr->set_values_range(torso_potential_min_value, torso_potential_max_value);
+		}
+		else
+		{
+			mpr->set_values_range(-torso_potential_max_abs_value, torso_potential_max_abs_value);
+		}
 		mpr->render_mesh_plot(glm::mat4(1), torso);
 		torso_fb->unbind();
 		gldev->bindBackbuffer();
@@ -1432,7 +1444,7 @@ private:
 		Renderer2D::setProjection(ortho(0, width, height, 0, -1, 1));
 		Renderer2D::drawTexture({ width/2, height/2 }, { width, height }, torso_fb->getColorTexture(0), {1, 1, 1, torso_opacity});
 
-
+		/*
 		// render dipole
 		gldev->depthTest(STATE_DISABLED); // disable depth testing
 		Renderer3D::setStyle(Renderer3D::Style(true, dipole_vector_thickness, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
@@ -1492,6 +1504,7 @@ private:
 			Renderer3D::setStyle(Renderer3D::Style(true, 1, { 1, 1, 1, 1 }, false, { 0.75, 0, 0 ,1 }));
 			Renderer3D::drawPolygon(&dipole_locus[0], dipole_locus.size(), false);
 		}
+		*/
 
 		// render probes
 		for (int i = 0; i < probes.size(); i++)
@@ -2038,7 +2051,20 @@ private:
 			ImGui::Checkbox("Render Dipole Vector Values Vectors", &render_dipole_vec_values_vectors);
 			ImGui::Checkbox("Render Dipole Vector Values Locus", &render_dipole_vec_values_locus);
 		}
-		ImGui::Checkbox("Use Separate Min Max For The Range", &use_separate_min_max_range);
+		// Torso Potential Range
+		ImGui::Checkbox("Torso Use Separate Min Max For The Range", &torso_use_separate_min_max_range);
+		ImGui::Checkbox("Torso Potential Adaptive Range (Each Frame Separate)", &torso_potential_adaptive_range);
+		ImGui::DragReal("Torso Plot Scale (max absolute value)", &torso_potential_max_abs_value, 0.001);
+		ImGui::DragReal("Torso Plot max value", &torso_potential_max_value, 0.001);
+		ImGui::DragReal("Torso Plot min value", &torso_potential_min_value, 0.001);
+		if (ImGui::Button("Reset Torso Plot Scale"))
+		{
+			torso_potential_max_abs_value = 0;
+			torso_potential_max_value = -1e12;
+			torso_potential_min_value = 1e12;
+		}
+		// Heart Potential Range
+		ImGui::Checkbox("Heart Use Separate Min Max For The Range", &heart_use_separate_min_max_range);
 		ImGui::DragReal("Heart Plot Scale (max absolute value)", &heart_potential_max_abs_value, 0.001);
 		ImGui::DragReal("Heart Plot max value", &heart_potential_max_value, 0.001);
 		ImGui::DragReal("Heart Plot min value", &heart_potential_min_value, 0.001);
@@ -3497,8 +3523,14 @@ private:
 	bool render_dipole_vec_values_locus = true;
 	// rendering scale
 	float dipole_vector_scale = 0.5;
+	// Torso potentials range
+	bool torso_use_separate_min_max_range = false;
+	bool torso_potential_adaptive_range = false;
+	Real torso_potential_max_abs_value = 0;
+	Real torso_potential_max_value = -1e12;
+	Real torso_potential_min_value = 1e12;
 	// Heart potentials range
-	bool use_separate_min_max_range = false;
+	bool heart_use_separate_min_max_range = false;
 	Real heart_potential_max_abs_value = 0;
 	Real heart_potential_max_value = -1e12;
 	Real heart_potential_min_value = 1e12;
