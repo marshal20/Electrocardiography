@@ -62,6 +62,11 @@ private:
 	{
 		Real deplorized_duration;
 		Real amplitude_multiplier;
+
+		Real endocardial_potential_multiplier;
+		Real epicardial_potential_multiplier;
+		Real epicardial_depolarize_delay;
+		Real epicardial_repolarize_delay;
 	};
 
 	// vertex link
@@ -76,6 +81,8 @@ private:
 
 	MeshPlot* m_mesh = nullptr;
 	Vector3<Real> m_mesh_pos = { 0, 0, 0 };
+	bool m_preview_endocardial_potential = false;
+	bool m_preview_epicardial_potential = false;
 	bool m_mesh_in_preview = false;
 	Real m_mesh_in_preview_min = 0;
 	Real m_mesh_in_preview_max = 1;
@@ -92,11 +99,13 @@ private:
 	std::vector<VertexVars> m_vars; // vertex vars
 	std::vector<VertexParams> m_params; // vertex params
 	VectorX<Real> m_potentials;
+	VectorX<Real> m_potentials_endo;
+	VectorX<Real> m_potentials_epi;
 	std::vector<std::shared_ptr<WavePropagationOperator>> m_operators;
 	std::vector<bool> m_operators_enable;
 	std::vector<bool> m_operators_render;
 	int m_selected_operator_add = 0;
-	int m_selected_extracellular_potential_curve = 3;
+	int m_selected_extracellular_potential_curve = 4;
 
 	// gui
 	int m_selected_operator = -1;
@@ -277,7 +286,7 @@ public:
 private:
 	Vector3<Real> m_point;
 	Vector3<Real> m_normal;
-	WavePropagationSimulation::VertexParams m_params = { 0.250, 1 };
+	WavePropagationSimulation::VertexParams m_params = { 0.250, 1, 1, 1, 0.03, -0.05 };
 
 };
 
@@ -298,7 +307,7 @@ public:
 
 private:
 	std::vector<bool> m_selected;
-	WavePropagationSimulation::VertexParams m_params = { 0.200, 1 };
+	WavePropagationSimulation::VertexParams m_params = { 0.250, 1, 1, 1, 0.03, -0.05 };
 	CircularBrush m_brush;
 	bool m_brush_select = true;
 	bool m_view_drawing = false;

@@ -121,6 +121,38 @@ Real action_potential_value_2(Real t, const ActionPotentialParameters& params, R
 	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage;
 }
 
+Real action_potential_value_with_hyperdepolarizaton(Real t, const ActionPotentialParameters & params, Real depolarization_slope_duration, Real repolarization_slope_duration, Real hyperdepolarization_percentage, Real amplitude)
+{
+	Real mixing_percentage = 0;
+
+	if (t < params.depolarization_time)
+	{
+		mixing_percentage = 0;
+	}
+	else if (t < params.depolarization_time+depolarization_slope_duration)
+	{
+		mixing_percentage = (1+hyperdepolarization_percentage)*s_3rd_order_curve_transition((t-params.depolarization_time)/depolarization_slope_duration);
+	}
+	else if (t < params.depolarization_time+depolarization_slope_duration*2)
+	{
+		mixing_percentage = 1+hyperdepolarization_percentage*(1-s_3rd_order_curve_transition((t-params.depolarization_time-depolarization_slope_duration)/depolarization_slope_duration));
+	}
+	else if (params.depolarization_time+depolarization_slope_duration*2 <= t && t <= params.repolarization_time)
+	{
+		mixing_percentage = 1;
+	}
+	else if (t > params.repolarization_time && t <= params.repolarization_time+repolarization_slope_duration)
+	{
+		mixing_percentage = 1-s_3rd_order_curve_transition((t-params.repolarization_time)/repolarization_slope_duration);
+	}
+	else
+	{
+		mixing_percentage = 0;
+	}
+
+	return params.resting_potential + (params.peak_potential-params.resting_potential)*mixing_percentage*amplitude;
+}
+
 Real extracellular_potential(Real t, Real dt, const ActionPotentialParameters& params, Real depolarization_slope_duration, Real repolarization_slope_duration)
 {
 	return (action_potential_value_2(t+dt, params, depolarization_slope_duration, repolarization_slope_duration)

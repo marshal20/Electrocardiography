@@ -32,6 +32,8 @@ void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<R
 	m_vars.resize(m_mesh->vertices.size());
 	m_params.resize(m_mesh->vertices.size());
 	m_potentials.resize(m_mesh->vertices.size());
+	m_potentials_endo.resize(m_mesh->vertices.size());
+	m_potentials_epi.resize(m_mesh->vertices.size());
 	recalculate_links();
 	reset();
 
@@ -49,7 +51,8 @@ void WavePropagationSimulation::reset()
 	// reset parameters
 	for (int i = 0; i < m_mesh->vertices.size(); i++)
 	{
-		m_params[i] = { 0.250, 1 };
+		m_params[i] = { 0.250, 1,
+		                1, 1, 0.03, -0.05 };
 	}
 
 	// reset to initial values
@@ -135,6 +138,7 @@ void WavePropagationSimulation::simulation_step()
 		if (m_vars[i].is_depolarized && m_t > m_vars[i].depolarization_time)
 		{
 			ActionPotentialParameters vertex_action_potential_param = { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, m_vars[i].depolarization_time, m_vars[i].depolarization_time+m_params[i].deplorized_duration };
+			ActionPotentialParameters vertex_action_potential_param_epi = { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, m_vars[i].depolarization_time+m_params[i].epicardial_depolarize_delay, m_vars[i].depolarization_time+m_params[i].deplorized_duration+m_params[i].epicardial_repolarize_delay };
 			// select from different extracellular potential shapes
 			switch (m_selected_extracellular_potential_curve)
 			{
@@ -149,6 +153,11 @@ void WavePropagationSimulation::simulation_step()
 				break;
 			case 3:
 				m_potentials(i) = extracellular_potential_positive_t_wave_with_over_depolarization(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
+				break;
+			case 4:
+				m_potentials_endo(i) = action_potential_value_with_hyperdepolarizaton(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration, 0.1, m_params[i].endocardial_potential_multiplier);
+				m_potentials_epi(i) = action_potential_value_with_hyperdepolarizaton(m_t, vertex_action_potential_param_epi, m_depolarization_slope_duration, m_repolarization_slope_duration, 0.1, m_params[i].epicardial_potential_multiplier);
+				m_potentials(i) = m_potentials_endo(i) - m_potentials_epi(i);
 				break;
 			default:
 				m_potentials(i) = 0;
@@ -211,14 +220,78 @@ void WavePropagationSimulation::render_gui()
 	}
 	
 	// extracellular potential select
-	const char* im_extracellular_potential_curve_items[] = { "Old Extracellular Potential", "Extracellular Potential (Negative T-Wave)", "Extracellular Potential (Positive T-Wave)", "Extracellular Potential (Positive T-Wave) + Over Depolarization" };
-	ImGui::Combo("Extracellular Potential Curve", &m_selected_extracellular_potential_curve, im_extracellular_potential_curve_items, 4);
+	const char* im_extracellular_potential_curve_items[] = { 
+		"Old Extracellular Potential", 
+		"Extracellular Potential (Negative T-Wave)", 
+		"Extracellular Potential (Positive T-Wave)", 
+		"Extracellular Potential (Positive T-Wave) + Over Depolarization",
+		"Extracellular Potential (Separate Endocardial and Epicardial)"
+	};
+	ImGui::Combo("Extracellular Potential Curve", &m_selected_extracellular_potential_curve, im_extracellular_potential_curve_items, 5);
+	static Real preview_dep_time = 0.2;
+	static Real preview_rep_time = 0.7;
+	static Real preview_epi_dep_delay = 0.03;
+	static Real preview_epi_rep_delay = -0.05;
+	static Real preview_epi_multiplier = 1;
+	static Real preview_endo_multiplier = 1;
+	ImGui::InputReal("Preview Depolarization Time", &preview_dep_time);
+	ImGui::InputReal("Preview Repolarization Time", &preview_rep_time);
+	ImGui::InputReal("Preview Epicardial Deplarization Delay Time", &preview_epi_dep_delay);
+	ImGui::InputReal("Preview Epicardial Replarization Delay Time", &preview_epi_rep_delay);
+	ImGui::InputReal("Preview Epicardial Multiplier", &preview_epi_multiplier);
+	ImGui::InputReal("Preview Endocardial Multiplier", &preview_endo_multiplier);
 	static std::vector<float> im_extracellular_potential_curve_preview;
 	im_extracellular_potential_curve_preview.resize(250);
-	ActionPotentialParameters preview_parameters = {0, 0, 0.2, 0.7};
+	ActionPotentialParameters preview_parameters = { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, preview_dep_time, preview_rep_time };
+	ActionPotentialParameters preview_parameters_epi = { ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, preview_dep_time+preview_epi_dep_delay, preview_rep_time+preview_epi_rep_delay };
+	if (m_selected_extracellular_potential_curve)
+	{
+		// Endocardial
+		for (int i = 0; i < im_extracellular_potential_curve_preview.size(); i++)
+		{
+			float t = (float)i/(float)im_extracellular_potential_curve_preview.size();
+			im_extracellular_potential_curve_preview[i] = action_potential_value_with_hyperdepolarizaton(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration, 0.1, preview_epi_multiplier);
+		}
+		ImGui::PlotLines("Endocardial Extracellular Potential Curve Plot", &im_extracellular_potential_curve_preview[0], im_extracellular_potential_curve_preview.size(), 0, NULL, FLT_MAX, FLT_MAX, ImVec2(0, 120));
+
+		// Epicardial
+		for (int i = 0; i < im_extracellular_potential_curve_preview.size(); i++)
+		{
+			float t = (float)i/(float)im_extracellular_potential_curve_preview.size();
+			im_extracellular_potential_curve_preview[i] = action_potential_value_with_hyperdepolarizaton(t, preview_parameters_epi, m_depolarization_slope_duration, m_repolarization_slope_duration, 0.1, preview_endo_multiplier);
+		}
+		ImGui::PlotLines("Epicardial Extracellular Potential Curve Plot", &im_extracellular_potential_curve_preview[0], im_extracellular_potential_curve_preview.size(), 0, NULL, FLT_MAX, FLT_MAX, ImVec2(0, 120));
+
+		// preview (Endocardial Potential or Epicardial Potential)
+		ImGui::Checkbox("Preview Endocardial Potential Wave", &m_preview_endocardial_potential);
+		ImGui::Checkbox("Preview Epicardial Potential Wave", &m_preview_epicardial_potential);
+		if (m_preview_endocardial_potential)
+		{
+			for (int i = 0; i < m_mesh->vertices.size(); i++)
+			{
+				m_mesh->vertices[i].value = m_potentials_endo(i);
+			}
+
+			m_mesh_in_preview = true;
+			m_mesh_in_preview_max = ACTION_POTENTIAL_PEAK_POTENTIAL;
+			m_mesh_in_preview_min = ACTION_POTENTIAL_RESTING_POTENTIAL;
+		}
+		else if (m_preview_epicardial_potential)
+		{
+			for (int i = 0; i < m_mesh->vertices.size(); i++)
+			{
+				m_mesh->vertices[i].value = m_potentials_epi(i);
+			}
+
+			m_mesh_in_preview = true;
+			m_mesh_in_preview_max = ACTION_POTENTIAL_PEAK_POTENTIAL;
+			m_mesh_in_preview_min = ACTION_POTENTIAL_RESTING_POTENTIAL;
+		}
+	}
 	for (int i = 0; i < im_extracellular_potential_curve_preview.size(); i++)
 	{
 		float t = (float)i/(float)im_extracellular_potential_curve_preview.size();
+		float endo, epi;
 		switch(m_selected_extracellular_potential_curve)
 		{
 		case 0:
@@ -232,6 +305,11 @@ void WavePropagationSimulation::render_gui()
 			break;
 		case 3:
 			im_extracellular_potential_curve_preview[i] = extracellular_potential_positive_t_wave_with_over_depolarization(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
+			break;
+		case 4:
+			endo = action_potential_value_with_hyperdepolarizaton(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration, 0.1, preview_endo_multiplier);
+			epi  = action_potential_value_with_hyperdepolarizaton(t, preview_parameters_epi, m_depolarization_slope_duration, m_repolarization_slope_duration, 0.1, preview_epi_multiplier);
+			im_extracellular_potential_curve_preview[i] = endo-epi;
 			break;
 		default:
 			im_extracellular_potential_curve_preview[i] = 0;
@@ -673,6 +751,8 @@ void WavePropagationForceDepolarization::render()
 		}
 
 		m_prop_sim->m_mesh_in_preview = true;
+		m_prop_sim->m_mesh_in_preview_max = 1;
+		m_prop_sim->m_mesh_in_preview_min = 0;
 	}
 }
 
@@ -918,6 +998,8 @@ void WavePropagationLinkTwoGroups::render()
 		}
 
 		m_prop_sim->m_mesh_in_preview = true;
+		m_prop_sim->m_mesh_in_preview_max = 1;
+		m_prop_sim->m_mesh_in_preview_min = 0;
 	}
 }
 
@@ -1192,6 +1274,8 @@ void WavePropagationSetParamsInPlane::render()
 	}
 
 	m_prop_sim->m_mesh_in_preview = true;
+	m_prop_sim->m_mesh_in_preview_max = 1;
+	m_prop_sim->m_mesh_in_preview_min = 0;
 }
 
 void WavePropagationSetParamsInPlane::render_gui()
@@ -1201,6 +1285,10 @@ void WavePropagationSetParamsInPlane::render_gui()
 
 	ImGui::InputReal("Deplorized Duration", &m_params.deplorized_duration);
 	ImGui::InputReal("Amplitude Multiplier", &m_params.amplitude_multiplier);
+	ImGui::InputReal("Endocardial Potential Multiplier", &m_params.endocardial_potential_multiplier);
+	ImGui::InputReal("Epicardial Potential Multiplier", &m_params.epicardial_potential_multiplier);
+	ImGui::InputReal("Epicardial Depolarize Delay", &m_params.epicardial_depolarize_delay);
+	ImGui::InputReal("Epicardial Repolarize Delay", &m_params.epicardial_repolarize_delay);
 }
 
 void WavePropagationSetParamsInPlane::handle_input(const LookAtCamera & camera)
@@ -1219,6 +1307,10 @@ void WavePropagationSetParamsInPlane::serialize(Serializer & ser)
 
 	ser.push_double(m_params.deplorized_duration);
 	ser.push_double(m_params.amplitude_multiplier);
+	ser.push_double(m_params.endocardial_potential_multiplier);
+	ser.push_double(m_params.epicardial_potential_multiplier);
+	ser.push_double(m_params.epicardial_depolarize_delay);
+	ser.push_double(m_params.epicardial_repolarize_delay);
 }
 
 void WavePropagationSetParamsInPlane::deserialize(Deserializer & des)
@@ -1233,6 +1325,10 @@ void WavePropagationSetParamsInPlane::deserialize(Deserializer & des)
 
 	m_params.deplorized_duration = des.parse_double();
 	m_params.amplitude_multiplier = des.parse_double();
+	m_params.endocardial_potential_multiplier = des.parse_double();
+	m_params.epicardial_potential_multiplier = des.parse_double();
+	m_params.epicardial_depolarize_delay = des.parse_double();
+	m_params.epicardial_repolarize_delay = des.parse_double();
 }
 
 // Set Params In Select
@@ -1270,6 +1366,8 @@ void WavePropagationSetParamsInSelect::render()
 		}
 
 		m_prop_sim->m_mesh_in_preview = true;
+		m_prop_sim->m_mesh_in_preview_max = 1;
+		m_prop_sim->m_mesh_in_preview_min = 0;
 	}
 }
 
@@ -1277,6 +1375,10 @@ void WavePropagationSetParamsInSelect::render_gui()
 {
 	ImGui::InputReal("Deplorized Duration", &m_params.deplorized_duration);
 	ImGui::InputReal("Amplitude Multiplier", &m_params.amplitude_multiplier);
+	ImGui::InputReal("Endocardial Potential Multiplier", &m_params.endocardial_potential_multiplier);
+	ImGui::InputReal("Epicardial Potential Multiplier", &m_params.epicardial_potential_multiplier);
+	ImGui::InputReal("Epicardial Depolarize Delay", &m_params.epicardial_depolarize_delay);
+	ImGui::InputReal("Epicardial Repolarize Delay", &m_params.epicardial_repolarize_delay);
 
 	ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 	m_brush.render_gui();
@@ -1309,6 +1411,10 @@ void WavePropagationSetParamsInSelect::serialize(Serializer & ser)
 
 	ser.push_double(m_params.deplorized_duration);
 	ser.push_double(m_params.amplitude_multiplier);
+	ser.push_double(m_params.endocardial_potential_multiplier);
+	ser.push_double(m_params.epicardial_potential_multiplier);
+	ser.push_double(m_params.epicardial_depolarize_delay);
+	ser.push_double(m_params.epicardial_repolarize_delay);
 }
 
 void WavePropagationSetParamsInSelect::deserialize(Deserializer & des)
@@ -1322,5 +1428,9 @@ void WavePropagationSetParamsInSelect::deserialize(Deserializer & des)
 
 	m_params.deplorized_duration = des.parse_double();
 	m_params.amplitude_multiplier = des.parse_double();
+	m_params.endocardial_potential_multiplier = des.parse_double();
+	m_params.epicardial_potential_multiplier = des.parse_double();
+	m_params.epicardial_depolarize_delay = des.parse_double();
+	m_params.epicardial_repolarize_delay = des.parse_double();
 }
 

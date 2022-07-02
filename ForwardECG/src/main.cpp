@@ -3687,7 +3687,14 @@ int main()
 		return result;
 	}
 
-	app.run();
+	try
+	{
+		app.run();
+	}
+	catch (std::exception e)
+	{
+		printf("Caught exception: %s\n", e.what());
+	}
 
     return 0;
 }
