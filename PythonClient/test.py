@@ -31,6 +31,27 @@ input("Press enter to continue...")
 
 
 
+
+# test get_tmp_bsp_values_probes_train
+print("Test get_tmp_bsp_values_probes_train")
+tmp_values, bsp_values = c.get_tmp_bsp_values_probes_train(5000)
+print("tmp_values: {}x{}, bsp_values: {}x{}".format(len(tmp_values), len(tmp_values[0]), len(bsp_values), len(bsp_values[0])))
+print("")
+
+# pause
+input("Press enter to continue...")
+
+# test set_tmp_values with edited tmp values
+print("Test set_tmp_values")
+c.set_tmp_values(tmp_values)
+print("")
+
+# pause
+input("Press enter to continue...")
+
+
+
+
 # test set_tmp_values with edited tmp values
 print("Test set_tmp_values with edited tmp values")
 # zero the 2nd half of tmp_values

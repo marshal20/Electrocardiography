@@ -110,6 +110,7 @@ enum RequestType
 	REQUEST_SET_TMP_VALUES = 8,
 	REQUEST_GET_TMP_BSP_VALUES_PROBES = 9,
 	REQUEST_GET_TMP_BSP_VALUES_PROBES_2 = 10,
+	REQUEST_GET_TMP_BSP_VALUES_PROBES_TRAIN = 11,
 };
 
 static std::string request_type_to_string(const RequestType req_type)
@@ -136,6 +137,8 @@ static std::string request_type_to_string(const RequestType req_type)
 		return "REQUEST_GET_TMP_BSP_VALUES_PROBES";
 	case REQUEST_GET_TMP_BSP_VALUES_PROBES_2:
 		return "REQUEST_GET_TMP_BSP_VALUES_PROBES_2";
+	case REQUEST_GET_TMP_BSP_VALUES_PROBES_TRAIN:
+		return "REQUEST_GET_TMP_BSP_VALUES_PROBES_TRAIN";
 	default:
 		return "UNKNOWN";
 	}
@@ -3451,6 +3454,57 @@ private:
 
 				// serialize data
 				ser.push_u32(sample_count); // sample count
+				ser.push_u32(heart_probes.size()); // heart probes count
+				ser.push_u32(probes.size()); // probes count
+
+				// serialize matrix SAMPLE_COUNTx(HEART_PROBES_COUNT+PROBES_COUNT)
+				for (int i = 0; i < TMP_BSP_values.rows(); i++)
+				{
+					for (int j = 0; j < TMP_BSP_values.cols(); j++)
+					{
+						ser.push_double(TMP_BSP_values(i, j));
+					}
+				}
+			}
+			else if (request_type == REQUEST_GET_TMP_BSP_VALUES_PROBES_TRAIN)
+			{
+				Timer generating_timer;
+				generating_timer.start();
+				Random rnd;
+
+				// samples count
+				uint32_t request_sample_count = des.parse_u32();
+
+				// calculate BSP probes values
+				MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(request_sample_count, heart_probes.size()+probes.size());
+				for (int sample = 0; sample < request_sample_count; sample++)
+				{
+					Real t_current = sample*TMP_dt;
+
+					// update heart potentials
+					for (int i = 0; i < M; i++)
+					{
+						QH(i) = rnd.next_real()*2 - 1;
+					}
+
+					// calculate body surface potentials
+					calculate_torso_potentials();
+
+					for (int i = 0; i < heart_probes.size(); i++)
+					{
+						TMP_BSP_values(sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+					}
+
+					for (int i = 0; i < probes.size(); i++)
+					{
+						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_probe(*torso, probes[i]);
+					}
+				}
+
+				printf("Generated BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
+
+				// serialize data
+				ser.push_u32(request_sample_count); // sample count
 				ser.push_u32(heart_probes.size()); // heart probes count
 				ser.push_u32(probes.size()); // probes count
 
