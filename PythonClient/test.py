@@ -34,7 +34,7 @@ input("Press enter to continue...")
 
 # test get_tmp_bsp_values_probes_train
 print("Test get_tmp_bsp_values_probes_train")
-tmp_values, bsp_values = c.get_tmp_bsp_values_probes_train(5000)
+tmp_values, bsp_values = c.get_tmp_bsp_values_probes_train(250)
 print("tmp_values: {}x{}, bsp_values: {}x{}".format(len(tmp_values), len(tmp_values[0]), len(bsp_values), len(bsp_values[0])))
 print("")
 

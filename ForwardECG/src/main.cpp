@@ -3482,6 +3482,9 @@ private:
 				generating_timer.start();
 				Random rnd;
 
+				// progress bar
+				print_progress_bar(0);
+
 				// samples count
 				uint32_t request_sample_count = des.parse_u32();
 
@@ -3492,10 +3495,12 @@ private:
 					Real t_current = sample*TMP_dt;
 
 					// update heart potentials
-					for (int i = 0; i < M; i++)
+					heart_probes_values_temp.resize(1, heart_probes.size());
+					for (int i = 0; i < heart_probes.size(); i++)
 					{
-						QH(i) = rnd.next_real()*2 - 1;
+						heart_probes_values_temp(i) = rnd.next_real()*2 - 1;
 					}
+					QH = tmp_probes_interpolation_matrix*heart_probes_values_temp;
 
 					// calculate body surface potentials
 					calculate_torso_potentials();
@@ -3509,7 +3514,12 @@ private:
 					{
 						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_probe(*torso, probes[i]);
 					}
+
+					print_progress_bar((sample*100)/request_sample_count);
 				}
+
+				print_progress_bar(100);
+				printf("\n");
 
 				printf("Generated BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
 
