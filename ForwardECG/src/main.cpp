@@ -1413,6 +1413,16 @@ private:
 			// update heart_potential_max_abs_value
 			heart_potential_max_abs_value = rmax(heart_potential_max_abs_value, rabs(max_abs_heart));
 		}
+		else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+		{
+			//heart_potential_max_value = -1e12;
+			//heart_potential_min_value = 1e12;
+			heart_potential_min_value = rmin(heart_potential_min_value, heart_potential_min);
+			heart_potential_max_value = rmax(heart_potential_max_value, heart_potential_max);
+
+			// update heart_potential_max_abs_value
+			heart_potential_max_abs_value = rmax(heart_potential_max_abs_value, rabs(max_abs_heart));
+		}
 
 		// adaptive range
 		if (heart_potential_adaptive_range)
