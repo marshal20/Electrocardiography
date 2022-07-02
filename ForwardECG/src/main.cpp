@@ -1393,26 +1393,11 @@ private:
 			heart_potential_max = rmax(heart_potential_max, heart_mesh->vertices[i].value);
 		}
 
-		torso_potential_max = rmax(torso_potential_max, 0+1e-12);
-		torso_potential_min = rmin(torso_potential_min, 0-1e-12);
+		heart_potential_max = rmax(heart_potential_max, 0+1e-12);
+		heart_potential_min = rmin(heart_potential_min, 0-1e-12);
 		// calculate maximum absolute value
 		Real max_abs_heart = rmax(rabs(heart_potential_max), rabs(heart_potential_min));
 		max_abs_heart = rmax(1e-12, max_abs_heart);
-
-		// adaptive range
-		if (heart_potential_adaptive_range)
-		{
-			heart_potential_min_value = heart_potential_min;
-			heart_potential_max_value = heart_potential_max;
-			heart_potential_max_abs_value = max_abs_heart;
-		}
-		else
-		{
-			heart_potential_min_value = rmin(heart_potential_min_value, heart_potential_min);
-			heart_potential_max_value = rmax(heart_potential_max_value, heart_potential_max);
-			// update heart_potential_max_abs_value
-			heart_potential_max_abs_value = rmax(heart_potential_max_abs_value, rabs(max_abs_heart));
-		}
 
 		// calculate heart maximum and minimum values for the scale
 		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION && !wave_prop.is_mesh_in_preview())
@@ -1424,6 +1409,14 @@ private:
 
 			// update heart_potential_max_abs_value
 			heart_potential_max_abs_value = rmax(heart_potential_max_abs_value, rabs(max_abs_heart));
+		}
+
+		// adaptive range
+		if (heart_potential_adaptive_range)
+		{
+			heart_potential_min_value = heart_potential_min;
+			heart_potential_max_value = heart_potential_max;
+			heart_potential_max_abs_value = max_abs_heart;
 		}
 
 		// update torso potential values at GPU

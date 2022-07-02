@@ -189,6 +189,29 @@ void WavePropagationSimulation::render()
 	// reset m_mesh_in_preview
 	m_mesh_in_preview = false;
 
+	if (m_preview_endocardial_potential)
+	{
+		for (int i = 0; i < m_mesh->vertices.size(); i++)
+		{
+			m_mesh->vertices[i].value = m_potentials_endo(i);
+		}
+
+		m_mesh_in_preview = true;
+		m_mesh_in_preview_max = ACTION_POTENTIAL_PEAK_POTENTIAL;
+		m_mesh_in_preview_min = ACTION_POTENTIAL_RESTING_POTENTIAL;
+	}
+	else if (m_preview_epicardial_potential)
+	{
+		for (int i = 0; i < m_mesh->vertices.size(); i++)
+		{
+			m_mesh->vertices[i].value = m_potentials_epi(i);
+		}
+
+		m_mesh_in_preview = true;
+		m_mesh_in_preview_max = ACTION_POTENTIAL_PEAK_POTENTIAL;
+		m_mesh_in_preview_min = ACTION_POTENTIAL_RESTING_POTENTIAL;
+	}
+
 	// operators render
 	for (int i = 0; i < m_operators.size(); i++)
 	{
@@ -265,28 +288,6 @@ void WavePropagationSimulation::render_gui()
 		// preview (Endocardial Potential or Epicardial Potential)
 		ImGui::Checkbox("Preview Endocardial Potential Wave", &m_preview_endocardial_potential);
 		ImGui::Checkbox("Preview Epicardial Potential Wave", &m_preview_epicardial_potential);
-		if (m_preview_endocardial_potential)
-		{
-			for (int i = 0; i < m_mesh->vertices.size(); i++)
-			{
-				m_mesh->vertices[i].value = m_potentials_endo(i);
-			}
-
-			m_mesh_in_preview = true;
-			m_mesh_in_preview_max = ACTION_POTENTIAL_PEAK_POTENTIAL;
-			m_mesh_in_preview_min = ACTION_POTENTIAL_RESTING_POTENTIAL;
-		}
-		else if (m_preview_epicardial_potential)
-		{
-			for (int i = 0; i < m_mesh->vertices.size(); i++)
-			{
-				m_mesh->vertices[i].value = m_potentials_epi(i);
-			}
-
-			m_mesh_in_preview = true;
-			m_mesh_in_preview_max = ACTION_POTENTIAL_PEAK_POTENTIAL;
-			m_mesh_in_preview_min = ACTION_POTENTIAL_RESTING_POTENTIAL;
-		}
 	}
 	for (int i = 0; i < im_extracellular_potential_curve_preview.size(); i++)
 	{
