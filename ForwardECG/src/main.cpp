@@ -1291,6 +1291,16 @@ private:
 
 	void render()
 	{
+		// clear buffers
+		gldev->clearColorBuffer(color_background.r, color_background.g, color_background.b, color_background.a);
+		gldev->depthTest(STATE_ENABLED);
+		gldev->depthFunc(COMPARISON_LESS);
+		gldev->clearDepthBuffer(1.0);
+
+		// set alpha mode
+		gldev->setAlpha(Alpha{ true, Alpha::SRC_ALPHA, Alpha::ONE_MINUS_SRC_ALPHA });
+
+
 		// calculate torso maximum and minimum values
 		Real torso_potential_max = -1e12;
 		Real torso_potential_min = 1e12;
@@ -1309,11 +1319,21 @@ private:
 
 		Real max_abs_torso = rmax(rabs(torso_potential_max), rabs(torso_potential_min));
 
+		// adaptive range
 		if (torso_potential_adaptive_range)
 		{
-			torso_potential_min_value = torso_potential_min;
-			torso_potential_max_value = torso_potential_max;
-			torso_potential_max_abs_value = max_abs_torso;
+			if (torso_potential_adaptive_range_limit)
+			{
+				torso_potential_min_value = torso_potential_min;
+				torso_potential_max_value = torso_potential_max;
+				torso_potential_max_abs_value = max_abs_torso;
+			}
+			else
+			{
+				torso_potential_min_value = torso_potential_min;
+				torso_potential_max_value = torso_potential_max;
+				torso_potential_max_abs_value = max_abs_torso;
+			}
 		}
 		else
 		{
@@ -1354,9 +1374,11 @@ private:
 			}
 		}
 
+		// prepare renderer 2D
+		Renderer3D::setStyle(Renderer3D::Style(true, 2, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
+		Renderer3D::setProjection(camera.calculateViewProjection());
 
 		// render wave propagation
-		Renderer3D::setProjection(camera.calculateViewProjection());
 		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
 		{
 			wave_prop.render();
@@ -1377,6 +1399,21 @@ private:
 		Real max_abs_heart = rmax(rabs(heart_potential_max), rabs(heart_potential_min));
 		max_abs_heart = rmax(1e-12, max_abs_heart);
 
+		// adaptive range
+		if (heart_potential_adaptive_range)
+		{
+			heart_potential_min_value = heart_potential_min;
+			heart_potential_max_value = heart_potential_max;
+			heart_potential_max_abs_value = max_abs_heart;
+		}
+		else
+		{
+			heart_potential_min_value = rmin(heart_potential_min_value, heart_potential_min);
+			heart_potential_max_value = rmax(heart_potential_max_value, heart_potential_max);
+			// update heart_potential_max_abs_value
+			heart_potential_max_abs_value = rmax(heart_potential_max_abs_value, rabs(max_abs_heart));
+		}
+
 		// calculate heart maximum and minimum values for the scale
 		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION && !wave_prop.is_mesh_in_preview())
 		{
@@ -1393,15 +1430,6 @@ private:
 		heart_mesh->update_gpu_buffers();
 
 
-		// clear buffers
-		gldev->clearColorBuffer(color_background.r, color_background.g, color_background.b, color_background.a);
-		gldev->depthTest(STATE_ENABLED);
-		gldev->depthFunc(COMPARISON_LESS);
-		gldev->clearDepthBuffer(1.0);
-
-		// set alpha mode
-		gldev->setAlpha(Alpha{ true, Alpha::SRC_ALPHA, Alpha::ONE_MINUS_SRC_ALPHA });
-
 		// set mesh plot ambient
 		mpr->set_ambient(mesh_plot_ambient);
 		mpr->set_specular(mesh_plot_specular);
@@ -1410,7 +1438,7 @@ private:
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
 		if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION && wave_prop.is_mesh_in_preview())
 		{
-			mpr->set_values_range(heart_potential_min, heart_potential_max);
+			mpr->set_values_range(wave_prop.get_mesh_in_preview_min(), wave_prop.get_mesh_in_preview_max());
 		}
 		else if (heart_use_separate_min_max_range)
 		{
@@ -1448,7 +1476,6 @@ private:
 		// render dipole
 		gldev->depthTest(STATE_DISABLED); // disable depth testing
 		Renderer3D::setStyle(Renderer3D::Style(true, dipole_vector_thickness, { 0, 0, 0, 1 }, true, { 0.75, 0, 0 ,1 }));
-		Renderer3D::setProjection(camera.calculateViewProjection());
 		Renderer3D::drawLine(eigen2glm(dipole_pos), eigen2glm(dipole_pos+dipole_vec*dipole_vector_scale));
 
 		// render dipole locus
@@ -1505,6 +1532,8 @@ private:
 			Renderer3D::drawPolygon(&dipole_locus[0], dipole_locus.size(), false);
 		}
 		*/
+
+		gldev->depthTest(STATE_DISABLED); // disable depth testing
 
 		// render probes
 		for (int i = 0; i < probes.size(); i++)
@@ -2054,6 +2083,7 @@ private:
 		// Torso Potential Range
 		ImGui::Checkbox("Torso Use Separate Min Max For The Range", &torso_use_separate_min_max_range);
 		ImGui::Checkbox("Torso Potential Adaptive Range (Each Frame Separate)", &torso_potential_adaptive_range);
+		ImGui::Checkbox("Torso Potential Adaptive Range Limit", &torso_potential_adaptive_range_limit);
 		ImGui::DragReal("Torso Plot Scale (max absolute value)", &torso_potential_max_abs_value, 0.001);
 		ImGui::DragReal("Torso Plot max value", &torso_potential_max_value, 0.001);
 		ImGui::DragReal("Torso Plot min value", &torso_potential_min_value, 0.001);
@@ -2065,6 +2095,8 @@ private:
 		}
 		// Heart Potential Range
 		ImGui::Checkbox("Heart Use Separate Min Max For The Range", &heart_use_separate_min_max_range);
+		ImGui::Checkbox("Heart Potential Adaptive Range (Each Frame Separate)", &heart_potential_adaptive_range);
+		ImGui::Checkbox("Heart Potential Adaptive Range Limit", &heart_potential_adaptive_range_limit);
 		ImGui::DragReal("Heart Plot Scale (max absolute value)", &heart_potential_max_abs_value, 0.001);
 		ImGui::DragReal("Heart Plot max value", &heart_potential_max_value, 0.001);
 		ImGui::DragReal("Heart Plot min value", &heart_potential_min_value, 0.001);
@@ -3526,11 +3558,14 @@ private:
 	// Torso potentials range
 	bool torso_use_separate_min_max_range = false;
 	bool torso_potential_adaptive_range = false;
+	bool torso_potential_adaptive_range_limit = true;
 	Real torso_potential_max_abs_value = 0;
 	Real torso_potential_max_value = -1e12;
 	Real torso_potential_min_value = 1e12;
 	// Heart potentials range
 	bool heart_use_separate_min_max_range = false;
+	bool heart_potential_adaptive_range = false;
+	bool heart_potential_adaptive_range_limit = true;
 	Real heart_potential_max_abs_value = 0;
 	Real heart_potential_max_value = -1e12;
 	Real heart_potential_min_value = 1e12;

@@ -19,6 +19,7 @@ class WavePropagationForceDepolarization;
 class WavePropagationLinkTwoGroups;
 class WavePropagationConductionPath;
 class WavePropagationSetParamsInPlane;
+class WavePropagationSetParamsInSelect;
 
 class WavePropagationSimulation
 {
@@ -39,6 +40,8 @@ public:
 	void render_gui();
 	void handle_input(const LookAtCamera& camera);
 	bool is_mesh_in_preview();
+	Real get_mesh_in_preview_min();
+	Real get_mesh_in_preview_max();
 
 private:
 	void recalculate_links();
@@ -74,6 +77,8 @@ private:
 	MeshPlot* m_mesh = nullptr;
 	Vector3<Real> m_mesh_pos = { 0, 0, 0 };
 	bool m_mesh_in_preview = false;
+	Real m_mesh_in_preview_min = 0;
+	Real m_mesh_in_preview_max = 1;
 	Real m_t; // simulation time
 	Real m_duration = 1; // simulation duration
 	Real m_dt = 0.001; // simulation time step
@@ -102,6 +107,7 @@ private:
 	friend class WavePropagationLinkTwoGroups;
 	friend class WavePropagationConductionPath;
 	friend class WavePropagationSetParamsInPlane;
+	friend class WavePropagationSetParamsInSelect;
 
 };
 
@@ -274,4 +280,28 @@ private:
 	WavePropagationSimulation::VertexParams m_params = { 0.250, 1 };
 
 };
+
+class WavePropagationSetParamsInSelect : public WavePropagationOperator
+{
+public:
+	WavePropagationSetParamsInSelect(WavePropagationSimulation* prop_sim, const Vector3<Real>& point = { 0, 0, 0 }, const Vector3<Real>& normal = { 0, 0, 1 });
+	virtual ~WavePropagationSetParamsInSelect() = default;
+
+	virtual void apply_reset();
+
+	virtual void render() override;
+	virtual void render_gui() override;
+	virtual void handle_input(const LookAtCamera& camera) override;
+
+	virtual void serialize(Serializer& ser) override;
+	virtual void deserialize(Deserializer& des) override;
+
+private:
+	std::vector<bool> m_selected;
+	WavePropagationSimulation::VertexParams m_params = { 0.200, 1 };
+	CircularBrush m_brush;
+	bool m_brush_select = true;
+	bool m_view_drawing = false;
+};
+
 

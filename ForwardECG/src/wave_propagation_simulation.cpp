@@ -291,8 +291,8 @@ void WavePropagationSimulation::render_gui()
 	}
 
 	// selected operator add
-	const char* im_add_operator_type_items[] = { "Plane Cut", "Force Depolarization", "Link Two Groups", "Conduction Path", "Set Params In Plane"};
-	ImGui::Combo("Add Operator Type", &m_selected_operator_add, im_add_operator_type_items, 5);
+	const char* im_add_operator_type_items[] = { "Plane Cut", "Force Depolarization", "Link Two Groups", "Conduction Path", "Set Params In Plane", "Set Params In Select"};
+	ImGui::Combo("Add Operator Type", &m_selected_operator_add, im_add_operator_type_items, 6);
 	if (ImGui::Button("Add Operator") && m_selected_operator_add != -1)
 	{
 		switch (m_selected_operator_add)
@@ -311,6 +311,9 @@ void WavePropagationSimulation::render_gui()
 			break;
 		case 4:
 			m_operators.push_back(std::shared_ptr<WavePropagationSetParamsInPlane>(new WavePropagationSetParamsInPlane(this, m_mesh_pos + Vector3<Real>(0, 0, 0), { -1, 1, 0 })));
+			break;
+		case 5:
+			m_operators.push_back(std::shared_ptr<WavePropagationSetParamsInSelect>(new WavePropagationSetParamsInSelect(this)));
 			break;
 		default:
 			break;
@@ -394,6 +397,16 @@ bool WavePropagationSimulation::is_mesh_in_preview()
 	return m_mesh_in_preview;
 }
 
+Real WavePropagationSimulation::get_mesh_in_preview_min()
+{
+	return m_mesh_in_preview_min;
+}
+
+Real WavePropagationSimulation::get_mesh_in_preview_max()
+{
+	return m_mesh_in_preview_max;
+}
+
 void WavePropagationSimulation::recalculate_links()
 {
 	m_links.clear();
@@ -466,6 +479,10 @@ bool WavePropagationSimulation::load_from_file(const std::string& path)
 		else if (operator_type == "Set Params In Plane")
 		{
 			m_operators.push_back(std::shared_ptr<WavePropagationSetParamsInPlane>(new WavePropagationSetParamsInPlane(this)));
+		}
+		else if (operator_type == "Set Params In Select")
+		{
+			m_operators.push_back(std::shared_ptr<WavePropagationSetParamsInSelect>(new WavePropagationSetParamsInSelect(this)));
 		}
 		else
 		{
@@ -723,12 +740,10 @@ void CircularBrush::render()
 	// render drawing preview
 	if (m_enable_drawing && m_drawing_is_intersected && m_drawing_values_preview.size() >= 2)
 	{
-		//gdevGet()->depthTest(STATE_DISABLED);
 		gdevGet()->depthTest(STATE_ENABLED);
 		Renderer3D::setStyle(Renderer3D::Style(true, 1, { 1, 1, 1, 1 }, false, { 0.75, 0, 0, 0.2 }));
 		m_drawing_values_preview.push_back(m_drawing_values_preview[0]);
 		Renderer3D::drawPolygon(&m_drawing_values_preview[0], m_drawing_values_preview.size(), false);
-		//gdevGet()->depthTest(STATE_ENABLED);
 	}
 
 }
@@ -1215,6 +1230,95 @@ void WavePropagationSetParamsInPlane::deserialize(Deserializer & des)
 	m_normal.x() = des.parse_double();
 	m_normal.y() = des.parse_double();
 	m_normal.z() = des.parse_double();
+
+	m_params.deplorized_duration = des.parse_double();
+	m_params.amplitude_multiplier = des.parse_double();
+}
+
+// Set Params In Select
+
+WavePropagationSetParamsInSelect::WavePropagationSetParamsInSelect(WavePropagationSimulation * prop_sim, const Vector3<Real>& point, const Vector3<Real>& normal)
+	:WavePropagationOperator(prop_sim, "Set Params In Select")
+{
+	if (m_prop_sim->m_mesh)
+	{
+		m_selected.resize(m_prop_sim->m_mesh->vertices.size());
+	}
+}
+
+void WavePropagationSetParamsInSelect::apply_reset()
+{
+	for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
+	{
+		if (m_selected[i])
+		{
+			m_prop_sim->m_params[i] = m_params;
+		}
+	}
+}
+
+void WavePropagationSetParamsInSelect::render()
+{
+	m_brush.render();
+
+	// update mesh values
+	if (m_view_drawing)
+	{
+		for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
+		{
+			m_prop_sim->m_mesh->vertices[i].value = 0*(!m_selected[i]) + 1*m_selected[i];
+		}
+
+		m_prop_sim->m_mesh_in_preview = true;
+	}
+}
+
+void WavePropagationSetParamsInSelect::render_gui()
+{
+	ImGui::InputReal("Deplorized Duration", &m_params.deplorized_duration);
+	ImGui::InputReal("Amplitude Multiplier", &m_params.amplitude_multiplier);
+
+	ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+	m_brush.render_gui();
+	ImGui::Checkbox("Select", &m_brush_select);
+	ImGui::Checkbox("View Drawing", &m_view_drawing);
+}
+
+void WavePropagationSetParamsInSelect::handle_input(const LookAtCamera & camera)
+{
+	m_selected.resize(m_prop_sim->m_mesh->vertices.size());
+
+	m_brush.handle_input(camera, m_prop_sim->m_mesh, m_prop_sim->m_mesh_pos);
+
+	for (int i = 0; i < m_brush.get_intersected().size(); i++)
+	{
+		if (m_brush.get_intersected()[i])
+		{
+			m_selected[i] = m_brush_select;
+		}
+	}
+}
+
+void WavePropagationSetParamsInSelect::serialize(Serializer & ser)
+{
+	ser.push_u32(m_selected.size());
+	for (int i = 0; i < m_selected.size(); i++)
+	{
+		ser.push_u8(m_selected[i]);
+	}
+
+	ser.push_double(m_params.deplorized_duration);
+	ser.push_double(m_params.amplitude_multiplier);
+}
+
+void WavePropagationSetParamsInSelect::deserialize(Deserializer & des)
+{
+	uint32_t selected_count = des.parse_u32();
+	m_selected.resize(selected_count);
+	for (int i = 0; i < selected_count; i++)
+	{
+		m_selected[i] = des.parse_u8();
+	}
 
 	m_params.deplorized_duration = des.parse_double();
 	m_params.amplitude_multiplier = des.parse_double();
