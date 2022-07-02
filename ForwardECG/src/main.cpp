@@ -2300,6 +2300,14 @@ private:
 			probes = front_probes;
 			probes.insert(probes.end(), back_probes.begin(), back_probes.end());
 		}
+		if (ImGui::Button("Cast Torso Probes In Plane (Front Only)"))
+		{
+			probes = cast_probes_in_plane("B_F", *torso, torso_cast_probes_rows, torso_cast_probes_cols, 1, -1, torso_cast_probes_x_min, torso_cast_probes_x_max, torso_cast_probes_y_min, torso_cast_probes_y_max);
+		}
+		if (ImGui::Button("Cast Torso Probes In Plane (Back Only)"))
+		{
+			probes = cast_probes_in_plane("B_B", *torso, torso_cast_probes_rows, torso_cast_probes_cols, -1, 1, torso_cast_probes_x_min, torso_cast_probes_x_max, torso_cast_probes_y_min, torso_cast_probes_y_max);
+		}
 		// Import probes locations
 		if (ImGui::Button("Import probes"))
 		{
