@@ -3,6 +3,7 @@
 #include <math.h>
 #include <vector>
 #include <thread>
+#include <memory>
 #include "opengl/gl_headers.h"
 #include <GLFW/glfw3.h>
 #include "window.h"
@@ -428,9 +429,16 @@ public:
 		heart_conductivity = 10;
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
-		heart_mesh = load_mesh_plot("models/heart_model_5_fixed.fbx");
+		heart_mesh = load_mesh_plot("models/heart_model_6.fbx");
 		heart_action_potential_params.resize(heart_mesh->vertices.size(), 
 			ActionPotentialParameters{ ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, ACTION_POTENTIAL_DEPOLARIZATION_TIME, ACTION_POTENTIAL_REPOLARIZATION_TIME });
+		// heart mesh groups
+		for (int i = 0; i < heart_mesh->groups_vertices.size(); i++)
+		{
+			std::shared_ptr<glFrameBuffer> new_fb = std::shared_ptr<glFrameBuffer>(glFrameBuffer::create({ glTexture::create(width, height, FORMAT_RGBA, TYPE_FLOAT) }, glTexture::create(width, height, Format::FORMAT_DEPTH, Type::TYPE_FLOAT)));
+			heart_mesh_groups_frame_buffers.push_back(new_fb);
+		}
+		heart_mesh_groups_opacity.resize(heart_mesh->groups_vertices.size(), 1.0);
 
 		// torso mesh plot
 		torso = new MeshPlot();
@@ -488,6 +496,11 @@ public:
 			// resize frame buffer with window resize
 			torso_fb->resize(width, height);
 			Input::setWindowSize(width, height);
+			// groups fb
+			for (std::shared_ptr<glFrameBuffer> group_fb : heart_mesh_groups_frame_buffers)
+			{
+				group_fb->resize(width, height);
+			}
 
 
 			// timer
@@ -873,6 +886,12 @@ private:
 
 	void calculate_transfer_matrix()
 	{
+		// TODO: REMOVE
+		// SKIP TRANSFER MATRIX CALCULATIONS
+		ZBH = MatrixX<Real>::Zero(N, M);
+		return;
+
+
 		/*
 		// BEM solver (bounded conductor) for the heart and dipole
 		// Q = B - AQ
@@ -1178,9 +1197,11 @@ private:
 
 		// TODO: Restore
 		
+		
 		// ZBH = PBB^-1 * PBH
 		ZBH = PBB.inverse() * PBH; // without potential gradient effect
 		
+
 		//ZBH = MatrixX<Real>::Zero(N, M);
 
 		//ZBH = PBH; // without potential gradient effect
@@ -1432,7 +1453,7 @@ private:
 			heart_potential_max_abs_value = max_abs_heart;
 		}
 
-		// update torso potential values at GPU
+		// update heart potential values at GPU
 		heart_mesh->update_gpu_buffers();
 
 
@@ -1454,12 +1475,39 @@ private:
 		{
 			mpr->set_values_range(-heart_potential_max_abs_value, heart_potential_max_abs_value);
 		}
-		mpr->render_mesh_plot(translate(eigen2glm(heart_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
+		// render heart mesh into separate frame buffers then to the main buffer
+		for (int i = 0; i < heart_mesh->groups_vertices.size(); i++)
+		{
+			// select only heart mesh vertices in group
+			for (MeshPlotVertex& vertex : heart_mesh->vertices)
+			{
+				vertex.opacity = vertex.group == i ? 1 : 0;
+			}
+			heart_mesh->update_gpu_buffers();
+
+			// render heart mesh group to a frame buffer
+			heart_mesh_groups_frame_buffers[i]->bind();
+			gldev->clearColorBuffer(0, 0, 0, 0);
+			gldev->clearDepthBuffer(1.0);
+			gldev->depthTest(STATE_ENABLED);
+			mpr->set_colors(color_p, color_n);
+			mpr->set_view_projection_matrix(camera.calculateViewProjection());
+			mpr->set_opacity_threshold(0.5);
+			mpr->render_mesh_plot(translate(eigen2glm(heart_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
+			torso_fb->unbind();
+			gldev->bindBackbuffer();
+
+			// render torso_fb texture
+			gldev->depthTest(STATE_DISABLED);
+			Renderer2D::setProjection(ortho(0, width, height, 0, -1, 1));
+			Renderer2D::drawTexture({ width/2, height/2 }, { width, height }, heart_mesh_groups_frame_buffers[i]->getColorTexture(0), { 1, 1, 1, heart_mesh_groups_opacity[i]});
+		}
 
 		// render torso to torso_fb
 		torso_fb->bind();
 		gldev->clearColorBuffer(0, 0, 0, 0);
 		gldev->clearDepthBuffer(1.0);
+		gldev->depthTest(STATE_ENABLED);
 		const Real alpha = 1;
 		mpr->set_colors(color_p, color_n);
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
@@ -1475,6 +1523,7 @@ private:
 		torso_fb->unbind();
 		gldev->bindBackbuffer();
 		// render torso_fb texture
+		gldev->depthTest(STATE_DISABLED);
 		Renderer2D::setProjection(ortho(0, width, height, 0, -1, 1));
 		Renderer2D::drawTexture({ width/2, height/2 }, { width, height }, torso_fb->getColorTexture(0), {1, 1, 1, torso_opacity});
 
@@ -2065,6 +2114,19 @@ private:
 		}
 		ImGui::SliderFloat("Rotation Speed (Hz)", &camera_rotation_speed, -2, 2);
 		ImGui::SliderFloat("Torso Opacity", &torso_opacity, 0, 1);
+		// heart groups opacity
+		if (ImGui::BeginTable("Heart Mesh Groups Opacity", heart_mesh_groups_opacity.size(), ImGuiTableFlags_Resizable | ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_Borders))
+		{
+			for (int i = 0; i < heart_mesh_groups_opacity.size(); i++)
+			{
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+				ImGui::Text("Group(%d)", i);
+				ImGui::TableNextColumn();
+				ImGui::SliderFloat((std::string("Opacity_") + std::to_string(i)).c_str(), &heart_mesh_groups_opacity[i], 0, 1);
+			}
+			ImGui::EndTable();
+		}
 		ImGui::SliderFloat("Mesh Plot Ambient", &mesh_plot_ambient, 0, 1);
 		ImGui::SliderFloat("Mesh Plot Specular", &mesh_plot_specular, 1, 10);
 		ImGui::ColorEdit4("Background Color", (float*)&color_background);
@@ -3644,6 +3706,9 @@ private:
 	Real heart_potential_max_abs_value = 0;
 	Real heart_potential_max_value = -1e12;
 	Real heart_potential_min_value = 1e12;
+	// Heart groups render option
+	std::vector<std::shared_ptr<glFrameBuffer>> heart_mesh_groups_frame_buffers;
+	std::vector<float> heart_mesh_groups_opacity;
 
 	// probes
 	bool adding_probe = false;
@@ -3735,7 +3800,7 @@ private:
 	// transfer matrix parameters
 	Real close_range_threshold = 0;
 	Real r_power = 2;
-	bool ignore_negative_dot_product = true;
+	bool ignore_negative_dot_product = false;
 
 	// wave propagation
 	WavePropagationSimulation wave_prop;

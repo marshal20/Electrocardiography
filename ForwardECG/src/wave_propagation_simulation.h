@@ -173,7 +173,7 @@ private:
 class CircularBrush
 {
 public:
-	CircularBrush(bool enable_drawing = true, Real brush_radius = 0.1, bool only_vertices_facing_camera = true);
+	CircularBrush(bool enable_drawing = true, Real brush_radius = 0.01, bool only_vertices_facing_camera = true);
 	~CircularBrush() = default;
 	
 	void render();

@@ -8,6 +8,7 @@
 #include "opengl/gl_vertex_buffer.h"
 #include "opengl/gl_index_buffer.h"
 #include "opengl/gl_vertex_layout.h"
+#include <algorithm>
 
 
 #define MAX_DEPTH 10
@@ -47,7 +48,7 @@ static void process_node(aiNode* node, const aiScene* scene, MeshPlot& mesh_plot
 		{
 			glm::vec3 pos = aivec3_convert(mesh->mVertices[j]);
 			glm::vec3 normal = aivec3_convert(mesh->mNormals[j]);
-			mesh_plot.vertices.push_back({ pos, normal, 0 });
+			mesh_plot.vertices.push_back({ pos, normal, 0, 1.0, -1 });
 		}
 		// Load indecies.
 		for (int k = 0; k < mesh->mNumFaces; k++)
@@ -143,6 +144,77 @@ static void fix_mesh_plot_normals(MeshPlot* mesh)
 	}
 }
 
+static void create_mesh_vertices_graph(MeshPlot* mesh)
+{
+	// resize vertex_neighbour_vertices to be the same size as vertex count
+	mesh->vertex_neighbour_vertices.resize(mesh->vertices.size());
+
+	// add connections based on shared triangles
+	for (const MeshPlotFace& face : mesh->faces)
+	{
+		// 1st vertex
+		mesh->vertex_neighbour_vertices[face.idx[0]].push_back(face.idx[1]);
+		mesh->vertex_neighbour_vertices[face.idx[0]].push_back(face.idx[2]);
+		// 2nd vertex
+		mesh->vertex_neighbour_vertices[face.idx[1]].push_back(face.idx[0]);
+		mesh->vertex_neighbour_vertices[face.idx[1]].push_back(face.idx[2]);
+		// 3rd vertex
+		mesh->vertex_neighbour_vertices[face.idx[2]].push_back(face.idx[0]);
+		mesh->vertex_neighbour_vertices[face.idx[2]].push_back(face.idx[1]);
+	}
+
+	for (std::vector<int>& neighbours : mesh->vertex_neighbour_vertices)
+	{
+		// sort neighbours
+		std::sort(neighbours.begin(), neighbours.end());
+
+		// remove duplicates
+		neighbours.erase(std::unique(neighbours.begin(), neighbours.end()), neighbours.end());
+	}
+}
+
+// depth first search
+static void discover_vertices_group(MeshPlot* mesh, int starting_vertex_idx, int group_idx)
+{
+	// base case
+	if (mesh->vertices[starting_vertex_idx].group != -1)
+	{
+		return;
+	}
+
+	// assign group index to the starting vertex
+	mesh->vertices[starting_vertex_idx].group = group_idx;
+
+	// discover all neighbours
+	for (int neighbour_idx : mesh->vertex_neighbour_vertices[starting_vertex_idx])
+	{
+		discover_vertices_group(mesh, neighbour_idx, group_idx);
+	}
+}
+
+static void classify_vertices_into_connected_groups(MeshPlot* mesh)
+{
+	int group_idx = 0;
+
+	// classify vertices into groups
+	for (int i = 0; i < mesh->vertices.size(); i++)
+	{
+		if (mesh->vertices[i].group == -1)
+		{
+			discover_vertices_group(mesh, i, group_idx);
+			group_idx++;
+		}
+	}
+
+	// construct the group vertices vector
+	mesh->groups_vertices.resize(group_idx);
+	for (int i = 0; i < mesh->vertices.size(); i++)
+	{
+		mesh->groups_vertices[mesh->vertices[i].group].push_back(i);
+	}
+
+}
+
 MeshPlot* load_mesh_plot(const char* file_name)
 {
 	Assimp::Importer importer;
@@ -166,6 +238,9 @@ MeshPlot* load_mesh_plot(const char* file_name)
 
 	fix_mesh_plot_normals(mesh);
 
+	create_mesh_vertices_graph(mesh);
+	classify_vertices_into_connected_groups(mesh);
+
 	mesh->create_gpu_buffers();
 	mesh->update_gpu_buffers();
 
@@ -183,30 +258,37 @@ static const char* plot_vert = R"(
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in float value;
+layout (location = 3) in float opacity;
+layout (location = 4) in float group;
 
 uniform mat4 projection;
 uniform mat4 model;
 
 layout (location = 0) out float value_out;
 layout (location = 1) out vec3 normal_out;
+layout (location = 2) out float opacity_out;
 
 void main()
 {
 	value_out = value;
 	gl_Position = projection*model*vec4(pos, 1.0); // w = 1 for points, w = 0 for vectors.
 	normal_out = (projection*model*vec4(normal, 0)).xyz;
+	opacity_out = opacity;
+	// ignore group for now (may be used later)
 }
 )";
 static const char* plot_frag = R"(
 #version 330 core
 layout (location = 0) in float value;
 layout (location = 1) in vec3 normal;
+layout (location = 2) in float opacity;
 
 uniform vec4 color_n;
 uniform vec4 color_p;
 uniform float mix_color_hsv; // 0 = RGB, 1 = HSV
 uniform float min_val;
 uniform float max_val;
+uniform float opacity_threshold;
 uniform float ambient;
 uniform float specular;
 
@@ -244,8 +326,14 @@ void main()
 
 	// debug
 	//color = normal/2+0.5 + 0.01*color;
+	
+	// discard fragment if opacity is less than the opacity_threshold
+	if (opacity < opacity_threshold)
+	{
+		discard;
+	}
 
-	FragColor = vec4(color, mix(color_n.a, color_p.a, mix_percentage));
+	FragColor = vec4(color, mix(color_n.a, color_p.a, mix_percentage)*opacity);
 }
 )";
 
@@ -255,7 +343,9 @@ MeshPlotRenderer::MeshPlotRenderer()
 	m_vertex_layout = gdevGet()->createVertexLayout({
 		{VertexLayoutElement::VEC3, "pos"},
 		{VertexLayoutElement::VEC3, "normal"},
-		{VertexLayoutElement::FLOAT, "value"}
+		{VertexLayoutElement::FLOAT, "value"},
+		{VertexLayoutElement::FLOAT, "opacity"},
+		{VertexLayoutElement::INT, "group"}
 		});
 	m_view_matrix = glm::mat4(1);
 	m_color_mix_type = MIX_HSV;
@@ -263,6 +353,7 @@ MeshPlotRenderer::MeshPlotRenderer()
 	m_color_p = glm::vec4(1, 0, 0, 1);
 	m_min_val = -1;
 	m_max_val = 1;
+	m_opacity_threshold = 0;
 	m_ambient = 0.8;
 	m_specular = 5;
 }
@@ -295,6 +386,11 @@ void MeshPlotRenderer::set_values_range(float min_value, float max_value)
 	m_max_val = max_value;
 }
 
+void MeshPlotRenderer::set_opacity_threshold(float opacity_threshold)
+{
+	m_opacity_threshold = opacity_threshold;
+}
+
 void MeshPlotRenderer::set_ambient(float ambient)
 {
 	m_ambient = ambient;
@@ -322,6 +418,7 @@ void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* me
 	m_plot_shader->setFloat("mix_color_hsv", m_color_mix_type == MIX_RGB ? 0 : 1);
 	m_plot_shader->setFloat("min_val", m_min_val);
 	m_plot_shader->setFloat("max_val", m_max_val);
+	m_plot_shader->setFloat("opacity_threshold", m_opacity_threshold);
 	m_plot_shader->setFloat("ambient", m_ambient);
 	m_plot_shader->setFloat("specular", m_specular);
 
