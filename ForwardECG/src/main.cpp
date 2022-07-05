@@ -1041,7 +1041,7 @@ private:
 				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
 				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
+				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
 
 				// flip normal
 				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
@@ -1085,7 +1085,7 @@ private:
 				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
 				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
+				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
 
 				// flip normal
 				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
@@ -1214,7 +1214,7 @@ private:
 				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
 				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
+				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
 
 				// flip normal
 				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
