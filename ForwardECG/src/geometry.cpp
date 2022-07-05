@@ -88,14 +88,25 @@ Eigen::Vector2<Real> get_point_in_triangle_basis(const Triangle& triangle, const
 	return { s, t };
 }
 
-bool ray_mesh_intersect(const MeshPlot& mesh, const Eigen::Vector3<Real>& mesh_position, const Ray& ray, Real& t, int& tri_idx)
+bool ray_mesh_intersect(const MeshPlot& mesh, const Eigen::Vector3<Real>& mesh_position, const Ray& ray, Real& t, int& tri_idx, int group_index)
 {
 	bool intersected = false;
 	Real min_t = INFINITY;
+	tri_idx = -1;
 
 	for (int i = 0; i < mesh.faces.size(); i++)
 	{
 		const MeshPlotFace& face = mesh.faces[i];
+
+		// skip if no vertex is from the selected group
+		if (group_index != -1
+			&& mesh.vertices[face.idx[0]].group != group_index
+			&& mesh.vertices[face.idx[1]].group != group_index
+			&& mesh.vertices[face.idx[2]].group != group_index)
+		{
+			continue;
+		}
+
 		Triangle tri = { mesh_position + glm2eigen(mesh.vertices[face.idx[0]].pos),
 						 mesh_position + glm2eigen(mesh.vertices[face.idx[1]].pos),
 						 mesh_position + glm2eigen(mesh.vertices[face.idx[2]].pos) };
@@ -156,7 +167,7 @@ Eigen::Vector3<Real> calculate_triangle_normal(MeshPlot* mesh, int tri_idx)
 
 
 
-std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_rot)
+std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_rot, const Eigen::Vector3<Real>& rays_origin, int group_index)
 {
 	std::vector<Probe> probes;
 
@@ -171,12 +182,12 @@ std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPl
 			Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
 			ray_direction = rodrigues_rotate(ray_direction, { 0, 0, 1 }, z_rot); // apply rotation
 			ray_direction.normalize();
-			Ray cast_ray = { {0, 0, 0}, ray_direction };
+			Ray cast_ray = { rays_origin, ray_direction };
 
 			// intersect ray with mesh
 			Real t;
 			int tri_idx;
-			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx, group_index))
 			{
 				Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
 				std::string probe_name = prefix + "_" + std::to_string(theta_i) + "_" + std::to_string(phi_i);
@@ -188,7 +199,7 @@ std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPl
 	return probes;
 }
 
-std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_plane, Real z_direction, Real x_min, Real x_max, Real y_min, Real y_max)
+std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_plane, Real z_direction, Real x_min, Real x_max, Real y_min, Real y_max, int group_index)
 {
 	std::vector<Probe> probes;
 
@@ -206,7 +217,7 @@ std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlo
 			// intersect ray with mesh
 			Real t;
 			int tri_idx;
-			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx))
+			if (ray_mesh_intersect(mesh, Vector3<Real>(0, 0, 0), cast_ray, t, tri_idx, group_index))
 			{
 				Vector3<Real> intersection_point = cast_ray.point_at_dir(t);
 				std::string probe_name = prefix + "_" + std::to_string(i) + "_" + std::to_string(j);

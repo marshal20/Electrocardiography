@@ -32,7 +32,7 @@ struct Ray
 
 Eigen::Vector2<Real> get_point_in_triangle_basis(const Triangle& triangle, const Eigen::Vector3<Real>& p);
 
-bool ray_mesh_intersect(const MeshPlot& mesh, const Eigen::Vector3<Real>& mesh_position, const Ray& ray, Real& t, int& tri_idx);
+bool ray_mesh_intersect(const MeshPlot& mesh, const Eigen::Vector3<Real>& mesh_position, const Ray& ray, Real& t, int& tri_idx, int group_index = -1); // -1 group index = all groups
 
 // checks if line (v1, v2) intersected a plane (p, n)
 bool line_plane_intersect(const Eigen::Vector3<Real>& v1, const Eigen::Vector3<Real>& v2, const Eigen::Vector3<Real>& p, const Eigen::Vector3<Real>& n, Real& t);
@@ -46,5 +46,5 @@ Ray camera_screen_to_world_ray(const LookAtCamera& camera, Real x_norm, Real y_n
 
 Eigen::Vector3<Real> calculate_triangle_normal(MeshPlot* mesh, int tri_idx);
 
-std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_rot = 0);
-std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_plane, Real z_direction, Real x_min, Real x_max, Real y_min, Real y_max);
+std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_rot = 0, const Eigen::Vector3<Real>& rays_origin = { 0, 0, 0 }, int group_index = -1);
+std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_plane, Real z_direction, Real x_min, Real x_max, Real y_min, Real y_max, int group_index = -1);

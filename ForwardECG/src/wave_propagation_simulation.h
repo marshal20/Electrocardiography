@@ -35,7 +35,6 @@ public:
 	int get_current_sample();
 	const VectorX<Real>& get_potentials() const;
 	void simulation_step();
-	//void update_mesh_values();
 	void render();
 	void render_gui();
 	void handle_input(const LookAtCamera& camera);
@@ -62,11 +61,6 @@ private:
 	{
 		Real deplorized_duration;
 		Real amplitude_multiplier;
-
-		Real endocardial_potential_multiplier;
-		Real epicardial_potential_multiplier;
-		Real epicardial_depolarize_delay;
-		Real epicardial_repolarize_delay;
 	};
 
 	// vertex link
@@ -81,8 +75,6 @@ private:
 
 	MeshPlot* m_mesh = nullptr;
 	Vector3<Real> m_mesh_pos = { 0, 0, 0 };
-	bool m_preview_endocardial_potential = false;
-	bool m_preview_epicardial_potential = false;
 	bool m_mesh_in_preview = false;
 	Real m_mesh_in_preview_min = 0;
 	Real m_mesh_in_preview_max = 1;
@@ -99,13 +91,11 @@ private:
 	std::vector<VertexVars> m_vars; // vertex vars
 	std::vector<VertexParams> m_params; // vertex params
 	VectorX<Real> m_potentials;
-	VectorX<Real> m_potentials_endo;
-	VectorX<Real> m_potentials_epi;
 	std::vector<std::shared_ptr<WavePropagationOperator>> m_operators;
 	std::vector<bool> m_operators_enable;
 	std::vector<bool> m_operators_render;
 	int m_selected_operator_add = 0;
-	int m_selected_extracellular_potential_curve = 4;
+	int m_selected_extracellular_potential_curve = 2;
 
 	// gui
 	int m_selected_operator = -1;
@@ -173,7 +163,7 @@ private:
 class CircularBrush
 {
 public:
-	CircularBrush(bool enable_drawing = true, Real brush_radius = 0.01, bool only_vertices_facing_camera = true);
+	CircularBrush(bool enable_drawing = false, Real brush_radius = 0.01, bool only_vertices_facing_camera = true);
 	~CircularBrush() = default;
 	
 	void render();
@@ -186,6 +176,8 @@ private:
 	bool m_enable_drawing;
 	Real m_brush_radius;
 	bool m_only_vertices_facing_camera;
+	int m_mesh_groups_count;
+	int m_mesh_group_selected;
 	// preview
 	bool m_drawing_is_intersected;
 	std::vector<glm::vec3> m_drawing_values_preview;
@@ -212,7 +204,7 @@ private:
 	Real m_depolarization_time;
 	CircularBrush m_brush;
 	bool m_brush_select = true;
-	bool m_view_drawing = false;
+	bool m_view_drawing = true;
 };
 
 class WavePropagationLinkTwoGroups : public WavePropagationOperator
@@ -239,7 +231,7 @@ private:
 	std::vector<bool> m_group_b_selected;
 	CircularBrush m_brush;
 	bool m_brush_select = true;
-	bool m_view_drawing = false;
+	bool m_view_drawing = true;
 };
 
 class WavePropagationConductionPath : public WavePropagationOperator
@@ -286,7 +278,7 @@ public:
 private:
 	Vector3<Real> m_point;
 	Vector3<Real> m_normal;
-	WavePropagationSimulation::VertexParams m_params = { 0.250, 1, 1, 1, 0.03, -0.05 };
+	WavePropagationSimulation::VertexParams m_params = { 0.250, 1 };
 
 };
 
@@ -307,10 +299,10 @@ public:
 
 private:
 	std::vector<bool> m_selected;
-	WavePropagationSimulation::VertexParams m_params = { 0.250, 1, 1, 1, 0.03, -0.05 };
+	WavePropagationSimulation::VertexParams m_params = { 0.250, 1 };
 	CircularBrush m_brush;
 	bool m_brush_select = true;
-	bool m_view_drawing = false;
+	bool m_view_drawing = true;
 };
 
 
