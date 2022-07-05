@@ -353,7 +353,11 @@ static bool load_matrix_from_file(const std::string& file_name, MatrixX<Real>& m
 {
 	// read file contents
 	std::vector<uint8_t> contents;
-	file_read_vector(file_name.c_str(), contents);
+	bool result = file_read_vector(file_name.c_str(), contents);
+	if (!result)
+	{
+		return false;
+	}
 
 	Deserializer des(contents);
 
@@ -1805,6 +1809,7 @@ private:
 					}
 					else
 					{
+						printf("Matrix dimension (%dx%d) doesn't match vertex count\n", new_ZBH.rows(), new_ZBH.cols());
 						result = false;
 					}
 				}

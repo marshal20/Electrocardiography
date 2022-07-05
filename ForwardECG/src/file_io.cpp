@@ -57,7 +57,13 @@ bool file_read_vector(const char * file_path, std::vector<uint8_t>& contents_vec
 		return false;
 	}
 
+	// copy buffer into vector
 	contents_vector.resize(contents_size);
+	for (int i = 0; i < contents_size; i++)
+	{
+		contents_vector[i] = contents[i];
+	}
+
 	free(contents);
 	return true;
 }

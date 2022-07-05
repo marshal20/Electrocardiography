@@ -95,7 +95,7 @@ private:
 	std::vector<bool> m_operators_enable;
 	std::vector<bool> m_operators_render;
 	int m_selected_operator_add = 0;
-	int m_selected_extracellular_potential_curve = 2;
+	int m_selected_extracellular_potential_curve = 6;
 	// connect close vertices from different groups
 	Real m_close_vertices_threshold = 0.15;
 	bool m_connect_close_vertices_from_different_groups = true;
