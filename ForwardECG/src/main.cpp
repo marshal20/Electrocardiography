@@ -163,14 +163,11 @@ enum TMPValuesSource
 
 static bool import_tmp_direct_values(const std::string& file_name, MatrixX<Real>& tmp_direct_values, int tmp_points_count)
 {
-	size_t contents_size;
-	uint8_t* contents = file_read(file_name.c_str(), &contents_size);
-	if (!contents)
-	{
-		return false;
-	}
+	// read file contents
+	std::vector<uint8_t> contents;
+	file_read_vector(file_name.c_str(), contents);
 
-	Deserializer des(contents, contents_size);
+	Deserializer des(contents);
 
 	// parse
 
@@ -180,7 +177,6 @@ static bool import_tmp_direct_values(const std::string& file_name, MatrixX<Real>
 	if (cols_count != tmp_points_count)
 	{
 		printf("TMP points count doesn't match\n");
-		free(contents);
 		return false;
 	}
 
@@ -197,7 +193,6 @@ static bool import_tmp_direct_values(const std::string& file_name, MatrixX<Real>
 	// set parameters
 	tmp_direct_values = new_tmp_direct_values;
 
-	free(contents);
 	return true;
 }
 
@@ -331,6 +326,61 @@ static bool dump_matrix_to_csv(const std::string& file_name, const std::vector<s
 	return true;
 }
 
+static bool save_matrix_to_file(const std::string& file_name, const MatrixX<Real>& matrix)
+{
+	Serializer ser;
+
+	// write matrix file header
+	ser.push_string("BinaryMatrixFile");
+	
+	// matrix dimensions
+	ser.push_u32(matrix.rows());
+	ser.push_u32(matrix.cols());
+
+	// values
+	for (int i = 0; i < matrix.rows(); i++)
+	{
+		for (int j = 0; j < matrix.cols(); j++)
+		{
+			ser.push_double(matrix(i, j));
+		}
+	}
+
+	return file_write(file_name.c_str(), ser.get_data());
+}
+
+static bool load_matrix_from_file(const std::string& file_name, MatrixX<Real>& matrix)
+{
+	// read file contents
+	std::vector<uint8_t> contents;
+	file_read_vector(file_name.c_str(), contents);
+
+	Deserializer des(contents);
+
+	// write matrix file header
+	std::string header = des.parse_string();
+	if (header != "BinaryMatrixFile")
+	{
+		return false;
+	}
+
+	// matrix dimensions
+	uint32_t rows_count = des.parse_u32();
+	uint32_t cols_count = des.parse_u32();
+	matrix.resize(rows_count, cols_count);
+
+	// values
+	for (int i = 0; i < rows_count; i++)
+	{
+		for (int j = 0; j < cols_count; j++)
+		{
+			matrix(i, j) = des.parse_double();
+		}
+	}
+
+	return true;
+}
+
 
 enum DrawingMode
 {
@@ -429,7 +479,7 @@ public:
 		heart_conductivity = 10;
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
-		heart_mesh = load_mesh_plot("models/heart_model_6.fbx");
+		heart_mesh = load_mesh_plot("models/heart_model_6.fbx", true);
 		heart_action_potential_params.resize(heart_mesh->vertices.size(), 
 			ActionPotentialParameters{ ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, ACTION_POTENTIAL_DEPOLARIZATION_TIME, ACTION_POTENTIAL_REPOLARIZATION_TIME });
 		// heart mesh groups
@@ -439,13 +489,25 @@ public:
 			heart_mesh_groups_frame_buffers.push_back(new_fb);
 		}
 		heart_mesh_groups_opacity.resize(heart_mesh->groups_vertices.size(), 0.8);
+		heart_mesh_invert_group_normal.resize(heart_mesh->groups_vertices.size(), false);
 
 		// torso mesh plot
-		torso = new MeshPlot();
+		//torso = new MeshPlot();
 		load_torso_model("models/torso_model_fixed.fbx");
 		color_n = { 0, 0, 1, 1 };
 		color_p = { 1, 0, 0, 1 };
 		color_probes = { 0, 0.25, 0, 1 };
+
+		// initialize ZBH to 0
+		ZBH = MatrixX<Real>::Zero(N, M);
+
+		/*
+		// calculate ZBH
+		Timer t;
+		t.start();
+		calculate_transfer_matrix();
+		printf("Calculated transfer matrix in: %.3f seconds\n", t.elapsed_seconds());
+		*/
 
 		// wave propagation
 		wave_prop.set_mesh(heart_mesh, heart_pos);
@@ -874,24 +936,11 @@ private:
 		heart_sigma_p = toso_conductivity; // outside the heart
 		heart_sigma_n = heart_conductivity; // inside the heart
 
-		// calculate IA_inv
-		Timer t;
-		t.start();
-		calculate_transfer_matrix();
-		printf("Calculated transfer matrix in: %.3f seconds\n", t.elapsed_seconds());
-
-
 		return true;
 	}
 
 	void calculate_transfer_matrix()
 	{
-		// TODO: REMOVE
-		// SKIP TRANSFER MATRIX CALCULATIONS
-		//ZBH = MatrixX<Real>::Zero(N, M);
-		//return;
-
-
 		/*
 		// BEM solver (bounded conductor) for the heart and dipole
 		// Q = B - AQ
@@ -994,6 +1043,14 @@ private:
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
 				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
 
+				// flip normal
+				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
+					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[1]].group]
+					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[2]].group])
+				{
+					face_normal = -face_normal;
+				}
+
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Vector3<Real> r_vec = r-center; // r-c
@@ -1029,6 +1086,14 @@ private:
 				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
 				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
+
+				// flip normal
+				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
+					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[1]].group]
+					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[2]].group])
+				{
+					face_normal = -face_normal;
+				}
 
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
@@ -1098,6 +1163,14 @@ private:
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
 				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
 
+				// flip normal
+				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
+					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[1]].group]
+					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[2]].group])
+				{
+					face_normal = -face_normal;
+				}
+
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Vector3<Real> r_vec = r-center; // r-c
@@ -1142,6 +1215,14 @@ private:
 				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
 				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
+
+				// flip normal
+				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
+					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[1]].group]
+					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[2]].group])
+				{
+					face_normal = -face_normal;
+				}
 
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
@@ -1685,11 +1766,78 @@ private:
 		ImGui::InputReal("Close Range Threshold", &close_range_threshold, 0.01, 10);
 		ImGui::InputReal("1/R Power", &r_power, 0.1, 20);
 		ImGui::Checkbox("Ignore Faces Opposite To R Vector", &ignore_negative_dot_product);
+		// heart groups opacity
+		if (ImGui::BeginTable("Heart Mesh Groups Invert Normal", heart_mesh_groups_opacity.size(), ImGuiTableFlags_Resizable | ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_Borders))
+		{
+			for (int i = 0; i < heart_mesh_groups_opacity.size(); i++)
+			{
+				ImGui::TableNextRow();
+				ImGui::TableNextColumn();
+				ImGui::Text("Group(%d)", i);
+				ImGui::TableNextColumn();
+				bool invert = heart_mesh_invert_group_normal[i];
+				ImGui::Checkbox((std::string("Invert_") + std::to_string(i)).c_str(), &invert);
+				heart_mesh_invert_group_normal[i] = invert;
+			}
+			ImGui::EndTable();
+		}
 		// recalculate coefficients matrix
 		if (ImGui::Button("Recalculate Coefficients Matrix"))
 		{
 			calculate_transfer_matrix();
 		}
+		// save and load
+		if (ImGui::Button("Load Coefficients Matrix"))
+		{
+			// save file dialog
+			std::string file_name = save_file_dialog("tmp_bsp_values_csv", "All\0*.*\0");
+
+			// export
+			if (file_name != "")
+			{
+				MatrixX<Real> new_ZBH;
+				bool result = load_matrix_from_file(file_name, new_ZBH);
+				if (result)
+				{
+					if (new_ZBH.size() == ZBH.size())
+					{
+						ZBH = new_ZBH;
+					}
+					else
+					{
+						result = false;
+					}
+				}
+
+				if (result)
+				{
+					printf("Loaded \"%s\" Coefficients Matrix File\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to load \"%s\" Coefficients Matrix File\n", file_name.c_str());
+				}
+			}
+		}
+		if (ImGui::Button("Save Coefficients Matrix"))
+		{
+			// save file dialog
+			std::string file_name = save_file_dialog("tmp_bsp_values_csv", "All\0*.*\0");
+
+			// export
+			if (file_name != "")
+			{
+				if (save_matrix_to_file(file_name, ZBH))
+				{
+					printf("Saved \"%s\" Coefficients Matrix File\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to save \"%s\" Coefficients Matrix File\n", file_name.c_str());
+				}
+			}
+		}
+
 
 		// server
 		//server_address_select
@@ -3730,6 +3878,7 @@ private:
 	//MatrixX<Real> IA_inv_heart;
 	//MatrixX<Real> B_heart;
 	//MatrixX<Real> Q_heart;
+	std::vector<bool> heart_mesh_invert_group_normal;
 
 	// dipole vector source
 	ValuesSource dipole_vec_source = VALUES_SOURCE_CONSTANT;

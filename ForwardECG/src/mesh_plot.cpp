@@ -215,7 +215,7 @@ static void classify_vertices_into_connected_groups(MeshPlot* mesh)
 
 }
 
-MeshPlot* load_mesh_plot(const char* file_name)
+MeshPlot* load_mesh_plot(const char* file_name, bool classify_into_groups)
 {
 	Assimp::Importer importer;
 	importer.SetPropertyInteger(AI_CONFIG_PP_RVC_FLAGS, aiComponent_NORMALS | aiComponent_TANGENTS_AND_BITANGENTS); // remove normals and tangents
@@ -239,7 +239,10 @@ MeshPlot* load_mesh_plot(const char* file_name)
 	fix_mesh_plot_normals(mesh);
 
 	create_mesh_vertices_graph(mesh);
-	classify_vertices_into_connected_groups(mesh);
+	if (classify_into_groups)
+	{
+		classify_vertices_into_connected_groups(mesh);
+	}
 
 	mesh->create_gpu_buffers();
 	mesh->update_gpu_buffers();

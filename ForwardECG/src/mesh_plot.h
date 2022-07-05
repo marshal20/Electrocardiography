@@ -47,7 +47,7 @@ public:
 	void update_gpu_buffers();
 };
 
-MeshPlot* load_mesh_plot(const char* file_name);
+MeshPlot* load_mesh_plot(const char* file_name, bool classify_into_groups = false);
 
 
 enum ColorMixType

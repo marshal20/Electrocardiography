@@ -47,6 +47,21 @@ uint8_t* file_read(const char* file_path, size_t* out_size)
 	return contents;
 }
 
+bool file_read_vector(const char * file_path, std::vector<uint8_t>& contents_vector)
+{
+	// read file contents
+	size_t contents_size;
+	uint8_t* contents = file_read(file_path, &contents_size);
+	if (!contents)
+	{
+		return false;
+	}
+
+	contents_vector.resize(contents_size);
+	free(contents);
+	return true;
+}
+
 
 bool file_write(const char* file_path, const uint8_t* data, size_t size)
 {
