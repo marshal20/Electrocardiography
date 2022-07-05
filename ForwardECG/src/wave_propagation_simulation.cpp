@@ -188,6 +188,9 @@ void WavePropagationSimulation::render_gui()
 	ImGui::InputReal("Wave Depolarization Duration", &m_depolarization_duration);
 	ImGui::InputReal("Depolarization Slope Duration", &m_depolarization_slope_duration);
 	ImGui::InputReal("Repolarization Slope Duration", &m_repolarization_slope_duration);
+	// connect close vertices from different groups
+	ImGui::InputReal("Close Vertices Threshold", &m_close_vertices_threshold);
+	ImGui::Checkbox("Connect Close Vertices From Different Groups", &m_connect_close_vertices_from_different_groups);
 	if (ImGui::Button("Recalculate Links"))
 	{
 		recalculate_links();
@@ -411,6 +414,31 @@ void WavePropagationSimulation::recalculate_links()
 		m_links.push_back({ face.idx[1], face.idx[2], 1, 0, 0 });
 	}
 	
+	// connect close vertices from different groups
+	if (m_connect_close_vertices_from_different_groups)
+	{
+		for (int i = 0; i < m_mesh->vertices.size(); i++)
+		{
+			for (int j = 0; j < m_mesh->vertices.size(); j++)
+			{
+				// skip if in the same group
+				if (m_mesh->vertices[i].group == m_mesh->vertices[j].group)
+				{
+					continue;
+				}
+
+				Real distance_square = 
+					  abs(m_mesh->vertices[i].pos.x - m_mesh->vertices[j].pos.x)
+					+ abs(m_mesh->vertices[i].pos.y - m_mesh->vertices[j].pos.y)
+					+ abs(m_mesh->vertices[i].pos.z - m_mesh->vertices[j].pos.z);
+				if (distance_square <= m_close_vertices_threshold*m_close_vertices_threshold)
+				{
+					m_links.push_back({ i, j, 1, 0, 0 });
+				}
+			}
+		}
+	}
+
 	// apply operators links
 	for (int i = 0; i < m_operators.size(); i++)
 	{
@@ -432,8 +460,10 @@ bool WavePropagationSimulation::load_from_file(const std::string& path)
 
 	Deserializer des(contents, contents_size);
 
-	// check magic number
-	if (des.parse_u32() != 0x1000)
+	//  magic number
+	// check WavePropagationConfiguration header
+	std::string header = des.parse_string();
+	if (header != "WavePropagationConfiguration")
 	{
 		return false;
 	}
@@ -445,6 +475,8 @@ bool WavePropagationSimulation::load_from_file(const std::string& path)
 	m_depolarization_duration = des.parse_double();
 	m_depolarization_slope_duration = des.parse_double();
 	m_repolarization_slope_duration = des.parse_double();
+	m_close_vertices_threshold = des.parse_double();
+	m_connect_close_vertices_from_different_groups = des.parse_u8();
 
 	// deserialize operators
 	uint32_t operators_count = des.parse_u32();
@@ -491,8 +523,8 @@ bool WavePropagationSimulation::save_to_file(const std::string& path)
 {
 	Serializer ser;
 
-	// serialize magic number
-	ser.push_u32(0x1000);
+	// serialize WavePropagationConfiguration header
+	ser.push_string("WavePropagationConfiguration");
 
 	// serialize variables
 	ser.push_double(m_duration);
@@ -501,6 +533,8 @@ bool WavePropagationSimulation::save_to_file(const std::string& path)
 	ser.push_double(m_depolarization_duration);
 	ser.push_double(m_depolarization_slope_duration);
 	ser.push_double(m_repolarization_slope_duration);
+	ser.push_double(m_close_vertices_threshold);
+	ser.push_u8(m_connect_close_vertices_from_different_groups);
 
 	// serialize operators
 	ser.push_u32(m_operators.size());
@@ -749,9 +783,15 @@ void CircularBrush::render_gui()
 	ImGui::Checkbox("Enable Drawing", &m_enable_drawing);
 	ImGui::Checkbox("Draw Only Vertices Facing Camera", &m_only_vertices_facing_camera);
 
-	// heart probe selected group
-	if (ImGui::ListBoxHeader("Mesh Selected Group", m_mesh_groups_count))
+	// mesh select group
+	if (ImGui::ListBoxHeader("Mesh Selected Group", m_mesh_groups_count+1))
 	{
+		// ALL GROUPS
+		if (ImGui::Selectable("ALL GROUPS", -1==m_mesh_group_selected))
+		{
+			m_mesh_group_selected = -1;
+		}
+
 		for (int i = 0; i < m_mesh_groups_count; i++)
 		{
 			std::string name = std::string("Group ") + std::to_string(i);
@@ -854,7 +894,7 @@ void CircularBrush::handle_input(const LookAtCamera & camera, MeshPlot * mesh, c
 		for (int i = 0; i < mesh->vertices.size(); i++)
 		{
 			// skip current vertex if not in the selected group
-			if (m_mesh_group_selected != 0 && mesh->vertices[i].group != m_mesh_group_selected)
+			if (m_mesh_group_selected != -1 && mesh->vertices[i].group != m_mesh_group_selected)
 			{
 				continue;
 			}
@@ -1206,6 +1246,12 @@ void WavePropagationSetParamsInPlane::render()
 	// update mesh values
 	for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
 	{
+		// skip if vertex isn't from the selected group
+		if (m_mesh_group_selected != -1 && m_prop_sim->m_mesh->vertices[i].group != m_mesh_group_selected)
+		{
+			continue;
+		}
+
 		Vector3<Real> vertex_pos = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[i].pos);
 		bool is_selected = ((vertex_pos - m_point).dot(m_normal) > 0);
 		m_prop_sim->m_mesh->vertices[i].value = 0*(!is_selected) + 1*is_selected;
@@ -1220,6 +1266,26 @@ void WavePropagationSetParamsInPlane::render_gui()
 {
 	ImGui::DragVector3Eigen("Point", m_point);
 	ImGui::DragVector3Eigen("Normal", m_normal);
+
+	// mesh select group
+	if (ImGui::ListBoxHeader("Mesh Selected Group", m_prop_sim->m_mesh->groups_vertices.size()+1))
+	{
+		// ALL GROUPS
+		if (ImGui::Selectable("ALL GROUPS", -1==m_mesh_group_selected))
+		{
+			m_mesh_group_selected = -1;
+		}
+
+		for (int i = 0; i < m_prop_sim->m_mesh->groups_vertices.size(); i++)
+		{
+			std::string name = std::string("Group ") + std::to_string(i);
+			if (ImGui::Selectable(name.c_str(), i==m_mesh_group_selected))
+			{
+				m_mesh_group_selected = i;
+			}
+		}
+		ImGui::ListBoxFooter();
+	}
 
 	ImGui::InputReal("Deplorized Duration", &m_params.deplorized_duration);
 	ImGui::InputReal("Amplitude Multiplier", &m_params.amplitude_multiplier);
@@ -1239,6 +1305,8 @@ void WavePropagationSetParamsInPlane::serialize(Serializer & ser)
 	ser.push_double(m_normal.y());
 	ser.push_double(m_normal.z());
 
+	ser.push_i32(m_mesh_group_selected);
+
 	ser.push_double(m_params.deplorized_duration);
 	ser.push_double(m_params.amplitude_multiplier);
 }
@@ -1252,6 +1320,8 @@ void WavePropagationSetParamsInPlane::deserialize(Deserializer & des)
 	m_normal.x() = des.parse_double();
 	m_normal.y() = des.parse_double();
 	m_normal.z() = des.parse_double();
+
+	m_mesh_group_selected = des.parse_i32();
 
 	m_params.deplorized_duration = des.parse_double();
 	m_params.amplitude_multiplier = des.parse_double();

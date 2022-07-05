@@ -888,8 +888,8 @@ private:
 	{
 		// TODO: REMOVE
 		// SKIP TRANSFER MATRIX CALCULATIONS
-		ZBH = MatrixX<Real>::Zero(N, M);
-		return;
+		//ZBH = MatrixX<Real>::Zero(N, M);
+		//return;
 
 
 		/*
@@ -992,7 +992,7 @@ private:
 				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
 				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
+				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
 
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
@@ -1028,7 +1028,7 @@ private:
 				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
 				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
+				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
 
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
@@ -1096,7 +1096,7 @@ private:
 				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
 				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
+				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
 
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
@@ -1141,7 +1141,7 @@ private:
 				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
 				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
 				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
+				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
 
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
@@ -2599,8 +2599,14 @@ private:
 			}
 		}
 		// heart probe selected group
-		if (ImGui::ListBoxHeader("Heart Probe Selected Group", heart_mesh->groups_vertices.size()))
+		if (ImGui::ListBoxHeader("Heart Probe Selected Group", heart_mesh->groups_vertices.size()+1))
 		{
+			// ALL GROUPS
+			if (ImGui::Selectable("ALL GROUPS", -1==heart_probe_selected_group))
+			{
+				heart_probe_selected_group = -1;
+			}
+
 			for (int i = 0; i < heart_mesh->groups_vertices.size(); i++)
 			{
 				std::string name = std::string("Group ") + std::to_string(i);
