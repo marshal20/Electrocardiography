@@ -1857,7 +1857,7 @@ private:
 		if (ImGui::Button("Load Coefficients Matrix"))
 		{
 			// save file dialog
-			std::string file_name = save_file_dialog("tmp_bsp_values_csv", "All\0*.*\0");
+			std::string file_name = open_file_dialog("tmp_bsp_values_csv", "All\0*.*\0");
 
 			// export
 			if (file_name != "")

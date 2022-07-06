@@ -151,34 +151,17 @@ void WavePropagationSimulation::simulation_step()
 			case 2:
 				m_potentials(i) = action_potential_value_with_hyperdepolarizaton(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
 				break;
-			case 3: // dt
-				m_potentials(i) = extracellular_potential(m_t, m_dt, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
-				break;
-			case 4:
-				m_potentials(i) = extracellular_potential_negative_t_wave(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
-				break;
-			case 5:
-				m_potentials(i) = extracellular_potential_positive_t_wave(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
-				break;
-			case 6:
-				m_potentials(i) = extracellular_potential_positive_t_wave_with_over_depolarization(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
-				break;
 			default:
-				m_potentials(i) = 0;
+				m_potentials(i) = ACTION_POTENTIAL_RESTING_POTENTIAL;
 				break;
 			}
-			m_potentials(i) *= m_params[i].amplitude_multiplier;
+
+			// apply the amplitude multiplier
+			m_potentials(i) = ACTION_POTENTIAL_RESTING_POTENTIAL + m_params[i].amplitude_multiplier*(m_potentials(i)-ACTION_POTENTIAL_RESTING_POTENTIAL);
 		}
 		else
 		{
-			if (m_selected_extracellular_potential_curve < 3)
-			{
-				m_potentials(i) = ACTION_POTENTIAL_RESTING_POTENTIAL; //action_potential_value(0, vertex_action_potential_param);
-			}
-			else
-			{
-				m_potentials(i) = 0;
-			}
+			m_potentials(i) = ACTION_POTENTIAL_RESTING_POTENTIAL;
 		}
 	}
 
@@ -241,10 +224,6 @@ void WavePropagationSimulation::render_gui()
 		"Extracellular Potential 1 (OLD)", 
 		"Extracellular Potential 2", 
 		"Extracellular Potential Over Depolarization",
-		"Old Extracellular Potential (dt)",
-		"Extracellular Potential (Negative T-Wave) (dt)",
-		"Extracellular Potential (Positive T-Wave) (dt)",
-		"Extracellular Potential (Positive T-Wave) + Over Depolarization (dt)",
 	};
 	ImGui::Combo("Extracellular Potential Curve", &m_selected_extracellular_potential_curve, im_extracellular_potential_curve_items, 7);
 	static Real preview_dep_time = 0.2;
@@ -267,18 +246,6 @@ void WavePropagationSimulation::render_gui()
 			break;
 		case 2:
 			im_extracellular_potential_curve_preview[i] = action_potential_value_with_hyperdepolarizaton(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
-			break;
-		case 3: // dt
-			im_extracellular_potential_curve_preview[i] = extracellular_potential(t, 1.0f/((float)im_extracellular_potential_curve_preview.size()), preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
-			break;
-		case 4:
-			im_extracellular_potential_curve_preview[i] = extracellular_potential_negative_t_wave(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
-			break;
-		case 5:
-			im_extracellular_potential_curve_preview[i] = extracellular_potential_positive_t_wave(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
-			break;
-		case 6:
-			im_extracellular_potential_curve_preview[i] = extracellular_potential_positive_t_wave_with_over_depolarization(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
 			break;
 		default:
 			im_extracellular_potential_curve_preview[i] = 0;
