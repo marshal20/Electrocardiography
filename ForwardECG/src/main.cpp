@@ -1311,8 +1311,8 @@ private:
 		// TODO: Restore
 		
 		
-		// ZBH = PBB^-1 * PBH
-		ZBH = PBB.inverse() * PBH; // without potential gradient effect
+		// ZBH = - PBB^-1 * PBH
+		ZBH = - PBB.inverse() * PBH; // without potential gradient effect
 		
 
 		//ZBH = MatrixX<Real>::Zero(N, M);
@@ -1592,6 +1592,7 @@ private:
 		{
 			mpr->set_values_range(-heart_potential_max_abs_value, heart_potential_max_abs_value);
 		}
+
 		// render heart mesh into separate frame buffers then to the main buffer
 		for (int i = 0; i < heart_mesh->groups_vertices.size(); i++)
 		{
@@ -1636,6 +1637,36 @@ private:
 		{
 			mpr->set_values_range(-torso_potential_max_abs_value, torso_potential_max_abs_value);
 		}
+
+		// heart element effect
+		if (view_heart_element_selected_by_probe_effect && heart_current_selected_probe != -1)
+		{
+			// calculate the effect
+			static VectorX<Real> element_heart_values;
+			element_heart_values = VectorX<Real>::Zero(M);
+			element_heart_values(heart_mesh->faces[heart_probes[heart_current_selected_probe].triangle_idx].idx[0]) = 1;
+			element_heart_values(heart_mesh->faces[heart_probes[heart_current_selected_probe].triangle_idx].idx[1]) = 1;
+			element_heart_values(heart_mesh->faces[heart_probes[heart_current_selected_probe].triangle_idx].idx[2]) = 1;
+			static VectorX<Real> element_torso_values;
+			element_torso_values = ZBH * element_heart_values;
+
+			// set range
+			Real max_abs_effect = 1e-14;
+			for (int i = 0; i < N; i++)
+			{
+				max_abs_effect = rmax(max_abs_effect, rabs(element_torso_values(i)));
+			}
+			mpr->set_values_range(-max_abs_effect, max_abs_effect);
+
+			// update torso potentials
+			for (int i = 0; i < torso->vertices.size(); i++)
+			{
+				torso->vertices[i].value = element_torso_values(i);
+			}
+
+			torso->update_gpu_buffers();
+		}
+
 		mpr->render_mesh_plot(glm::mat4(1), torso);
 		torso_fb->unbind();
 		gldev->bindBackbuffer();
@@ -2291,6 +2322,7 @@ private:
 		// rendering options
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Text("Rendering Options");
+		ImGui::Checkbox("View Heart Element Effect (Selected by a Probe)", &view_heart_element_selected_by_probe_effect);
 		ImGui::SliderFloat("Dipole Vector Thickness", &dipole_vector_thickness, 1, 20);
 		ImGui::SliderFloat("Heart Render Scale", &heart_render_scale, 0.1, 5);
 		if (ImGui::Checkbox("Rotate Camera", &camera_rotate))
@@ -4038,6 +4070,9 @@ private:
 	MatrixX<Real> tmp_probes_interpolation_matrix; // MxPROBES_COUNT
 	int last_heart_probes_count = 0;
 	Real last_interpolation_power = 3;
+
+	// heart element effect
+	bool view_heart_element_selected_by_probe_effect = false;
 
 	// cast probes
 	int torso_cast_probes_rows = 10;
