@@ -28,6 +28,9 @@ void WavePropagationSimulation::set_mesh(MeshPlot * mesh, const Eigen::Vector3<R
 	m_operators_enable.resize(m_operators.size(), true);
 	m_operators_render.resize(m_operators.size(), false);
 
+	// resize group speeds
+	m_mesh_groups_speed.resize(m_mesh->groups_vertices.size(), 1.0);
+
 	// update variables size and reset
 	m_vars.resize(m_mesh->vertices.size());
 	m_params.resize(m_mesh->vertices.size());
@@ -209,6 +212,19 @@ void WavePropagationSimulation::render_gui()
 	ImGui::InputReal("Repolarization Slope Duration", &m_repolarization_slope_duration);
 	// connect close vertices from different groups
 	ImGui::InputReal("Close Vertices Threshold", &m_close_vertices_threshold);
+	// heart groups opacity
+	if (ImGui::BeginTable("Mesh Groups Speed", m_mesh_groups_speed.size(), ImGuiTableFlags_Resizable | ImGuiTableFlags_NoSavedSettings | ImGuiTableFlags_Borders))
+	{
+		for (int i = 0; i < m_mesh_groups_speed.size(); i++)
+		{
+			ImGui::TableNextRow();
+			ImGui::TableNextColumn();
+			ImGui::Text("Group(%d)", i);
+			ImGui::TableNextColumn();
+			ImGui::InputReal((std::string("Speed_") + std::to_string(i)).c_str(), &m_mesh_groups_speed[i], 0, 1);
+		}
+		ImGui::EndTable();
+	}
 	ImGui::Checkbox("Connect Close Vertices From Different Groups", &m_connect_close_vertices_from_different_groups);
 	ImGui::Checkbox("Connect Close Vertices From The Same Groups", &m_connect_close_vertices_from_same_group);
 	if (ImGui::Button("Recalculate Links"))
@@ -465,7 +481,8 @@ void WavePropagationSimulation::recalculate_links()
 					+ abs(m_mesh->vertices[i].pos.z - m_mesh->vertices[j].pos.z);
 				if (distance_square <= m_close_vertices_threshold*m_close_vertices_threshold)
 				{
-					m_links.push_back({ i, j, 1, 0, 0 });
+					Real speed = m_mesh_groups_speed[m_mesh->vertices[i].group];
+					m_links.push_back({ i, j, speed, 0, 0 });
 				}
 			}
 		}
@@ -500,7 +517,7 @@ bool WavePropagationSimulation::load_from_file(const std::string& path)
 		return false;
 	}
 
-	// serialize variables
+	// deserialize variables
 	m_duration = des.parse_double();
 	m_dt = des.parse_double();
 	m_base_speed = des.parse_double();
@@ -509,6 +526,14 @@ bool WavePropagationSimulation::load_from_file(const std::string& path)
 	m_repolarization_slope_duration = des.parse_double();
 	m_close_vertices_threshold = des.parse_double();
 	m_connect_close_vertices_from_different_groups = des.parse_u8();
+
+	// serialize groups speeds
+	uint32_t groups_speed_size = des.parse_u32(); // size
+	m_mesh_groups_speed.resize(groups_speed_size);
+	for (int i = 0; i < groups_speed_size; i++)
+	{
+		m_mesh_groups_speed[i] = des.parse_double();
+	}
 
 	// deserialize operators
 	uint32_t operators_count = des.parse_u32();
@@ -567,6 +592,13 @@ bool WavePropagationSimulation::save_to_file(const std::string& path)
 	ser.push_double(m_repolarization_slope_duration);
 	ser.push_double(m_close_vertices_threshold);
 	ser.push_u8(m_connect_close_vertices_from_different_groups);
+
+	// serialize groups speeds
+	ser.push_u32(m_mesh_groups_speed.size()); // size
+	for (int i = 0; i < m_mesh_groups_speed.size(); i++)
+	{
+		ser.push_double(m_mesh_groups_speed[i]);
+	}
 
 	// serialize operators
 	ser.push_u32(m_operators.size());
