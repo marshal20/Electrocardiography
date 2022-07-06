@@ -46,5 +46,8 @@ Ray camera_screen_to_world_ray(const LookAtCamera& camera, Real x_norm, Real y_n
 
 Eigen::Vector3<Real> calculate_triangle_normal(MeshPlot* mesh, int tri_idx);
 
-std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_rot = 0, const Eigen::Vector3<Real>& rays_origin = { 0, 0, 0 }, int group_index = -1);
+std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_rot = 0, const Eigen::Vector3<Real>& rays_origin = { 0, 0, 0 }, int group_index = -1, bool cast_from_outside = false);
 std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_plane, Real z_direction, Real x_min, Real x_max, Real y_min, Real y_max, int group_index = -1);
+
+
+std::vector<Real> probe_to_vertices_distance_across_the_surface(const MeshPlot& mesh, const Probe& probe);

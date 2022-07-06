@@ -668,6 +668,14 @@ public:
 			{
 				tmp_probes_interpolation_matrix = MatrixX<Real>::Zero(M, heart_probes.size());
 
+				// calculate distance across the surface from each probe to each vertex
+				std::vector<std::vector<Real>> probes_distances(heart_probes.size());
+				for (int i = 0; i < heart_probes.size(); i++)
+				{
+					probes_distances[i] = probe_to_vertices_distance_across_the_surface(*heart_mesh, heart_probes[i]);
+				}
+
+				// calculate interpolation coefficient for each vertex
 				for (int i = 0; i < M; i++)
 				{
 					Vector3<Real> vertex_pos = glm2eigen(heart_mesh->vertices[i].pos);
@@ -675,7 +683,14 @@ public:
 					// calculate each factor
 					for (int j = 0; j < heart_probes.size(); j++)
 					{
-						Real factor = 1/pow((heart_probes[j].point-vertex_pos).norm(), interpolation_power);
+						// new method
+						Real probe_vertex_distance = probes_distances[j][i];
+						// old method
+						if (use_old_interpolation_method)
+						{
+							probe_vertex_distance = (heart_probes[j].point-vertex_pos).norm();
+						}
+						Real factor = 1/pow(probe_vertex_distance, interpolation_power);
 						//factor = rmin(factor, 1e15);
 						tmp_probes_interpolation_matrix(i, j) = factor;
 					}
@@ -1570,9 +1585,9 @@ private:
 			heart_potential_max_abs_value = max_abs_heart;
 		}
 
+
 		// update heart potential values at GPU
 		heart_mesh->update_gpu_buffers();
-
 
 		// set mesh plot ambient
 		mpr->set_ambient(mesh_plot_ambient);
@@ -1591,6 +1606,30 @@ private:
 		else
 		{
 			mpr->set_values_range(-heart_potential_max_abs_value, heart_potential_max_abs_value);
+		}
+
+		// interpolation preview
+		if (view_interpolation_factor_for_selected_probe && current_selected_probe != -1)
+		{
+			static VectorX<Real> probe_interpolation_effect;
+			probe_interpolation_effect = tmp_probes_interpolation_matrix.col(current_selected_probe);
+
+			// set range
+			Real max_abs_effect = 1e-14;
+			for (int i = 0; i < M; i++)
+			{
+				max_abs_effect = rmax(max_abs_effect, rabs(probe_interpolation_effect(i)));
+			}
+			mpr->set_values_range(-max_abs_effect, max_abs_effect);
+
+			// update torso potentials
+			for (int i = 0; i < heart_mesh->vertices.size(); i++)
+			{
+				heart_mesh->vertices[i].value = probe_interpolation_effect(i);
+			}
+
+			// update heart potential values at GPU
+			heart_mesh->update_gpu_buffers();
 		}
 
 		// render heart mesh into separate frame buffers then to the main buffer
@@ -2086,6 +2125,8 @@ private:
 			ImGui::Text("Current Sample: %d", current_sample);
 			ImGui::DragReal("Interpolation Power", &interpolation_power, 0.1, 1, 12);
 			ImGui::Checkbox("play values one time only", &tmp_direct_values_one_play);
+			ImGui::Checkbox("Use Old Interpolation Method", &use_old_interpolation_method);
+			ImGui::Checkbox("View Interpolation Factors for Selected Probe", &view_interpolation_factor_for_selected_probe);
 			if (tmp_direct_values_one_play)
 			{
 				if (ImGui::Button("Play TMP Again"))
@@ -2884,9 +2925,10 @@ private:
 		heart_cast_probes_cols = clamp_value<int>(heart_cast_probes_cols, 0, 1000000);
 		ImGui::InputReal("Heart Probes Z-rotation (degree)", &heart_cast_probes_z_rot);
 		ImGui::DragVector3Eigen("Heart Probe Cast Sphere Origin (relative)", heart_probe_cast_sphere_origin);
+		ImGui::Checkbox("Heart Probe Cast From Outside", &heart_probes_cast_from_outside);
 		if (ImGui::Button("Cast heart probes in sphere"))
 		{
-			std::vector<Probe> new_probes = cast_probes_in_sphere("H", *heart_mesh, heart_cast_probes_rows, heart_cast_probes_cols, heart_cast_probes_z_rot*PI/180, heart_probe_cast_sphere_origin, heart_probe_selected_group);;
+			std::vector<Probe> new_probes = cast_probes_in_sphere("H", *heart_mesh, heart_cast_probes_rows, heart_cast_probes_cols, heart_cast_probes_z_rot*PI/180, heart_probe_cast_sphere_origin, heart_probe_selected_group, heart_probes_cast_from_outside);
 			if (heart_probes_clear_before_adding)
 			{
 				heart_probes.clear();
@@ -2911,6 +2953,13 @@ private:
 					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
 					ray_direction.normalize();
 					Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+					// cast from the outside
+					if (heart_probes_cast_from_outside)
+					{
+						Ray new_ray = { cast_ray.point_at_dir(100), -cast_ray.direction };
+						cast_ray = new_ray;
+					}
 
 					// intersect ray with mesh
 					Real t;
@@ -2941,6 +2990,13 @@ private:
 					Vector3<Real> ray_direction = { cos(theta)*cos(phi), sin(theta), cos(theta)*sin(phi) };
 					ray_direction.normalize();
 					Ray cast_ray = { {0, 0, 0}, ray_direction };
+
+					// cast from the outside
+					if (heart_probes_cast_from_outside)
+					{
+						Ray new_ray = { cast_ray.point_at_dir(100), -cast_ray.direction };
+						cast_ray = new_ray;
+					}
 
 					// intersect ray with mesh
 					Real t;
@@ -4070,6 +4126,8 @@ private:
 	MatrixX<Real> tmp_probes_interpolation_matrix; // MxPROBES_COUNT
 	int last_heart_probes_count = 0;
 	Real last_interpolation_power = 3;
+	bool use_old_interpolation_method = false;
+	bool view_interpolation_factor_for_selected_probe = false;
 
 	// heart element effect
 	bool view_heart_element_selected_by_probe_effect = false;
@@ -4084,6 +4142,7 @@ private:
 	Real torso_cast_probes_x_max = 0.38;
 	Real torso_cast_probes_y_min = 0;
 	Real torso_cast_probes_y_max = 0.6;
+	bool heart_probes_cast_from_outside = true;
 
 	// transfer matrix parameters
 	Real close_range_threshold = 0;

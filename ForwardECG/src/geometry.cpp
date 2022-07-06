@@ -167,7 +167,7 @@ Eigen::Vector3<Real> calculate_triangle_normal(MeshPlot* mesh, int tri_idx)
 
 
 
-std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_rot, const Eigen::Vector3<Real>& rays_origin, int group_index)
+std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPlot& mesh, int rows, int cols, Real z_rot, const Eigen::Vector3<Real>& rays_origin, int group_index, bool cast_from_outside)
 {
 	std::vector<Probe> probes;
 
@@ -183,6 +183,12 @@ std::vector<Probe> cast_probes_in_sphere(const std::string& prefix, const MeshPl
 			ray_direction = rodrigues_rotate(ray_direction, { 0, 0, 1 }, z_rot); // apply rotation
 			ray_direction.normalize();
 			Ray cast_ray = { rays_origin, ray_direction };
+
+			// cast from the outside
+			if (cast_from_outside)
+			{
+				cast_ray = { cast_ray.point_at_dir(100), -cast_ray.direction };
+			}
 
 			// intersect ray with mesh
 			Real t;
@@ -227,4 +233,52 @@ std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlo
 	}
 
 	return probes;
+}
+
+
+static void calculate_distance_from_a_vertex(const MeshPlot& mesh, int vertex_idx, const Real base_distance, std::vector<Real>& distances, std::vector<bool>& visited)
+{
+	// check if vertex was visited before
+	if (visited[vertex_idx])
+	{
+		return;
+	}
+
+	// set visited flag
+	visited[vertex_idx] = true;
+
+	// set distance (minimum of the two if already set)
+	distances[vertex_idx] = rmin(base_distance, distances[vertex_idx]);
+	
+	// visit neighbours
+	for (int neighbour_idx : mesh.vertex_neighbour_vertices[vertex_idx])
+	{
+		// calculate next vertex total distance
+		Real next_vertex_distance = base_distance + (glm2eigen(mesh.vertices[neighbour_idx].pos) - glm2eigen(mesh.vertices[vertex_idx].pos)).norm();
+		// visit the neighbour vertex
+		calculate_distance_from_a_vertex(mesh, neighbour_idx, next_vertex_distance, distances, visited);
+	}
+
+}
+
+std::vector<Real> probe_to_vertices_distance_across_the_surface(const MeshPlot & mesh, const Probe & probe)
+{
+	// initialize the distances to infinity (this value will be assigned to the disconnected vertices at the end)
+	std::vector<Real> distances(mesh.vertices.size(), FLT_MAX);
+
+	// calculate distance from each vertex
+	// v0
+	std::vector<bool> visited = std::vector<bool>(mesh.vertices.size(), false);
+	Real d0 = (glm2eigen(mesh.vertices[mesh.faces[probe.triangle_idx].idx[0]].pos) - probe.point).norm();
+	calculate_distance_from_a_vertex(mesh, mesh.faces[probe.triangle_idx].idx[0], d0, distances, visited);
+	// v1
+	visited = std::vector<bool>(mesh.vertices.size(), false);
+	Real d1 = (glm2eigen(mesh.vertices[mesh.faces[probe.triangle_idx].idx[1]].pos) - probe.point).norm();
+	calculate_distance_from_a_vertex(mesh, mesh.faces[probe.triangle_idx].idx[1], d0, distances, visited);
+	// v2
+	visited = std::vector<bool>(mesh.vertices.size(), false);
+	Real d2 = (glm2eigen(mesh.vertices[mesh.faces[probe.triangle_idx].idx[2]].pos) - probe.point).norm();
+	calculate_distance_from_a_vertex(mesh, mesh.faces[probe.triangle_idx].idx[2], d0, distances, visited);
+
+	return distances;
 }
