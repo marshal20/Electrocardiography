@@ -664,8 +664,13 @@ public:
 
 
 			// recalculate tmp_probes_interpolation_matrix
-			if (last_heart_probes_count != heart_probes.size() || last_interpolation_power != interpolation_power)
+			if (last_heart_probes_count != heart_probes.size())
 			{
+				recalculate_interpolation_matrix = true;
+			}
+			if (recalculate_interpolation_matrix)
+			{
+				recalculate_interpolation_matrix = false;
 				tmp_probes_interpolation_matrix = MatrixX<Real>::Zero(M, heart_probes.size());
 
 				// calculate distance across the surface from each probe to each vertex
@@ -1609,10 +1614,10 @@ private:
 		}
 
 		// interpolation preview
-		if (view_interpolation_factor_for_selected_probe && current_selected_probe != -1)
+		if (view_interpolation_factor_for_selected_probe && heart_current_selected_probe != -1)
 		{
 			static VectorX<Real> probe_interpolation_effect;
-			probe_interpolation_effect = tmp_probes_interpolation_matrix.col(current_selected_probe);
+			probe_interpolation_effect = tmp_probes_interpolation_matrix.col(heart_current_selected_probe);
 
 			// set range
 			Real max_abs_effect = 1e-14;
@@ -2123,10 +2128,7 @@ private:
 		{
 			ImGui::Text("Samples Count: %d", tmp_direct_values.rows());
 			ImGui::Text("Current Sample: %d", current_sample);
-			ImGui::DragReal("Interpolation Power", &interpolation_power, 0.1, 1, 12);
 			ImGui::Checkbox("play values one time only", &tmp_direct_values_one_play);
-			ImGui::Checkbox("Use Old Interpolation Method", &use_old_interpolation_method);
-			ImGui::Checkbox("View Interpolation Factors for Selected Probe", &view_interpolation_factor_for_selected_probe);
 			if (tmp_direct_values_one_play)
 			{
 				if (ImGui::Button("Play TMP Again"))
@@ -2134,6 +2136,15 @@ private:
 					current_sample = 0;
 				}
 			}
+			if (ImGui::DragReal("Interpolation Power", &interpolation_power, 0.1, 1, 12))
+			{
+				recalculate_interpolation_matrix = true;
+			}
+			if (ImGui::Checkbox("Use Old Interpolation Method", &use_old_interpolation_method))
+			{
+				recalculate_interpolation_matrix = true;
+			}
+			ImGui::Checkbox("View Interpolation Factors for Selected Probe", &view_interpolation_factor_for_selected_probe);
 
 			if (ImGui::Button("Import TMP direct values"))
 			{
@@ -4122,6 +4133,7 @@ private:
 	Eigen::Vector3<Real> heart_probe_cast_sphere_origin = {0, 0, 0};
 
 	// heart probes interpolation
+	bool recalculate_interpolation_matrix = true;
 	Real interpolation_power = 3;
 	MatrixX<Real> tmp_probes_interpolation_matrix; // MxPROBES_COUNT
 	int last_heart_probes_count = 0;
