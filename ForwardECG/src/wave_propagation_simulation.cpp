@@ -210,6 +210,7 @@ void WavePropagationSimulation::render_gui()
 	// connect close vertices from different groups
 	ImGui::InputReal("Close Vertices Threshold", &m_close_vertices_threshold);
 	ImGui::Checkbox("Connect Close Vertices From Different Groups", &m_connect_close_vertices_from_different_groups);
+	ImGui::Checkbox("Connect Close Vertices From The Same Groups", &m_connect_close_vertices_from_same_group);
 	if (ImGui::Button("Recalculate Links"))
 	{
 		recalculate_links();
@@ -449,21 +450,17 @@ void WavePropagationSimulation::recalculate_links()
 		m_links.push_back({ face.idx[1], face.idx[2], 1, 0, 0 });
 	}
 	
-	// connect close vertices from different groups
-	if (m_connect_close_vertices_from_different_groups)
+	// connect close vertices
+	for (int i = 0; i < m_mesh->vertices.size(); i++)
 	{
-		for (int i = 0; i < m_mesh->vertices.size(); i++)
+		for (int j = 0; j < m_mesh->vertices.size(); j++)
 		{
-			for (int j = 0; j < m_mesh->vertices.size(); j++)
+			// skip if in the same group
+			if ((m_connect_close_vertices_from_different_groups && m_mesh->vertices[i].group != m_mesh->vertices[j].group)
+				|| (m_connect_close_vertices_from_same_group && m_mesh->vertices[i].group == m_mesh->vertices[j].group))
 			{
-				// skip if in the same group
-				if (m_mesh->vertices[i].group == m_mesh->vertices[j].group)
-				{
-					continue;
-				}
-
-				Real distance_square = 
-					  abs(m_mesh->vertices[i].pos.x - m_mesh->vertices[j].pos.x)
+				Real distance_square =
+					abs(m_mesh->vertices[i].pos.x - m_mesh->vertices[j].pos.x)
 					+ abs(m_mesh->vertices[i].pos.y - m_mesh->vertices[j].pos.y)
 					+ abs(m_mesh->vertices[i].pos.z - m_mesh->vertices[j].pos.z);
 				if (distance_square <= m_close_vertices_threshold*m_close_vertices_threshold)
@@ -1168,6 +1165,27 @@ void WavePropagationConductionPath::render_gui()
 		}
 		ImGui::ListBoxFooter();
 	}
+
+	// mesh select group
+	if (ImGui::ListBoxHeader("Mesh Selected Group", m_prop_sim->m_mesh->groups_vertices.size()+1))
+	{
+		// ALL GROUPS
+		if (ImGui::Selectable("ALL GROUPS", -1==m_selected_group))
+		{
+			m_selected_group = -1;
+		}
+
+		for (int i = 0; i < m_prop_sim->m_mesh->groups_vertices.size(); i++)
+		{
+			std::string name = std::string("Group ") + std::to_string(i);
+			if (ImGui::Selectable(name.c_str(), i==m_selected_group))
+			{
+				m_selected_group = i;
+			}
+		}
+		ImGui::ListBoxFooter();
+	}
+
 	if (ImGui::Button("Remove Point"))
 	{
 		if (m_selected_point != -1 && m_selected_point < m_points_list.size())
@@ -1191,21 +1209,28 @@ void WavePropagationConductionPath::handle_input(const LookAtCamera& camera)
 		
 		// find the nearest point
 		int nearest_point_idx = -1;
-		Real nearest_point_perpendicular_distance = 0.1;
-		for (int i = 0; i < m_prop_sim->m_mesh->vertices.size(); i++)
+
+		// hit ray to mesh and find the intersecting triangle
+		Real t;
+		int tri_idx;
+		if (ray_mesh_intersect(*m_prop_sim->m_mesh, m_prop_sim->m_mesh_pos, mouse_ray, t, tri_idx, m_selected_group))
 		{
-			if (glm2eigen(m_prop_sim->m_mesh->vertices[i].normal).dot(glm2eigen(camera.look_at-camera.eye)) > 0)
+			// find the nearest point on that triangle to our intersecting point
+			Vector3<Real> intersection_point = mouse_ray.point_at_dir(t);
+			Real d0 = (glm2eigen(m_prop_sim->m_mesh->vertices[m_prop_sim->m_mesh->faces[tri_idx].idx[0]].pos) - intersection_point).norm();
+			Real d1 = (glm2eigen(m_prop_sim->m_mesh->vertices[m_prop_sim->m_mesh->faces[tri_idx].idx[1]].pos) - intersection_point).norm();
+			Real d2 = (glm2eigen(m_prop_sim->m_mesh->vertices[m_prop_sim->m_mesh->faces[tri_idx].idx[2]].pos) - intersection_point).norm();
+			if (d0 < d1 && d0 < d2)
 			{
-				continue;
+				nearest_point_idx = m_prop_sim->m_mesh->faces[tri_idx].idx[0];
 			}
-
-			Eigen::Vector3<Real> current_point_pos = m_prop_sim->m_mesh_pos + glm2eigen(m_prop_sim->m_mesh->vertices[i].pos);
-			Real current_point_perpendicular_distance = mouse_ray.point_perpendicular_distance(current_point_pos);
-
-			if (current_point_perpendicular_distance < 0.1 && current_point_perpendicular_distance < nearest_point_perpendicular_distance)
+			else if (d1 < d2)
 			{
-				nearest_point_idx = i;
-				nearest_point_perpendicular_distance = current_point_perpendicular_distance;
+				nearest_point_idx = m_prop_sim->m_mesh->faces[tri_idx].idx[1];
+			}
+			else
+			{
+				nearest_point_idx = m_prop_sim->m_mesh->faces[tri_idx].idx[2];
 			}
 		}
 

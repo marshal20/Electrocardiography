@@ -483,7 +483,7 @@ public:
 		heart_conductivity = 10;
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
-		heart_mesh = load_mesh_plot("models/heart_model_6.fbx", true);
+		heart_mesh = load_mesh_plot("models/heart_model_7.fbx", true);
 		heart_action_potential_params.resize(heart_mesh->vertices.size(), 
 			ActionPotentialParameters{ ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, ACTION_POTENTIAL_DEPOLARIZATION_TIME, ACTION_POTENTIAL_REPOLARIZATION_TIME });
 		// heart mesh groups
@@ -985,6 +985,10 @@ private:
 		// BEM solver (bounded conductor with defined TMP distribution)
 		// Matrices derived from potentials at the torso
 
+		printf("Calculating the transfer matrix...\n");
+		Timer calculations_matrix;
+		calculations_matrix.start();
+
 		// PBB (NxN)
 		MatrixX<Real> PBB = MatrixX<Real>::Zero(N, N);
 		for (int i = 0; i < N; i++)
@@ -1030,6 +1034,10 @@ private:
 			//PBB(i, i) = -1;
 		}
 
+		// print status
+		printf("Calculated PBB matrix in: %.3f sec\n", timer.elapsed_seconds());
+		timer.start();
+
 		// PBH (NxM)
 		MatrixX<Real> PBH = MatrixX<Real>::Zero(N, M);
 		for (int i = 0; i < N; i++)
@@ -1058,7 +1066,7 @@ private:
 				Real area = ((b-a).cross(c-a)).norm()/2;
 				Vector3<Real> center = (a+b+c)/3; // triangle center
 				Vector3<Real> r_vec = r-center; // r-c
-				//Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
+				//Real solid_angle = r_vec.normalized().dot(face_normal)*area / r_vec.squaredNorm(); // omega = (r^.n^ * ds)/(r*r)
 				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), r_power)); // omega = (r^.n^ * ds)/(r*r)
 				Real const_val = -1/(4*PI)*solid_angle;
 
@@ -1073,6 +1081,10 @@ private:
 				PBH(i, face.idx[2]) += const_val/3;
 			}
 		}
+
+		// print status
+		printf("Calculated PBH matrix in: %.3f sec\n", timer.elapsed_seconds());
+		timer.start();
 
 		// GBH (NxM)
 		MatrixX<Real> GBH = MatrixX<Real>::Zero(N, M);
@@ -1110,6 +1122,10 @@ private:
 				GBH(i, face.idx[2]) += const_val/3;
 			}
 		}
+
+		// print status
+		printf("Calculated GBH matrix in: %.3f sec\n", timer.elapsed_seconds());
+		timer.start();
 
 
 		// Matrices derived from potentials at the heart
@@ -1149,6 +1165,10 @@ private:
 				PHB(i, face.idx[2]) += const_val/3;
 			}
 		}
+
+		// print status
+		printf("Calculated PHB matrix in: %.3f sec\n", timer.elapsed_seconds());
+		timer.start();
 
 		// PHH (MxM)
 		MatrixX<Real> PHH = MatrixX<Real>::Zero(M, M);
@@ -1203,6 +1223,10 @@ private:
 			//PHH(i, i) = -1;
 		}
 
+		// print status
+		printf("Calculated PHH matrix in: %.3f sec\n", timer.elapsed_seconds());
+		timer.start();
+
 		// GHH (MxM)
 		MatrixX<Real> GHH = MatrixX<Real>::Zero(M, M);
 		for (int i = 0; i < M; i++)
@@ -1245,6 +1269,10 @@ private:
 				GHH(i, face.idx[2]) += const_val/3;
 			}
 		}
+
+		// print status
+		printf("Calculated GHH matrix in: %.3f sec\n", timer.elapsed_seconds());
+		timer.start();
 
 
 		/*
@@ -1289,7 +1317,7 @@ private:
 
 		//ZBH = MatrixX<Real>::Zero(N, M);
 
-		//ZBH = PBH; // without potential gradient effect
+		//ZBH = -PBH; // without potential gradient effect
 
 		// TODO: try to fix the first equation.
 
@@ -1302,6 +1330,10 @@ private:
 		//		printf("%.3f ", ZBH(i, j));
 		//	}
 		//}
+
+		// print status
+		printf("Calculated transfer matrix (ZBH) in: %.3f sec\n", timer.elapsed_seconds());
+		timer.start();
 	}
 
 	void calculate_torso_potentials()
