@@ -4,6 +4,7 @@
 #include <vector>
 #include <thread>
 #include <memory>
+#include <map>
 #include "opengl/gl_headers.h"
 #include <GLFW/glfw3.h>
 #include "window.h"
@@ -540,6 +541,18 @@ public:
 		{
 			printf("Failed to start the server\n");
 		}
+
+		// add plot_std_ecg_probes_values
+		plot_std_ecg_probes_values["V1"] = VectorX<Real>(0);
+		plot_std_ecg_probes_values["V2"] = VectorX<Real>(0);
+		plot_std_ecg_probes_values["V3"] = VectorX<Real>(0);
+		plot_std_ecg_probes_values["V4"] = VectorX<Real>(0);
+		plot_std_ecg_probes_values["V5"] = VectorX<Real>(0);
+		plot_std_ecg_probes_values["V6"] = VectorX<Real>(0);
+		plot_std_ecg_probes_values["RA"] = VectorX<Real>(0);
+		plot_std_ecg_probes_values["LA"] = VectorX<Real>(0);
+		plot_std_ecg_probes_values["LL"] = VectorX<Real>(0);
+		plot_std_ecg_probes_values["RL"] = VectorX<Real>(0);
 
 		return 0;
 	}
@@ -1370,7 +1383,6 @@ private:
 		
 		// ZBH = - PBB^-1 * PBH
 		ZBH = - PBB.inverse() * PBH; // without potential gradient effect
-		
 
 		//ZBH = MatrixX<Real>::Zero(N, M);
 
@@ -1467,7 +1479,7 @@ private:
 			heart_mesh->vertices[i].value = QH(i);
 		}
 
-		/*
+
 		// apply reference probe (to potentials in toso model only not Q)
 		if (reference_probe != -1)
 		{
@@ -1475,15 +1487,14 @@ private:
 			// Torso
 			for (int i = 0; i < torso->vertices.size(); i++)
 			{
-				torso->vertices[i].value -= reference_value;
+				QB(i) = QB(i) - reference_value;
 			}
-			// Heart
-			for (int i = 0; i < heart_mesh->vertices.size(); i++)
+			// update torso potentials
+			for (int i = 0; i < torso->vertices.size(); i++)
 			{
-				heart_mesh->vertices[i].value -= reference_value;
+				torso->vertices[i].value = QB(i);
 			}
 		}
-		*/
 
 	}
 
@@ -2765,6 +2776,10 @@ private:
 		{
 			probes_graph = true;
 		}
+		if (ImGui::Button("Standard ECG"))
+		{
+			plot_std_ecg = true;
+		}
 		if (ImGui::Button("Heart Probes graph"))
 		{
 			heart_probes_graph = true;
@@ -3170,6 +3185,81 @@ private:
 					ImGui::PlotLines(probes[i].name.c_str(), &values[0], values.size(), 0, NULL, FLT_MAX, FLT_MAX, { probes_graph_width, probes_graph_height });
 				}
 			}
+
+			ImGui::End();
+		}
+
+		// standard ECG graph
+		if (plot_std_ecg)
+		{
+			ImGui::Begin("Standard ECG Graph", &plot_std_ecg);
+
+			// graph height
+			ImGui::SliderFloat("Height", &std_ecg_graph_height, 10, 200);
+			ImGui::SliderFloat("Width", &std_ecg_graph_width, 20, 400);
+
+			// re-adjust probes values size
+			for (auto& entry : plot_std_ecg_probes_values)
+			{
+				entry.second.resize(sample_count);
+			}
+
+			// calculate probe values
+			for (int i = 0; i < probes.size(); i++)
+			{
+				if (probes[i].name == "V1"
+					|| probes[i].name == "V2"
+					|| probes[i].name == "V3"
+					|| probes[i].name == "V4"
+					|| probes[i].name == "V5"
+					|| probes[i].name == "V6"
+					|| probes[i].name == "RA"
+					|| probes[i].name == "LA"
+					|| probes[i].name == "LL"
+					|| probes[i].name == "RL"
+					)
+				{
+					plot_std_ecg_probes_values[probes[i].name] = probes_values.row(i);
+				}
+			}
+
+			// graphs
+			std::vector<float> values_temp;
+			values_temp.resize(sample_count);
+			// plot function
+			auto plot_std_graph = [&values_temp](const std::string& name, const VectorX<Real>& values, float graph_width, float graph_height) {
+				for (int i = 0; i < values.size(); i++)
+				{
+					values_temp[i] = values(i);
+				}
+				ImGui::PlotLines(name.c_str(), &values_temp[0], values_temp.size(), 0, NULL, FLT_MAX, FLT_MAX, { graph_width, graph_height });
+			};
+
+			// plot each lead
+			VectorX<Real> wilson_lead = (plot_std_ecg_probes_values["RA"] + plot_std_ecg_probes_values["LA"] + plot_std_ecg_probes_values["LL"])/3;
+			// V1:V6
+			plot_std_graph("V1", plot_std_ecg_probes_values["V1"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			ImGui::SameLine();
+			plot_std_graph("V2", plot_std_ecg_probes_values["V2"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			ImGui::SameLine();
+			plot_std_graph("V3", plot_std_ecg_probes_values["V3"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			plot_std_graph("V4", plot_std_ecg_probes_values["V4"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			ImGui::SameLine();
+			plot_std_graph("V5", plot_std_ecg_probes_values["V5"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			ImGui::SameLine();
+			plot_std_graph("V6", plot_std_ecg_probes_values["V6"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			// Limb leads
+			plot_std_graph("I",   plot_std_ecg_probes_values["LA"]-plot_std_ecg_probes_values["RA"], std_ecg_graph_width, std_ecg_graph_height);
+			ImGui::SameLine();
+			plot_std_graph("II",  plot_std_ecg_probes_values["LL"]-plot_std_ecg_probes_values["RA"], std_ecg_graph_width, std_ecg_graph_height);
+			ImGui::SameLine();
+			plot_std_graph("III", plot_std_ecg_probes_values["LL"]-plot_std_ecg_probes_values["LA"], std_ecg_graph_width, std_ecg_graph_height);
+			// aV leads
+			plot_std_graph("aVR", plot_std_ecg_probes_values["RA"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			ImGui::SameLine();
+			plot_std_graph("aVL", plot_std_ecg_probes_values["LA"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			ImGui::SameLine();
+			plot_std_graph("aVF", plot_std_ecg_probes_values["LL"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
 
 			ImGui::End();
 		}
@@ -4115,6 +4205,11 @@ private:
 	bool probes_differentiation = false;
 	bool torso_probes_clear_before_adding = true;
 	Vector3<Real> torso_probe_cast_sphere_origin = {0, 0, 0};
+	// standard ecg
+	bool plot_std_ecg = false;
+	std::map<std::string, VectorX<Real>> plot_std_ecg_probes_values;
+	float std_ecg_graph_height = 100;
+	float std_ecg_graph_width = 200;
 
 	// server
 	Server server;
