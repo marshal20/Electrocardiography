@@ -609,7 +609,7 @@ public:
 					// calculate probes values at time point
 					for (int i = 0; i < probes.size(); i++)
 					{
-						Real probe_value = evaluate_probe(*torso, probes[i]);
+						Real probe_value = evaluate_torso_probe(probes[i]);
 						probes_values(i, current_sample) = probe_value;
 					}
 
@@ -646,7 +646,7 @@ public:
 				// calculate probes values at time point
 				for (int i = 0; i < probes.size(); i++)
 				{
-					Real probe_value = evaluate_probe(*torso, probes[i]);
+					Real probe_value = evaluate_torso_probe(probes[i]);
 					probes_values(i, dipole_vec_values_list_current) = probe_value;
 				}
 
@@ -714,8 +714,23 @@ public:
 					}
 				}
 
+				// calculate vertex to probe interpolation
+				tmp_probes_interpolation_matrix_inv = MatrixX<Real>::Zero(heart_probes.size(), M);
+				for (int i = 0; i < heart_probes.size(); i++)
+				{
+					Real sum = 0;
+					for (int j = 0; j < M; j++)
+					{
+						sum += tmp_probes_interpolation_matrix(j, i);
+					}
+
+					for (int j = 0; j < M; j++)
+					{
+						tmp_probes_interpolation_matrix_inv(i, j) = tmp_probes_interpolation_matrix(j, i)/sum;
+					}
+				}
+
 				last_heart_probes_count = heart_probes.size();
-				last_interpolation_power = interpolation_power;
 			}
 
 			// TMP action potential
@@ -763,7 +778,7 @@ public:
 							}
 							for (int i = 0; i < heart_probes.size(); i++)
 							{
-								heart_probes_values_temp(i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+								heart_probes_values_temp(i) = evaluate_heart_probe(heart_probes[i], i);
 							}
 
 							// use interpolation for heart potentials using heart probes
@@ -787,13 +802,13 @@ public:
 						// update probes
 						for (int i = 0; i < heart_probes.size(); i++)
 						{
-							heart_probes_values(i, current_sample) = evaluate_probe(*heart_mesh, heart_probes[i]);
+							heart_probes_values(i, current_sample) = evaluate_heart_probe(heart_probes[i], i);
 						}
 
 						// calculate probes values at time point
 						for (int i = 0; i < probes.size(); i++)
 						{
-							probes_values(i, current_sample) = evaluate_probe(*torso, probes[i]);
+							probes_values(i, current_sample) = evaluate_torso_probe(probes[i]);
 						}
 
 						// clear probes graph
@@ -843,13 +858,13 @@ public:
 						// update probes
 						for (int i = 0; i < heart_probes.size(); i++)
 						{
-							heart_probes_values(i, current_sample) = evaluate_probe(*heart_mesh, heart_probes[i]);
+							heart_probes_values(i, current_sample) = evaluate_heart_probe(heart_probes[i], i);
 						}
 
 						// calculate probes values at time point
 						for (int i = 0; i < probes.size(); i++)
 						{
-							probes_values(i, current_sample) = evaluate_probe(*torso, probes[i]);
+							probes_values(i, current_sample) = evaluate_torso_probe(probes[i]);
 						}
 
 						// clear probes graph
@@ -876,13 +891,13 @@ public:
 					// update probes
 					for (int i = 0; i < heart_probes.size(); i++)
 					{
-						heart_probes_values(i, current_sample) = evaluate_probe(*heart_mesh, heart_probes[i]);
+						heart_probes_values(i, current_sample) = evaluate_heart_probe(heart_probes[i], i);
 					}
 
 					// calculate probes values at time point
 					for (int i = 0; i < probes.size(); i++)
 					{
-						probes_values(i, current_sample) = evaluate_probe(*torso, probes[i]);
+						probes_values(i, current_sample) = evaluate_torso_probe(probes[i]);
 					}
 
 					// clear probes graph
@@ -961,6 +976,21 @@ private:
 		heart_sigma_n = heart_conductivity; // inside the heart
 
 		return true;
+	}
+
+	Real evaluate_heart_probe(const Probe& probe, int probe_index)
+	{
+		if (use_interpolation_to_calculate_probe_value)
+		{
+			return (tmp_probes_interpolation_matrix_inv.row(probe_index)*QH)(0);
+		}
+
+		return evaluate_probe(*heart_mesh, probe);
+	}
+
+	Real evaluate_torso_probe(const Probe& probe)
+	{
+		return evaluate_probe(*torso, probe);
 	}
 
 	void calculate_transfer_matrix()
@@ -1441,7 +1471,7 @@ private:
 		// apply reference probe (to potentials in toso model only not Q)
 		if (reference_probe != -1)
 		{
-			Real reference_value = evaluate_probe(*torso, probes[reference_probe]);
+			Real reference_value = evaluate_torso_probe(probes[reference_probe]);
 			// Torso
 			for (int i = 0; i < torso->vertices.size(); i++)
 			{
@@ -1994,6 +2024,20 @@ private:
 		}
 
 
+		// probe vertex interpolation
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		if (ImGui::DragReal("Interpolation Power", &interpolation_power, 0.1, 1, 12))
+		{
+			recalculate_interpolation_matrix = true;
+		}
+		if (ImGui::Checkbox("Use Old Interpolation Method", &use_old_interpolation_method))
+		{
+			recalculate_interpolation_matrix = true;
+		}
+		ImGui::Checkbox("View Interpolation Factors for Selected Probe", &view_interpolation_factor_for_selected_probe);
+		ImGui::Checkbox("Use Interpolation To Calculate Probe Value (heart)", &use_interpolation_to_calculate_probe_value);
+
+
 		// TMP Source
 		{
 			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
@@ -2083,7 +2127,7 @@ private:
 
 					for (int i = 0; i < heart_probes.size(); i++)
 					{
-						tmp_direct_values(sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+						tmp_direct_values(sample, i) = evaluate_heart_probe(heart_probes[i], i);
 						//tmp_direct_values(sample, i) = (Real)sample/1000.0;
 						//tmp_direct_values(sample, i) = QH(i);
 					}
@@ -2143,15 +2187,6 @@ private:
 					current_sample = 0;
 				}
 			}
-			if (ImGui::DragReal("Interpolation Power", &interpolation_power, 0.1, 1, 12))
-			{
-				recalculate_interpolation_matrix = true;
-			}
-			if (ImGui::Checkbox("Use Old Interpolation Method", &use_old_interpolation_method))
-			{
-				recalculate_interpolation_matrix = true;
-			}
-			ImGui::Checkbox("View Interpolation Factors for Selected Probe", &view_interpolation_factor_for_selected_probe);
 
 			if (ImGui::Button("Import TMP direct values"))
 			{
@@ -2466,7 +2501,7 @@ private:
 
 				// value
 				ImGui::SameLine();
-				Real probe_value = evaluate_probe(*torso, probes[i]);
+				Real probe_value = evaluate_torso_probe(probes[i]);
 				std::string item_name = "  " + std::to_string(probe_value);
 				ImGui::Text(item_name.c_str());
 			}
@@ -2487,7 +2522,7 @@ private:
 
 			ImGui::Text("\tTriangle: %d", probe.triangle_idx);
 			ImGui::Text("\tPoint: {%.3lf, %.3lf, %.3lf}", probe.point.x(), probe.point.y(), probe.point.z());
-			ImGui::Text("\tValue: %.3lf", evaluate_probe(*torso, probe));
+			ImGui::Text("\tValue: %.3lf", evaluate_torso_probe(probe));
 
 			ImGui::End();
 
@@ -2793,13 +2828,13 @@ private:
 				for (int i = 0; i < heart_probes.size(); i++)
 				{
 					names[i] = heart_probes[i].name;
-					TMP_BSP_values(sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+					TMP_BSP_values(sample, i) = evaluate_heart_probe(heart_probes[i], i);
 				}
 
 				for (int i = 0; i < probes.size(); i++)
 				{
 					names[heart_probes.size()+i] = probes[i].name;
-					TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_probe(*torso, probes[i]);
+					TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_torso_probe(probes[i]);
 				}
 			}
 
@@ -2838,7 +2873,7 @@ private:
 
 				// value
 				ImGui::SameLine();
-				Real probe_value = evaluate_probe(*heart_mesh, heart_probes[i]);
+				Real probe_value = evaluate_heart_probe(heart_probes[i], i);
 
 				if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES && current_sample < sample_count)
 				{
@@ -2865,7 +2900,7 @@ private:
 
 			ImGui::Text("\tTriangle: %d", heart_probe.triangle_idx);
 			ImGui::Text("\tPoint: {%.3lf, %.3lf, %.3lf}", heart_probe.point.x(), heart_probe.point.y(), heart_probe.point.z());
-			ImGui::Text("\tValue: %.3lf", evaluate_probe(*heart_mesh, heart_probe));
+			ImGui::Text("\tValue: %.3lf", evaluate_heart_probe(heart_probe, heart_current_selected_probe));
 
 			ImGui::End();
 
@@ -3593,7 +3628,7 @@ private:
 				// probes values
 				for (int i = 0; i < probes.size(); i++)
 				{
-					ser.push_double(evaluate_probe(*torso, probes[i]));
+					ser.push_double(evaluate_torso_probe(probes[i]));
 				}
 			}
 			else if (request_type == REQUEST_CALCULATE_VALUES_FOR_RANDOM_VECTORS)
@@ -3618,7 +3653,7 @@ private:
 					// probes values
 					for (int i = 0; i < probes.size(); i++)
 					{
-						ser.push_double(evaluate_probe(*torso, probes[i]));
+						ser.push_double(evaluate_torso_probe(probes[i]));
 					}
 				}
 				printf("Generated %u random vector values in %.3f ms\n", random_samples_count, 1000*generating_timer.elapsed_seconds());
@@ -3771,12 +3806,12 @@ private:
 
 					for (int i = 0; i < heart_probes.size(); i++)
 					{
-						TMP_BSP_values(sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+						TMP_BSP_values(sample, i) = evaluate_heart_probe(heart_probes[i], i);
 					}
 
 					for (int i = 0; i < probes.size(); i++)
 					{
-						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_probe(*torso, probes[i]);
+						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_torso_probe(probes[i]);
 					}
 				}
 
@@ -3838,7 +3873,7 @@ private:
 					}
 					for (int i = 0; i < heart_probes.size(); i++)
 					{
-						heart_probes_values_temp(i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+						heart_probes_values_temp(i) = evaluate_heart_probe(heart_probes[i], i);
 					}
 
 					// use interpolation for heart potentials using heart probes
@@ -3866,7 +3901,7 @@ private:
 
 					for (int i = 0; i < probes.size(); i++)
 					{
-						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_probe(*torso, probes[i]);
+						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_torso_probe(probes[i]);
 					}
 
 					print_progress_bar((sample*100)/sample_count);
@@ -3922,12 +3957,12 @@ private:
 
 					for (int i = 0; i < heart_probes.size(); i++)
 					{
-						TMP_BSP_values(sample, i) = evaluate_probe(*heart_mesh, heart_probes[i]);
+						TMP_BSP_values(sample, i) = evaluate_heart_probe(heart_probes[i], i);
 					}
 
 					for (int i = 0; i < probes.size(); i++)
 					{
-						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_probe(*torso, probes[i]);
+						TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_torso_probe(probes[i]);
 					}
 
 					print_progress_bar((sample*100)/request_sample_count);
@@ -4143,10 +4178,11 @@ private:
 	bool recalculate_interpolation_matrix = true;
 	Real interpolation_power = 3;
 	MatrixX<Real> tmp_probes_interpolation_matrix; // MxPROBES_COUNT
+	MatrixX<Real> tmp_probes_interpolation_matrix_inv; // PROBES_COUNTxM
 	int last_heart_probes_count = 0;
-	Real last_interpolation_power = 3;
 	bool use_old_interpolation_method = false;
 	bool view_interpolation_factor_for_selected_probe = false;
+	bool use_interpolation_to_calculate_probe_value = true;
 
 	// heart element effect
 	bool view_heart_element_selected_by_probe_effect = false;
