@@ -1106,6 +1106,10 @@ private:
 		printf("Calculated PBH matrix in: %.3f sec\n", timer.elapsed_seconds());
 		timer.start();
 
+		// skip unused calculations
+		/*
+
+
 		// GBH (NxM)
 		MatrixX<Real> GBH = MatrixX<Real>::Zero(N, M);
 		for (int i = 0; i < N; i++)
@@ -1294,6 +1298,9 @@ private:
 		printf("Calculated GHH matrix in: %.3f sec\n", timer.elapsed_seconds());
 		timer.start();
 
+		*/
+
+
 
 		/*
 		// DEBUG
@@ -1329,7 +1336,7 @@ private:
 		//ZBH = (PBB - GBH*GHH.inverse()*PHB).inverse() * (GBH*GHH.inverse()*PHH - PBH); // with potential gradient effect
 
 		// TODO: Restore
-		
+
 		
 		// ZBH = - PBB^-1 * PBH
 		ZBH = - PBB.inverse() * PBH; // without potential gradient effect
