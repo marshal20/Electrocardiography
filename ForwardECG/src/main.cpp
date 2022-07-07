@@ -824,7 +824,7 @@ public:
 						t = current_sample*TMP_dt;
 
 						// assign direct values (from probes interpolation)
-						if (tmp_direct_values.rows() > 0)
+						if (tmp_direct_values.rows() > 0 && tmp_direct_values.cols() > 0)
 						{
 							QH = tmp_probes_interpolation_matrix*tmp_direct_values.row(current_sample).transpose();
 						}
@@ -2833,7 +2833,7 @@ private:
 				ImGui::SameLine();
 				Real probe_value = evaluate_probe(*heart_mesh, heart_probes[i]);
 
-				if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+				if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES && current_sample < sample_count)
 				{
 					probe_value = tmp_direct_values(current_sample, i);
 				}

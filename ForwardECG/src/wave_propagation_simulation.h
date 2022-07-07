@@ -99,7 +99,7 @@ private:
 	// connect close vertices from different groups
 	Real m_close_vertices_threshold = 0.15;
 	std::vector<Real> m_mesh_groups_speed;
-	bool m_connect_close_vertices_from_different_groups = true;
+	bool m_connect_close_vertices_from_different_groups = false;
 	bool m_connect_close_vertices_from_same_group = true;
 	// gui
 	int m_selected_operator = -1;

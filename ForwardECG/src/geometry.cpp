@@ -236,8 +236,73 @@ std::vector<Probe> cast_probes_in_plane(const std::string& prefix, const MeshPlo
 }
 
 
-static void calculate_distance_from_a_vertex(const MeshPlot& mesh, int vertex_idx, const Real base_distance, std::vector<Real>& distances, std::vector<bool>& visited)
+static void get_breadth_first_add_vertex_neighbours(const MeshPlot& mesh, int vertex_idx, std::vector<int>& vertex_sequence, std::vector<int>& vertex_parent, std::vector<bool>& visited)
 {
+	// check if vertex was visited before
+	if (visited[vertex_idx])
+	{
+		return;
+	}
+
+	// set visited flag
+	visited[vertex_idx] = true;
+
+	// add neighbours
+	for (int neighbour_idx : mesh.vertex_neighbour_vertices[vertex_idx])
+	{
+		vertex_sequence.push_back(neighbour_idx);
+		vertex_parent.push_back(vertex_idx);
+	}
+}
+
+static void get_breadth_first_vertex_sequence(const MeshPlot& mesh, int vertex_idx, std::vector<int>& vertex_sequence, std::vector<int>& vertex_parent, std::vector<bool>& visited)
+{
+	vertex_sequence.clear();
+	vertex_parent.clear();
+	size_t old_sequence_size = 0;
+
+	// push the main vertex
+	vertex_sequence.push_back(vertex_idx);
+	vertex_parent.push_back(vertex_idx); // indicating it has no parents
+
+	// add vertices in depth levels untill nothing left
+	while (old_sequence_size != vertex_sequence.size())
+	{
+		size_t new_vertices = vertex_sequence.size() - old_sequence_size;
+		for (int i = 0; i < new_vertices; i++)
+		{
+			int new_idx = vertex_sequence[old_sequence_size+i];
+			get_breadth_first_add_vertex_neighbours(mesh, new_idx, vertex_sequence, vertex_parent, visited);
+		}
+		old_sequence_size += new_vertices;
+	}
+
+}
+
+static void calculate_distance_from_a_vertex(const MeshPlot& mesh, int vertex_idx, const Real base_distance, std::vector<Real>& distances)
+{
+	// using breadth first search
+	
+	// get breadth first sequence
+	std::vector<int> vertex_sequence;
+	std::vector<int> vertex_parent;
+	distances[vertex_idx] = base_distance;
+	std::vector<bool> visited = std::vector<bool>(mesh.vertices.size(), false);
+	get_breadth_first_vertex_sequence(mesh, vertex_idx, vertex_sequence, vertex_parent, visited);
+
+	// calculate distance at each vertex
+	for (int i = 0; i < vertex_sequence.size(); i++)
+	{
+		Real vertex_distance = base_distance;
+		if (vertex_sequence[i] != vertex_parent[i])
+		{
+			vertex_distance = distances[vertex_parent[i]] + (glm2eigen(mesh.vertices[vertex_parent[i]].pos) - glm2eigen(mesh.vertices[vertex_sequence[i]].pos)).norm();
+		}
+		// set the distance
+		distances[vertex_sequence[i]] = rmin(vertex_distance, distances[vertex_sequence[i]]);
+	}
+
+	/*
 	// check if vertex was visited before
 	if (visited[vertex_idx])
 	{
@@ -258,7 +323,7 @@ static void calculate_distance_from_a_vertex(const MeshPlot& mesh, int vertex_id
 		// visit the neighbour vertex
 		calculate_distance_from_a_vertex(mesh, neighbour_idx, next_vertex_distance, distances, visited);
 	}
-
+	*/
 }
 
 std::vector<Real> probe_to_vertices_distance_across_the_surface(const MeshPlot & mesh, const Probe & probe)
@@ -268,17 +333,14 @@ std::vector<Real> probe_to_vertices_distance_across_the_surface(const MeshPlot &
 
 	// calculate distance from each vertex
 	// v0
-	std::vector<bool> visited = std::vector<bool>(mesh.vertices.size(), false);
 	Real d0 = (glm2eigen(mesh.vertices[mesh.faces[probe.triangle_idx].idx[0]].pos) - probe.point).norm();
-	calculate_distance_from_a_vertex(mesh, mesh.faces[probe.triangle_idx].idx[0], d0, distances, visited);
+	calculate_distance_from_a_vertex(mesh, mesh.faces[probe.triangle_idx].idx[0], d0, distances);
 	// v1
-	visited = std::vector<bool>(mesh.vertices.size(), false);
 	Real d1 = (glm2eigen(mesh.vertices[mesh.faces[probe.triangle_idx].idx[1]].pos) - probe.point).norm();
-	calculate_distance_from_a_vertex(mesh, mesh.faces[probe.triangle_idx].idx[1], d0, distances, visited);
+	calculate_distance_from_a_vertex(mesh, mesh.faces[probe.triangle_idx].idx[1], d1, distances);
 	// v2
-	visited = std::vector<bool>(mesh.vertices.size(), false);
 	Real d2 = (glm2eigen(mesh.vertices[mesh.faces[probe.triangle_idx].idx[2]].pos) - probe.point).norm();
-	calculate_distance_from_a_vertex(mesh, mesh.faces[probe.triangle_idx].idx[2], d0, distances, visited);
+	calculate_distance_from_a_vertex(mesh, mesh.faces[probe.triangle_idx].idx[2], d2, distances);
 
 	return distances;
 }
