@@ -1882,18 +1882,11 @@ private:
 		render_gui();
 	}
 
-	void render_gui()
+
+	void render_gui_geometry()
 	{
-		// Start the Dear ImGui frame
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplGlfw_NewFrame();
-		ImGui::NewFrame();
-
-
-		ImGui::Begin("Controls");
-
 		// Geometry
-		ImGui::Text("Geometry");
+		
 		// torso model
 		ImGui::Text("Torso Model Path: %s", torso_model_path.c_str());
 		ImGui::SameLine();
@@ -1997,12 +1990,13 @@ private:
 				}
 			}
 		}
+	}
 
-
-		// server
+	void render_gui_server()
+	{
+		// Server
+		
 		//server_address_select
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Server");
 		static const char* binding_items_names[] = { "LocalHost", "ThisHost" };
 		if (!server.is_running())
 		{
@@ -2033,10 +2027,12 @@ private:
 				}
 			}
 		}
+	}
 
+	void render_gui_interpolation()
+	{
+		// Interpolation
 
-		// probe vertex interpolation
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		if (ImGui::DragReal("Interpolation Power", &interpolation_power, 0.1, 1, 12))
 		{
 			recalculate_interpolation_matrix = true;
@@ -2048,14 +2044,16 @@ private:
 		ImGui::Checkbox("View Interpolation Factors for Selected Probe", &view_interpolation_factor_for_selected_probe);
 		ImGui::Checkbox("Use Interpolation To Calculate Probe Value (heart)", &use_interpolation_to_calculate_probe_value);
 
+	}
 
-		// TMP Source
-		{
-			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-			int im_tmp_source = (int)tmp_source - 1;
-			ImGui::Combo("TMP Source", (int*)&im_tmp_source, "Action Potential Parameters\0Direct Values\0Wave Propagation\0", 3);
-			tmp_source = (TMPValuesSource)clamp_value<int>(im_tmp_source+1, 1, 3);
-		}
+	void render_gui_tmp_sources()
+	{
+		// TMP Sources
+
+		int im_tmp_source = (int)tmp_source - 1;
+		ImGui::Combo("TMP Source", (int*)&im_tmp_source, "Action Potential Parameters\0Direct Values\0Wave Propagation\0", 3);
+		tmp_source = (TMPValuesSource)clamp_value<int>(im_tmp_source+1, 1, 3);
+		// different options for sources
 		if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
 		{
 			ImGui::Text("Time: %.4f s", t);
@@ -2265,168 +2263,12 @@ private:
 			ImGui::SliderInt("TMP update refresh every FPS", &TMP_update_refresh_rate, 1, 100);
 			wave_prop.render_gui();
 		}
+	}
 
+	void render_gui_rendering_options()
+	{
+		// Rendering Options
 
-		/*
-		// dipole position and vector
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Dipole");
-		ImGui::DragVector3Eigen("Dipole position", dipole_pos, 0.01f);
-		ImGui::DragVector3Eigen("Dipole Vector", dipole_vec, 0.01f);
-		ImGui::Checkbox("Zero right heart section", &zero_heart_right_section);
-
-		// dipole curve
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		int im_dipole_vec_source = (int)dipole_vec_source - 1;
-		ImGui::Combo("Dipole Vector Values Source", (int*)&im_dipole_vec_source, "Constant Value\0Bezier Curve\0Values List\0", 3);
-		dipole_vec_source = (ValuesSource)clamp_value<int>(im_dipole_vec_source+1, 1, 3);
-		if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE)
-		{
-			ImGui::Text("Time: %.4f s", t);
-
-			// dt
-			ImGui::InputReal("time step", &dt, 0.001, 0.01, "%.5f");
-			dt = clamp_value<Real>(dt, 0.00001, 5);
-
-			// steps per frame
-			ImGui::SliderInt("steps per frame", &steps_per_frame, 0, 100);
-
-			if (ImGui::ListBoxHeader("dipole curve", { 0, 200 }))
-			{
-				// curve points
-				for (int i = 0; i < dipole_curve.points.size(); i++)
-				{
-					// point position
-					std::string point_name = "p" + std::to_string(i);
-					ImGui::DragVector3Eigen(point_name.c_str(), dipole_curve.points[i], 0.01f);
-					// segment duration
-					if (i != 0 && i%3 == 0)
-					{
-						int segment_idx = i/3-1;
-						ImGui::SameLine();
-						std::string duration_name = "d" + std::to_string(segment_idx);
-						ImGui::InputReal(duration_name.c_str(), &dipole_curve.segments_duratoins[segment_idx]);
-					}
-					// tangent point mirror
-					if (i != 0 && i != 1 && i%3 != 0)
-					{
-						ImGui::SameLine();
-						std::string point_mirror_name = "Mirror " + std::to_string(i);
-						if (ImGui::Button(point_mirror_name.c_str()))
-						{
-							int pivot_idx = ((i+1)/3)*3;
-							if (i == pivot_idx-1)
-							{
-								Eigen::Vector3<Real> new_point = dipole_curve.points[pivot_idx] - (dipole_curve.points[pivot_idx+1]-dipole_curve.points[pivot_idx]);
-								dipole_curve.points[i] = new_point;
-							}
-							else if (i == pivot_idx+1)
-							{
-								Eigen::Vector3<Real> new_point = dipole_curve.points[pivot_idx] - (dipole_curve.points[pivot_idx-1]-dipole_curve.points[pivot_idx]);
-								dipole_curve.points[i] = new_point;
-							}
-							else
-							{
-								printf("Invalid index for curve point mirror operation");
-							}
-						}
-					}
-
-				}
-				
-				ImGui::ListBoxFooter();
-			}
-
-			// add and remove point
-			if (ImGui::Button("Add point"))
-			{
-				dipole_curve.add_point({ 0, 0, 0 });
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("remove point"))
-			{
-				dipole_curve.remove_point();
-			}
-
-			// Import curve locations
-			if (ImGui::Button("Import curve"))
-			{
-				// open file dialog
-				std::string file_name = open_file_dialog("dipole_vector.curve", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
-
-				// import
-				if (file_name != "")
-				{
-					if (import_bezier_curve(file_name, dipole_curve))
-					{
-						printf("Imported \"%s\" curve\n", file_name.c_str());
-					}
-					else
-					{
-						printf("Failed to import \"%s\" curve\n", file_name.c_str());
-					}
-				}
-			}
-			// Export probes locations
-			ImGui::SameLine();
-			if (ImGui::Button("Export curve"))
-			{
-				// save file dialog
-				std::string file_name = save_file_dialog("dipole_vector.curve", "All\0*.*\0probes locations file (.probes)\0*.probes\0");
-
-				// export
-				if (file_name != "")
-				{
-					if (export_bezier_curve(file_name, dipole_curve))
-					{
-						printf("Exported \"%s\" curve\n", file_name.c_str());
-					}
-					else
-					{
-						printf("Failed to export \"%s\" curve\n", file_name.c_str());
-					}
-				}
-			}
-		}
-		// dipole vector values list
-		if (dipole_vec_source == VALUES_SOURCE_VALUES_LIST)
-		{
-			ImGui::SliderInt("Change rate (frames)", &dipole_vec_values_list_change_rate, 1, 100);
-			ImGui::Text("Counter: %d", dipole_vec_values_list_counter);
-			ImGui::Text("Current dipole vector (%d) value: (%.3f, %.3f, %.3f)", dipole_vec_values_list_current, dipole_vec.x(), dipole_vec.y(), dipole_vec.z());
-
-			if (ImGui::ListBoxHeader("dipole vector values list", { 0, 200 }))
-			{
-				// values
-				for (int i = 0; i < dipole_vec_values_list.size(); i++)
-				{
-					// vector value
-					std::string point_name = "vec" + std::to_string(i);
-					ImGui::DragVector3Eigen(point_name.c_str(), dipole_vec_values_list[i], 0.01f);
-				}
-
-				ImGui::ListBoxFooter();
-			}
-
-			// add and remove value
-			if (ImGui::Button("Add value"))
-			{
-				dipole_vec_values_list.push_back({ 0, 0, 0 });
-			}
-			ImGui::SameLine();
-			if (ImGui::Button("Remove value"))
-			{
-				if (dipole_vec_values_list.size() > 0)
-				{
-					dipole_vec_values_list.erase(dipole_vec_values_list.begin() + dipole_vec_values_list.size() - 1);
-				}
-			}
-		}
-		*/
-
-		// rendering options
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Rendering Options");
 		ImGui::Checkbox("View Heart Element Effect (Selected by a Probe)", &view_heart_element_selected_by_probe_effect);
 		ImGui::SliderFloat("Dipole Vector Thickness", &dipole_vector_thickness, 1, 20);
 		ImGui::SliderFloat("Heart Render Scale", &heart_render_scale, 0.1, 5);
@@ -2500,10 +2342,13 @@ private:
 			heart_potential_max_value = -1e12;
 			heart_potential_min_value = 1e12;
 		}
+	}
 
-		// probes
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		if (ImGui::ListBoxHeader("Probes", {0, 120}))
+	void render_gui_torso_probes()
+	{
+		// Torso Probes
+
+		if (ImGui::ListBoxHeader("Probes", { 0, 120 }))
 		{
 			for (int i = 0; i < probes.size(); i++)
 			{
@@ -2705,7 +2550,7 @@ private:
 		{
 			std::vector<Probe> front_probes = cast_probes_in_plane("B_F", *torso, torso_cast_probes_rows, torso_cast_probes_cols, 1, -1, torso_cast_probes_x_min, torso_cast_probes_x_max, torso_cast_probes_y_min, torso_cast_probes_y_max);
 			std::vector<Probe> back_probes = cast_probes_in_plane("B_B", *torso, torso_cast_probes_rows, torso_cast_probes_cols, -1, 1, torso_cast_probes_x_min, torso_cast_probes_x_max, torso_cast_probes_y_min, torso_cast_probes_y_max);
-			
+
 			if (torso_probes_clear_before_adding)
 			{
 				probes.clear();
@@ -2772,113 +2617,12 @@ private:
 		}
 
 		ImGui::Checkbox("probes differentiation", &probes_differentiation);
+	}
 
+	void render_gui_heart_probes()
+	{
+		// Heart Probes
 
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		// view probes graph
-		if (ImGui::Button("Torso Probes graph"))
-		{
-			probes_graph = true;
-		}
-		if (ImGui::Button("Standard ECG"))
-		{
-			plot_std_ecg = true;
-		}
-		if (ImGui::Button("Heart Probes graph"))
-		{
-			heart_probes_graph = true;
-		}
-		ImGui::Checkbox("Clear graph at (t = 0)", &probes_graph_clear_at_t0);
-		// dump to csv
-		if (ImGui::Button("Dump to csv"))
-		{
-			// save file dialog
-			std::string file_name = save_file_dialog("probes.csv", "CSV File (.csv)\0*.csv\0All Files\0*.*\0\0");
-
-			// dump
-			if (file_name != "")
-			{
-				bool res = dump_probes_values_to_csv(file_name.c_str(), dipole_pos, dipole_curve, dt, sample_count, probes, probes_values);
-				if (res)
-				{
-					printf("Successfuly dumped probes to \"%s\"\n", file_name.c_str());
-				}
-				else
-				{
-					printf("Failed to dump probes to \"%s\"\n", file_name.c_str());
-				}
-			}
-		}
-		if (ImGui::Button("Dump TMP BSP Probes to CSV"))
-		{
-			Timer generating_timer;
-			generating_timer.start();
-
-			// calculate BSP probes values
-			std::vector<std::string> names(heart_probes.size()+probes.size(), "");
-			MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, heart_probes.size()+probes.size());
-			for (int sample = 0; sample < sample_count; sample++)
-			{
-				Real t_current = sample*TMP_dt;
-
-				// update heart potentials
-				if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
-				{
-					// update heart TMP from action potential parameters
-					for (int i = 0; i < M; i++)
-					{
-						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
-					}
-				}
-				else /*TMP_SOURCE_WAVE_PROPAGATION*/
-				{
-					// wave propagation
-					if (sample == 0)
-					{
-						wave_prop.reset();
-					}
-					wave_prop.simulation_step();
-					QH = wave_prop.get_potentials();
-				}
-
-				// calculate body surface potentials
-				calculate_torso_potentials();
-
-				for (int i = 0; i < heart_probes.size(); i++)
-				{
-					names[i] = heart_probes[i].name;
-					TMP_BSP_values(sample, i) = evaluate_heart_probe(heart_probes[i], i);
-				}
-
-				for (int i = 0; i < probes.size(); i++)
-				{
-					names[heart_probes.size()+i] = probes[i].name;
-					TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_torso_probe(probes[i]);
-				}
-			}
-
-			printf("Generated TMP BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
-
-			// save to file
-			std::string file_name = save_file_dialog("TMP_BSP_values.csv", "All\0*.*\0CSV File (.csv)\0*.csv\0");
-
-			// dump
-			if (file_name != "")
-			{
-				bool res = dump_matrix_to_csv(file_name, names, TMP_BSP_values);
-				if (res)
-				{
-					printf("Successfuly dumped probes to \"%s\"\n", file_name.c_str());
-				}
-				else
-				{
-					printf("Failed to dump probes to \"%s\"\n", file_name.c_str());
-				}
-			}
-		}
-
-		// heart probes
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		if (ImGui::ListBoxHeader("Heart Probes", { 0, 120 }))
 		{
 			for (int i = 0; i < heart_probes.size(); i++)
@@ -3120,10 +2864,117 @@ private:
 				}
 			}
 		}
+	}
 
+	void render_gui_probes_graph()
+	{
+		// Probes Graph
+		if (ImGui::Button("Torso Probes graph"))
+		{
+			probes_graph = true;
+		}
+		if (ImGui::Button("Standard ECG"))
+		{
+			plot_std_ecg = true;
+		}
+		if (ImGui::Button("Heart Probes graph"))
+		{
+			heart_probes_graph = true;
+		}
+		ImGui::Checkbox("Clear graph at (t = 0)", &probes_graph_clear_at_t0);
+		// dump to csv
+		if (ImGui::Button("Dump to csv"))
+		{
+			// save file dialog
+			std::string file_name = save_file_dialog("probes.csv", "CSV File (.csv)\0*.csv\0All Files\0*.*\0\0");
 
-		// stats
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+			// dump
+			if (file_name != "")
+			{
+				bool res = dump_probes_values_to_csv(file_name.c_str(), dipole_pos, dipole_curve, dt, sample_count, probes, probes_values);
+				if (res)
+				{
+					printf("Successfuly dumped probes to \"%s\"\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to dump probes to \"%s\"\n", file_name.c_str());
+				}
+			}
+		}
+		if (ImGui::Button("Dump TMP BSP Probes to CSV"))
+		{
+			Timer generating_timer;
+			generating_timer.start();
+
+			// calculate BSP probes values
+			std::vector<std::string> names(heart_probes.size()+probes.size(), "");
+			MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, heart_probes.size()+probes.size());
+			for (int sample = 0; sample < sample_count; sample++)
+			{
+				Real t_current = sample*TMP_dt;
+
+				// update heart potentials
+				if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
+				{
+					// update heart TMP from action potential parameters
+					for (int i = 0; i < M; i++)
+					{
+						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+					}
+				}
+				else /*TMP_SOURCE_WAVE_PROPAGATION*/
+				{
+					// wave propagation
+					if (sample == 0)
+					{
+						wave_prop.reset();
+					}
+					wave_prop.simulation_step();
+					QH = wave_prop.get_potentials();
+				}
+
+				// calculate body surface potentials
+				calculate_torso_potentials();
+
+				for (int i = 0; i < heart_probes.size(); i++)
+				{
+					names[i] = heart_probes[i].name;
+					TMP_BSP_values(sample, i) = evaluate_heart_probe(heart_probes[i], i);
+				}
+
+				for (int i = 0; i < probes.size(); i++)
+				{
+					names[heart_probes.size()+i] = probes[i].name;
+					TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_torso_probe(probes[i]);
+				}
+			}
+
+			printf("Generated TMP BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
+
+			// save to file
+			std::string file_name = save_file_dialog("TMP_BSP_values.csv", "All\0*.*\0CSV File (.csv)\0*.csv\0");
+
+			// dump
+			if (file_name != "")
+			{
+				bool res = dump_matrix_to_csv(file_name, names, TMP_BSP_values);
+				if (res)
+				{
+					printf("Successfuly dumped probes to \"%s\"\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to dump probes to \"%s\"\n", file_name.c_str());
+				}
+			}
+		}
+	}
+
+	void render_gui_stats()
+	{
+		// Stats
+
 		Real torso_max_val = -INFINITY;
 		Real torso_min_val = INFINITY;
 		for (MeshPlotVertex& vertex : torso->vertices)
@@ -3138,7 +2989,6 @@ private:
 			heart_max_val = rmax(vertex.value, heart_max_val);
 			heart_min_val = rmin(vertex.value, heart_min_val);
 		}
-		ImGui::Text("Stats:");
 		ImGui::Text("\tTorso Potential Max: %f", torso_max_val);
 		ImGui::Text("\tTorso Potential Min: %f", torso_min_val);
 		ImGui::Text("\tTorso Potential Delta: %f", torso_max_val-torso_min_val);
@@ -3150,6 +3000,70 @@ private:
 		// frame rate and frame time
 		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms), elapsed: %.2f s", 1/timer_dt, 1000*timer_dt, timer_time);
+
+	}
+
+	void render_gui()
+	{
+		// Start the Dear ImGui frame
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
+		ImGui::NewFrame();
+
+
+		ImGui::Begin("Controls");
+
+		// Geometry
+		ImGui::Text("Geometry");
+		render_gui_geometry();
+
+
+		// Server
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Server");
+		render_gui_server();
+
+
+		// Probe Vertex Interpolation
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Interpolation");
+		render_gui_interpolation();
+
+
+		// TMP Source
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("TMP Sources");
+		render_gui_tmp_sources();
+
+
+		// Rendering Options
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Rendering Options");
+		render_gui_rendering_options();
+		
+
+		// Torso Probes
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Torso Probes");
+		render_gui_torso_probes();
+
+
+		// Probes Graph
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Probes Graph");
+		render_gui_probes_graph();
+		
+
+		// Heart Probes
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Heart Probes");
+		render_gui_heart_probes();
+
+
+		// Stats
+		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("Stats");
+		render_gui_stats();
 
 		ImGui::End();
 
