@@ -361,6 +361,7 @@ layout (location = 2) out float opacity_out;
 void main()
 {
 	gl_Position = projection*model*vec4(pos, 1.0); // w = 1 for points, w = 0 for vectors.
+	gl_Position.z -= 0.001; // advance the depth a little bit
 	opacity_out = opacity;
 }
 )";
@@ -375,6 +376,12 @@ out vec4 FragColor;
 
 void main()
 {
+	// discard fragment if opacity is less than the opacity_threshold
+	if (opacity < opacity_threshold)
+	{
+		discard;
+	}
+
 	FragColor = vec4(color.xyz, color.w*opacity);
 }
 )";
@@ -485,13 +492,15 @@ void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* me
 		// Bind shader.
 		m_wireframe_shader->bind();
 		m_wireframe_shader->setMat4("projection", m_view_matrix);
-		m_wireframe_shader->setMat4("model", transform*scale({ 1.001, 1.001, 1.001 }));
+		m_wireframe_shader->setMat4("model", transform);
 		m_wireframe_shader->setVec4("color", wireframe_color);
+		m_wireframe_shader->setFloat("opacity_threshold", m_opacity_threshold);
 
 		gdevGet()->setPolygonMode(FACE_FRONT_AND_BACK, POLYGON_MODE_LINE);
 		gdevGet()->setLineWidth(wireframe_line_width);
 		gdevGet()->drawElements(TOPOLOGY_TRIANGLE_LIST, 0, 3*mesh_plot->faces_count, INDEX_UNSIGNED_INT);
 	}
+
 
 	// restore polygon mode
 	gdevGet()->setPolygonMode(FACE_FRONT_AND_BACK, POLYGON_MODE_FILL);
