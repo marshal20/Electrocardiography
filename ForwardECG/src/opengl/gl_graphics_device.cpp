@@ -253,7 +253,7 @@ void glGraphicsDevice::setLineWidth(float line_width)
 
 void glGraphicsDevice::setPointSize(float point_size)
 {
-	setPointSize(point_size);
+	glPointSize(point_size);
 }
 
 void glGraphicsDevice::drawArrays(Topology topology, unsigned first, unsigned count)
