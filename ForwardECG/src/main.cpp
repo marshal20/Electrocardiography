@@ -488,11 +488,6 @@ public:
 		heart_action_potential_params.resize(heart_mesh->vertices.size(), 
 			ActionPotentialParameters{ ACTION_POTENTIAL_RESTING_POTENTIAL, ACTION_POTENTIAL_PEAK_POTENTIAL, ACTION_POTENTIAL_DEPOLARIZATION_TIME, ACTION_POTENTIAL_REPOLARIZATION_TIME });
 		// heart mesh groups
-		for (int i = 0; i < heart_mesh->groups_vertices.size(); i++)
-		{
-			std::shared_ptr<glFrameBuffer> new_fb = std::shared_ptr<glFrameBuffer>(glFrameBuffer::create({ glTexture::create(width, height, FORMAT_RGBA, TYPE_FLOAT) }, glTexture::create(width, height, Format::FORMAT_DEPTH, Type::TYPE_FLOAT)));
-			heart_mesh_groups_frame_buffers.push_back(new_fb);
-		}
 		heart_mesh_groups_opacity.resize(heart_mesh->groups_vertices.size(), 0.8);
 		heart_mesh_invert_group_normal.resize(heart_mesh->groups_vertices.size(), false);
 
@@ -523,6 +518,12 @@ public:
 
 		// frame buffers
 		torso_fb = glFrameBuffer::create({ glTexture::create(width, height, FORMAT_RGBA, TYPE_FLOAT) }, glTexture::create(width, height, Format::FORMAT_DEPTH, Type::TYPE_FLOAT));
+		// heart fb
+		for (int i = 0; i < heart_mesh->groups_vertices.size(); i++)
+		{
+			std::shared_ptr<glFrameBuffer> new_fb = std::shared_ptr<glFrameBuffer>(glFrameBuffer::create({ glTexture::create(width, height, FORMAT_RGBA, TYPE_FLOAT) }, glTexture::create(width, height, Format::FORMAT_DEPTH, Type::TYPE_FLOAT)));
+			heart_mesh_groups_frame_buffers.push_back(new_fb);
+		}
 
 		// LookAtCamera
 		camera = default_camera;
@@ -563,7 +564,7 @@ public:
 		glfwSwapInterval(1);
 
 		// main loop
-		timer.start();
+		frame_timer.start();
 		while (!glfwWindowShouldClose(window))
 		{
 			// handle window size change
@@ -582,346 +583,16 @@ public:
 			}
 
 
-			// timer
-			timer_dt = timer.elapsed_seconds();
+			// frame timer
+			timer_dt = frame_timer.elapsed_seconds();
 			timer_time += timer_dt;
-			timer.start();
+			frame_timer.start();
 
 			// input
 			handle_input();
 
-
-			// animate camera rotation
-			if (camera_rotate)
-			{
-				camera_angle += timer_dt*camera_rotation_speed*2*PI;
-				camera.eye = camera.look_at + glm::vec3(camera_eye_radius*sin(camera_angle), 0, camera_eye_radius*cos(camera_angle));
-			}
-
-			/*
-			// animate dipole vector on the curve
-			if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE)
-			{
-				// update probes_values size
-				sample_count = dipole_curve.total_duration()/dt + 1;
-				probes_values.resize(probes.size(), sample_count);
-
-				for (int step = 0; step < steps_per_frame; step++)
-				{
-					// next sample
-					current_sample++;
-					current_sample = current_sample%sample_count;
-
-					// update dipole vector
-					t = current_sample*dt;
-					dipole_vec = dipole_curve.point_at(t);
-
-					// calculate
-					calculate_potentials();
-
-					// calculate probes values at time point
-					for (int i = 0; i < probes.size(); i++)
-					{
-						Real probe_value = evaluate_torso_probe(probes[i]);
-						probes_values(i, current_sample) = probe_value;
-					}
-
-					// clear probes graph
-					if (probes_graph_clear_at_t0 && current_sample == 0)
-					{
-						probes_values.setZero();
-					}
-				}
-			}
-			else if (dipole_vec_source == VALUES_SOURCE_VALUES_LIST)
-			{
-				probes_values.resize(probes.size(), dipole_vec_values_list.size());
-
-				if (dipole_vec_values_list.size() > 0)
-				{
-					dipole_vec_values_list_counter++;
-					if (dipole_vec_values_list_counter > dipole_vec_values_list_change_rate)
-					{
-						dipole_vec_values_list_current++;
-						dipole_vec_values_list_counter = 0;
-					}
-					dipole_vec_values_list_current = dipole_vec_values_list_current % dipole_vec_values_list.size();
-
-					dipole_vec = dipole_vec_values_list[dipole_vec_values_list_current];
-				}
-				else
-				{
-					dipole_vec = { 0, 0, 0 };
-				}
-
-				calculate_potentials();
-
-				// calculate probes values at time point
-				for (int i = 0; i < probes.size(); i++)
-				{
-					Real probe_value = evaluate_torso_probe(probes[i]);
-					probes_values(i, dipole_vec_values_list_current) = probe_value;
-				}
-
-				// clear probes graph
-				if (probes_graph_clear_at_t0 && dipole_vec_values_list_current == 0)
-				{
-					probes_values.setZero();
-				}
-			}
-			else if (dipole_vec_source == VALUES_SOURCE_CONSTANT)
-			{
-				calculate_potentials();
-			}
-			*/
-
-
-			// recalculate tmp_probes_interpolation_matrix
-			if (last_heart_probes_count != heart_probes.size())
-			{
-				recalculate_interpolation_matrix = true;
-			}
-			if (recalculate_interpolation_matrix)
-			{
-				recalculate_interpolation_matrix = false;
-				tmp_probes_interpolation_matrix = MatrixX<Real>::Zero(M, heart_probes.size());
-
-				// calculate distance across the surface from each probe to each vertex
-				std::vector<std::vector<Real>> probes_distances(heart_probes.size());
-				for (int i = 0; i < heart_probes.size(); i++)
-				{
-					probes_distances[i] = probe_to_vertices_distance_across_the_surface(*heart_mesh, heart_probes[i]);
-				}
-
-				// calculate interpolation coefficient for each vertex
-				for (int i = 0; i < M; i++)
-				{
-					Vector3<Real> vertex_pos = glm2eigen(heart_mesh->vertices[i].pos);
-
-					// calculate each factor
-					for (int j = 0; j < heart_probes.size(); j++)
-					{
-						// new method
-						Real probe_vertex_distance = probes_distances[j][i];
-						// old method
-						if (use_old_interpolation_method)
-						{
-							probe_vertex_distance = (heart_probes[j].point-vertex_pos).norm();
-						}
-						Real factor = 1/pow(probe_vertex_distance, interpolation_power);
-						//factor = rmin(factor, 1e15);
-						tmp_probes_interpolation_matrix(i, j) = factor;
-					}
-
-					// calculate the sum
-					Real sum = 0;
-					for (int j = 0; j < heart_probes.size(); j++)
-					{
-						sum += tmp_probes_interpolation_matrix(i, j);
-					}
-
-					// apply scale
-					for (int j = 0; j < heart_probes.size(); j++)
-					{
-						tmp_probes_interpolation_matrix(i, j) /= sum;
-					}
-				}
-
-				// calculate vertex to probe interpolation
-				tmp_probes_interpolation_matrix_inv = MatrixX<Real>::Zero(heart_probes.size(), M);
-				for (int i = 0; i < heart_probes.size(); i++)
-				{
-					Real sum = 0;
-					for (int j = 0; j < M; j++)
-					{
-						sum += tmp_probes_interpolation_matrix(j, i);
-					}
-
-					for (int j = 0; j < M; j++)
-					{
-						tmp_probes_interpolation_matrix_inv(i, j) = tmp_probes_interpolation_matrix(j, i)/sum;
-					}
-				}
-
-				last_heart_probes_count = heart_probes.size();
-			}
-
-			// TMP action potential
-			TMP_update_refresh_rate_counter++;
-			if (TMP_update_refresh_rate_counter >= TMP_update_refresh_rate)
-			{
-				TMP_update_refresh_rate_counter = 0;
-				// Potential calculations
-				if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
-				{
-					// update probes_values size
-					sample_count = TMP_total_duration/TMP_dt + 1;
-					probes_values.resize(probes.size(), sample_count);
-					heart_probes_values.resize(heart_probes.size(), sample_count);
-					// heart_probes_values_temp
-					heart_probes_values_temp.resize(1, heart_probes.size());
-
-					for (int step = 0; step < TMP_steps_per_frame; step++)
-					{
-						// next sample
-						current_sample++;
-						current_sample = current_sample%sample_count;
-
-						// update time vector
-						t = current_sample*TMP_dt;
-
-						// update heart TMP from action potential parameters
-						for (int i = 0; i < heart_mesh->vertices.size(); i++)
-						{
-							QH(i) = extracellular_potential(t, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
-						}
-
-						if (use_interpolation_for_action_potential)
-						{	
-							// update heart TMP from action potential parameters
-							for (int i = 0; i < M; i++)
-							{
-								QH(i) = extracellular_potential(t, dt, heart_action_potential_params[i]); //action_potential_value_2
-							}
-
-							// update heart probes values
-							for (int i = 0; i < heart_mesh->vertices.size(); i++)
-							{
-								heart_mesh->vertices[i].value = QH(i);
-							}
-							for (int i = 0; i < heart_probes.size(); i++)
-							{
-								heart_probes_values_temp(i) = evaluate_heart_probe(heart_probes[i], i);
-							}
-
-							// use interpolation for heart potentials using heart probes
-							if (heart_probes.size() > 0)
-							{
-								QH = tmp_probes_interpolation_matrix*heart_probes_values_temp;
-							}
-							else
-							{
-								// set values to 0
-								for (int i = 0; i < heart_mesh->vertices.size(); i++)
-								{
-									QH(i) = 0;
-								}
-							}
-						}
-
-						// calculate body surface potentials
-						calculate_torso_potentials();
-
-						// update probes
-						for (int i = 0; i < heart_probes.size(); i++)
-						{
-							heart_probes_values(i, current_sample) = evaluate_heart_probe(heart_probes[i], i);
-						}
-
-						// calculate probes values at time point
-						for (int i = 0; i < probes.size(); i++)
-						{
-							probes_values(i, current_sample) = evaluate_torso_probe(probes[i]);
-						}
-
-						// clear probes graph
-						if (probes_graph_clear_at_t0 && current_sample == 0)
-						{
-							heart_probes_values.setZero();
-							probes_values.setZero();
-						}
-					}
-				}
-				else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
-				{
-					// update probes_values size
-					sample_count = tmp_direct_values.rows() > 0 ? tmp_direct_values.rows() : 1;
-					probes_values.resize(probes.size(), sample_count);
-					heart_probes_values.resize(heart_probes.size(), sample_count);
-
-					for (int step = 0; step < TMP_steps_per_frame; step++)
-					{
-						// next sample
-						if (!(tmp_direct_values_one_play && current_sample == sample_count-1))
-						{
-							current_sample++;
-						}
-						current_sample = current_sample%sample_count;
-
-						// update time vector
-						t = current_sample*TMP_dt;
-
-						// assign direct values (from probes interpolation)
-						if (tmp_direct_values.rows() > 0 && tmp_direct_values.cols() > 0)
-						{
-							QH = tmp_probes_interpolation_matrix*tmp_direct_values.row(current_sample).transpose();
-						}
-						else
-						{
-							// set values to 0
-							for (int i = 0; i < heart_mesh->vertices.size(); i++)
-							{
-								QH(i) = 0;
-							}
-						}
-
-						// calculate body surface potentials
-						calculate_torso_potentials();
-
-						// update probes
-						for (int i = 0; i < heart_probes.size(); i++)
-						{
-							heart_probes_values(i, current_sample) = evaluate_heart_probe(heart_probes[i], i);
-						}
-
-						// calculate probes values at time point
-						for (int i = 0; i < probes.size(); i++)
-						{
-							probes_values(i, current_sample) = evaluate_torso_probe(probes[i]);
-						}
-
-						// clear probes graph
-						if (probes_graph_clear_at_t0 && current_sample == 0)
-						{
-							heart_probes_values.setZero();
-							probes_values.setZero();
-						}
-					}
-				}
-				else if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
-				{
-					wave_prop.simulation_step();
-					sample_count = wave_prop.get_sample_count();
-					current_sample = wave_prop.get_current_sample();
-					//wave_prop.update_mesh_values();
-					QH = wave_prop.get_potentials();
-					probes_values.resize(probes.size(), sample_count);
-					heart_probes_values.resize(heart_probes.size(), sample_count);
-
-					// calculate body surface potentials
-					calculate_torso_potentials();
-
-					// update probes
-					for (int i = 0; i < heart_probes.size(); i++)
-					{
-						heart_probes_values(i, current_sample) = evaluate_heart_probe(heart_probes[i], i);
-					}
-
-					// calculate probes values at time point
-					for (int i = 0; i < probes.size(); i++)
-					{
-						probes_values(i, current_sample) = evaluate_torso_probe(probes[i]);
-					}
-
-					// clear probes graph
-					if (probes_graph_clear_at_t0 && current_sample == 0)
-					{
-						heart_probes_values.setZero();
-						probes_values.setZero();
-					}
-				}
-			}
-
+			// update
+			update();
 
 			// render
 			render();
@@ -1098,8 +769,8 @@ private:
 		}
 
 		// print status
-		printf("Calculated PBB matrix in: %.3f sec\n", timer.elapsed_seconds());
-		timer.start();
+		printf("Calculated PBB matrix in: %.3f sec\n", frame_timer.elapsed_seconds());
+		frame_timer.start();
 
 		// PBH (NxM)
 		MatrixX<Real> PBH = MatrixX<Real>::Zero(N, M);
@@ -1146,8 +817,8 @@ private:
 		}
 
 		// print status
-		printf("Calculated PBH matrix in: %.3f sec\n", timer.elapsed_seconds());
-		timer.start();
+		printf("Calculated PBH matrix in: %.3f sec\n", frame_timer.elapsed_seconds());
+		frame_timer.start();
 
 		// skip unused calculations
 		/*
@@ -1401,8 +1072,8 @@ private:
 		//}
 
 		// print status
-		printf("Calculated transfer matrix (ZBH) in: %.3f sec\n", timer.elapsed_seconds());
-		timer.start();
+		printf("Calculated transfer matrix (ZBH) in: %.3f sec\n", frame_timer.elapsed_seconds());
+		frame_timer.start();
 	}
 
 	void calculate_torso_potentials()
@@ -1496,6 +1167,340 @@ private:
 			}
 		}
 
+	}
+
+	void update()
+	{
+		// animate camera rotation
+		if (camera_rotate)
+		{
+			camera_angle += timer_dt*camera_rotation_speed*2*PI;
+			camera.eye = camera.look_at + glm::vec3(camera_eye_radius*sin(camera_angle), 0, camera_eye_radius*cos(camera_angle));
+		}
+
+		/*
+		// animate dipole vector on the curve
+		if (dipole_vec_source == VALUES_SOURCE_BEZIER_CURVE)
+		{
+			// update probes_values size
+			sample_count = dipole_curve.total_duration()/dt + 1;
+			probes_values.resize(probes.size(), sample_count);
+
+			for (int step = 0; step < steps_per_frame; step++)
+			{
+				// next sample
+				current_sample++;
+				current_sample = current_sample%sample_count;
+
+				// update dipole vector
+				t = current_sample*dt;
+				dipole_vec = dipole_curve.point_at(t);
+
+				// calculate
+				calculate_potentials();
+
+				// calculate probes values at time point
+				for (int i = 0; i < probes.size(); i++)
+				{
+					Real probe_value = evaluate_torso_probe(probes[i]);
+					probes_values(i, current_sample) = probe_value;
+				}
+
+				// clear probes graph
+				if (probes_graph_clear_at_t0 && current_sample == 0)
+				{
+					probes_values.setZero();
+				}
+			}
+		}
+		else if (dipole_vec_source == VALUES_SOURCE_VALUES_LIST)
+		{
+			probes_values.resize(probes.size(), dipole_vec_values_list.size());
+
+			if (dipole_vec_values_list.size() > 0)
+			{
+				dipole_vec_values_list_counter++;
+				if (dipole_vec_values_list_counter > dipole_vec_values_list_change_rate)
+				{
+					dipole_vec_values_list_current++;
+					dipole_vec_values_list_counter = 0;
+				}
+				dipole_vec_values_list_current = dipole_vec_values_list_current % dipole_vec_values_list.size();
+
+				dipole_vec = dipole_vec_values_list[dipole_vec_values_list_current];
+			}
+			else
+			{
+				dipole_vec = { 0, 0, 0 };
+			}
+
+			calculate_potentials();
+
+			// calculate probes values at time point
+			for (int i = 0; i < probes.size(); i++)
+			{
+				Real probe_value = evaluate_torso_probe(probes[i]);
+				probes_values(i, dipole_vec_values_list_current) = probe_value;
+			}
+
+			// clear probes graph
+			if (probes_graph_clear_at_t0 && dipole_vec_values_list_current == 0)
+			{
+				probes_values.setZero();
+			}
+		}
+		else if (dipole_vec_source == VALUES_SOURCE_CONSTANT)
+		{
+			calculate_potentials();
+		}
+		*/
+
+
+		// recalculate tmp_probes_interpolation_matrix
+		if (last_heart_probes_count != heart_probes.size())
+		{
+			recalculate_interpolation_matrix = true;
+		}
+		if (recalculate_interpolation_matrix)
+		{
+			recalculate_interpolation_matrix = false;
+			tmp_probes_interpolation_matrix = MatrixX<Real>::Zero(M, heart_probes.size());
+
+			// calculate distance across the surface from each probe to each vertex
+			std::vector<std::vector<Real>> probes_distances(heart_probes.size());
+			for (int i = 0; i < heart_probes.size(); i++)
+			{
+				probes_distances[i] = probe_to_vertices_distance_across_the_surface(*heart_mesh, heart_probes[i]);
+			}
+
+			// calculate interpolation coefficient for each vertex
+			for (int i = 0; i < M; i++)
+			{
+				Vector3<Real> vertex_pos = glm2eigen(heart_mesh->vertices[i].pos);
+
+				// calculate each factor
+				for (int j = 0; j < heart_probes.size(); j++)
+				{
+					// new method
+					Real probe_vertex_distance = probes_distances[j][i];
+					// old method
+					if (use_old_interpolation_method)
+					{
+						probe_vertex_distance = (heart_probes[j].point-vertex_pos).norm();
+					}
+					Real factor = 1/pow(probe_vertex_distance, interpolation_power);
+					//factor = rmin(factor, 1e15);
+					tmp_probes_interpolation_matrix(i, j) = factor;
+				}
+
+				// calculate the sum
+				Real sum = 0;
+				for (int j = 0; j < heart_probes.size(); j++)
+				{
+					sum += tmp_probes_interpolation_matrix(i, j);
+				}
+
+				// apply scale
+				for (int j = 0; j < heart_probes.size(); j++)
+				{
+					tmp_probes_interpolation_matrix(i, j) /= sum;
+				}
+			}
+
+			// calculate vertex to probe interpolation
+			tmp_probes_interpolation_matrix_inv = MatrixX<Real>::Zero(heart_probes.size(), M);
+			for (int i = 0; i < heart_probes.size(); i++)
+			{
+				Real sum = 0;
+				for (int j = 0; j < M; j++)
+				{
+					sum += tmp_probes_interpolation_matrix(j, i);
+				}
+
+				for (int j = 0; j < M; j++)
+				{
+					tmp_probes_interpolation_matrix_inv(i, j) = tmp_probes_interpolation_matrix(j, i)/sum;
+				}
+			}
+
+			last_heart_probes_count = heart_probes.size();
+		}
+
+		// TMP action potential
+		TMP_update_refresh_rate_counter++;
+		if (TMP_update_refresh_rate_counter >= TMP_update_refresh_rate)
+		{
+			TMP_update_refresh_rate_counter = 0;
+			// Potential calculations
+			if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
+			{
+				// update probes_values size
+				sample_count = TMP_total_duration/TMP_dt + 1;
+				probes_values.resize(probes.size(), sample_count);
+				heart_probes_values.resize(heart_probes.size(), sample_count);
+				// heart_probes_values_temp
+				heart_probes_values_temp.resize(1, heart_probes.size());
+
+				for (int step = 0; step < TMP_steps_per_frame; step++)
+				{
+					// next sample
+					current_sample++;
+					current_sample = current_sample%sample_count;
+
+					// update time vector
+					t = current_sample*TMP_dt;
+
+					// update heart TMP from action potential parameters
+					for (int i = 0; i < heart_mesh->vertices.size(); i++)
+					{
+						QH(i) = extracellular_potential(t, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+					}
+
+					if (use_interpolation_for_action_potential)
+					{
+						// update heart TMP from action potential parameters
+						for (int i = 0; i < M; i++)
+						{
+							QH(i) = extracellular_potential(t, dt, heart_action_potential_params[i]); //action_potential_value_2
+						}
+
+						// update heart probes values
+						for (int i = 0; i < heart_mesh->vertices.size(); i++)
+						{
+							heart_mesh->vertices[i].value = QH(i);
+						}
+						for (int i = 0; i < heart_probes.size(); i++)
+						{
+							heart_probes_values_temp(i) = evaluate_heart_probe(heart_probes[i], i);
+						}
+
+						// use interpolation for heart potentials using heart probes
+						if (heart_probes.size() > 0)
+						{
+							QH = tmp_probes_interpolation_matrix*heart_probes_values_temp;
+						}
+						else
+						{
+							// set values to 0
+							for (int i = 0; i < heart_mesh->vertices.size(); i++)
+							{
+								QH(i) = 0;
+							}
+						}
+					}
+
+					// calculate body surface potentials
+					calculate_torso_potentials();
+
+					// update probes
+					for (int i = 0; i < heart_probes.size(); i++)
+					{
+						heart_probes_values(i, current_sample) = evaluate_heart_probe(heart_probes[i], i);
+					}
+
+					// calculate probes values at time point
+					for (int i = 0; i < probes.size(); i++)
+					{
+						probes_values(i, current_sample) = evaluate_torso_probe(probes[i]);
+					}
+
+					// clear probes graph
+					if (probes_graph_clear_at_t0 && current_sample == 0)
+					{
+						heart_probes_values.setZero();
+						probes_values.setZero();
+					}
+				}
+			}
+			else if (tmp_source == TMP_SOURCE_TMP_DIRECT_VALUES)
+			{
+				// update probes_values size
+				sample_count = tmp_direct_values.rows() > 0 ? tmp_direct_values.rows() : 1;
+				probes_values.resize(probes.size(), sample_count);
+				heart_probes_values.resize(heart_probes.size(), sample_count);
+
+				for (int step = 0; step < TMP_steps_per_frame; step++)
+				{
+					// next sample
+					if (!(tmp_direct_values_one_play && current_sample == sample_count-1))
+					{
+						current_sample++;
+					}
+					current_sample = current_sample%sample_count;
+
+					// update time vector
+					t = current_sample*TMP_dt;
+
+					// assign direct values (from probes interpolation)
+					if (tmp_direct_values.rows() > 0 && tmp_direct_values.cols() > 0)
+					{
+						QH = tmp_probes_interpolation_matrix*tmp_direct_values.row(current_sample).transpose();
+					}
+					else
+					{
+						// set values to 0
+						for (int i = 0; i < heart_mesh->vertices.size(); i++)
+						{
+							QH(i) = 0;
+						}
+					}
+
+					// calculate body surface potentials
+					calculate_torso_potentials();
+
+					// update probes
+					for (int i = 0; i < heart_probes.size(); i++)
+					{
+						heart_probes_values(i, current_sample) = evaluate_heart_probe(heart_probes[i], i);
+					}
+
+					// calculate probes values at time point
+					for (int i = 0; i < probes.size(); i++)
+					{
+						probes_values(i, current_sample) = evaluate_torso_probe(probes[i]);
+					}
+
+					// clear probes graph
+					if (probes_graph_clear_at_t0 && current_sample == 0)
+					{
+						heart_probes_values.setZero();
+						probes_values.setZero();
+					}
+				}
+			}
+			else if (tmp_source == TMP_SOURCE_WAVE_PROPAGATION)
+			{
+				wave_prop.simulation_step();
+				sample_count = wave_prop.get_sample_count();
+				current_sample = wave_prop.get_current_sample();
+				//wave_prop.update_mesh_values();
+				QH = wave_prop.get_potentials();
+				probes_values.resize(probes.size(), sample_count);
+				heart_probes_values.resize(heart_probes.size(), sample_count);
+
+				// calculate body surface potentials
+				calculate_torso_potentials();
+
+				// update probes
+				for (int i = 0; i < heart_probes.size(); i++)
+				{
+					heart_probes_values(i, current_sample) = evaluate_heart_probe(heart_probes[i], i);
+				}
+
+				// calculate probes values at time point
+				for (int i = 0; i < probes.size(); i++)
+				{
+					probes_values(i, current_sample) = evaluate_torso_probe(probes[i]);
+				}
+
+				// clear probes graph
+				if (probes_graph_clear_at_t0 && current_sample == 0)
+				{
+					heart_probes_values.setZero();
+					probes_values.setZero();
+				}
+			}
+		}
 	}
 
 	void render()
@@ -1766,6 +1771,7 @@ private:
 		gldev->depthTest(STATE_DISABLED);
 		Renderer2D::setProjection(ortho(0, width, height, 0, -1, 1));
 		Renderer2D::drawTexture({ width/2, height/2 }, { width, height }, torso_fb->getColorTexture(0), {1, 1, 1, torso_opacity});
+
 
 		/*
 		// render dipole
@@ -4141,7 +4147,7 @@ private:
 	int server_request_counter = 0;
 
 	// animation
-	Timer timer;
+	Timer frame_timer;
 	Real timer_time = 0;
 	Real timer_dt = 0;
 	// rotation
@@ -4239,14 +4245,7 @@ int main()
 		return result;
 	}
 
-	try
-	{
-		app.run();
-	}
-	catch (std::exception e)
-	{
-		printf("Caught exception: %s\n", e.what());
-	}
+	app.run();
 
     return 0;
 }
