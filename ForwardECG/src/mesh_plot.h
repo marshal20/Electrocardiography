@@ -69,10 +69,11 @@ public:
 	void set_opacity_threshold(float opacity_threshold);
 	void set_ambient(float ambient);
 	void set_specular(float specular);
-	void render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh);
+	void render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh, bool render_wireframe = false, const glm::vec4& wireframe_color = {0, 0, 0, 1}, float wireframe_line_width = 1.0f);
 
 private:
 	glShader* m_plot_shader;
+	glShader* m_wireframe_shader;
 	glVertexLayout* m_vertex_layout;
 	glm::mat4 m_view_matrix;
 	glm::vec4 m_color_p, m_color_n;

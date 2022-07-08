@@ -64,6 +64,20 @@ enum Topology
 	TOPOLOGY_TRIANGLE_FAN
 };
 
+enum FaceDirection
+{
+	FACE_BACK = 1,
+	FACE_FRONT,
+	FACE_FRONT_AND_BACK
+};
+
+enum PolygonMode
+{
+	POLYGON_MODE_FILL = 1,
+	POLYGON_MODE_LINE,
+	POLYGON_MODE_POINT
+};
+
 struct VertexLayoutElement
 {
 	enum Type { INT = 1, FLOAT, VEC2, VEC3, VEC4 };

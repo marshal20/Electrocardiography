@@ -124,7 +124,7 @@ void Renderer3D::drawLine(const glm::vec3 & p1, const glm::vec3 & p2)
 	if (style.stroke)
 	{
 		simple_shader->setVec4("color", style.stroke_color);
-		glLineWidth(style.stroke_width);
+		gdevGet()->setLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LIST, 0, 2);
 	}
 }
@@ -146,7 +146,7 @@ void Renderer3D::drawLineList(const std::vector<glm::vec3>& line_list)
 		if (style.stroke)
 		{
 			simple_shader->setVec4("color", style.stroke_color);
-			glLineWidth(style.stroke_width);
+			gdevGet()->setLineWidth(style.stroke_width);
 			gdevGet()->drawArrays(TOPOLOGY_LINE_LIST, 0, count);
 		}
 	}
@@ -171,7 +171,7 @@ void Renderer3D::drawPolygon(const glm::vec3* points, int count, bool loop)
 	if (style.stroke)
 	{
 		simple_shader->setVec4("color", style.stroke_color);
-		glLineWidth(style.stroke_width);
+		gdevGet()->setLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_STRIP, 0, new_count);
 		if (loop && count >= 2)
 		{
@@ -198,7 +198,7 @@ void Renderer3D::drawPoint(const glm::vec3& point, const glm::vec4& color, float
 	simple_shader->setMat4("model", glm::mat4(1));
 	// Draw command.
 	simple_shader->setVec4("color", color);
-	glPointSize(size);
+	gdevGet()->setPointSize(size);
 	gdevGet()->drawArrays(TOPOLOGY_POINT_LIST, 0, 1);
 }
 

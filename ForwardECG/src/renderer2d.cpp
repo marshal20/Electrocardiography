@@ -204,7 +204,7 @@ void Renderer2D::drawLine(const glm::vec2 & p1, const glm::vec2 & p2)
 	if (style.stroke)
 	{
 		simple_shader->setVec4("color", style.stroke_color);
-		glLineWidth(style.stroke_width);
+		gdevGet()->setLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, 2);
 	}
 }
@@ -229,7 +229,7 @@ void Renderer2D::drawTriangle(const glm::vec2 & p1, const glm::vec2 & p2, const 
 	if (style.stroke)
 	{
 		simple_shader->setVec4("color", style.stroke_color);
-		glLineWidth(style.stroke_width);
+		gdevGet()->setLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, 3);
 	}
 }
@@ -257,7 +257,7 @@ void Renderer2D::drawQuad(const glm::vec2 & p1, const glm::vec2 & p2, const glm:
 	if (style.stroke)
 	{
 		simple_shader->setVec4("color", style.stroke_color);
-		glLineWidth(style.stroke_width);
+		gdevGet()->setLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, 4);
 	}
 }
@@ -280,7 +280,7 @@ void Renderer2D::drawPolygon(const glm::vec2 * points, int count)
 	if (style.stroke)
 	{
 		simple_shader->setVec4("color", style.stroke_color);
-		glLineWidth(style.stroke_width);
+		gdevGet()->setLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, count);
 	}
 }
@@ -307,7 +307,7 @@ void Renderer2D::drawEllipse(const glm::vec2 & p, float rx, float ry)
 	if (style.stroke)
 	{
 		simple_shader->setVec4("color", style.stroke_color);
-		glLineWidth(style.stroke_width);
+		gdevGet()->setLineWidth(style.stroke_width);
 		gdevGet()->drawArrays(TOPOLOGY_LINE_LOOP, 0, circle_segments);
 	}
 	// Reset model matrix.

@@ -221,11 +221,11 @@ void WavePropagationSimulation::render_gui()
 	
 	// extracellular potential select
 	const char* im_extracellular_potential_curve_items[] = { 
-		"Extracellular Potential 1 (OLD)", 
-		"Extracellular Potential 2", 
-		"Extracellular Potential Over Depolarization",
+		"TMP Potential 1 (OLD)", 
+		"TMP Potential 2", 
+		"TMP Potential Over Depolarization",
 	};
-	ImGui::Combo("Extracellular Potential Curve", &m_selected_extracellular_potential_curve, im_extracellular_potential_curve_items, 7);
+	ImGui::Combo("TMP Potential Curve", &m_selected_extracellular_potential_curve, im_extracellular_potential_curve_items, 3);
 	static Real preview_dep_time = 0.2;
 	static Real preview_rep_time = 0.7;
 	ImGui::InputReal("Preview Depolarization Time", &preview_dep_time);

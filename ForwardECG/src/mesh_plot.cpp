@@ -3,12 +3,12 @@
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 #include "main_dev.h"
+#include "transform.h"
 #include "opengl/gl_texture.h"
 #include "opengl/gl_shader.h"
 #include "opengl/gl_vertex_buffer.h"
 #include "opengl/gl_index_buffer.h"
 #include "opengl/gl_vertex_layout.h"
-#include <algorithm>
 
 
 #define MAX_DEPTH 10
@@ -256,6 +256,8 @@ MeshPlot* load_mesh_plot(const char* file_name, bool classify_into_groups)
 ///////////////////////////////////////////////////////////
 
 
+// plot shader
+
 static const char* plot_vert = R"(
 #version 330 core
 layout (location = 0) in vec3 pos;
@@ -340,9 +342,48 @@ void main()
 }
 )";
 
+
+// wireframe shader
+
+static const char* wireframe_vert = R"(
+#version 330 core
+layout (location = 0) in vec3 pos;
+layout (location = 1) in vec3 normal;
+layout (location = 2) in float value;
+layout (location = 3) in float opacity;
+layout (location = 4) in float group;
+
+uniform mat4 projection;
+uniform mat4 model;
+
+layout (location = 2) out float opacity_out;
+
+void main()
+{
+	gl_Position = projection*model*vec4(pos, 1.0); // w = 1 for points, w = 0 for vectors.
+	opacity_out = opacity;
+}
+)";
+static const char* wireframe_frag = R"(
+#version 330 core
+layout (location = 2) in float opacity;
+
+uniform vec4 color;
+uniform float opacity_threshold;
+
+out vec4 FragColor;
+
+void main()
+{
+	FragColor = vec4(color.xyz, color.w*opacity);
+}
+)";
+
+
 MeshPlotRenderer::MeshPlotRenderer()
 {
 	m_plot_shader = gdevGet()->createShader(plot_vert, plot_frag);
+	m_wireframe_shader = gdevGet()->createShader(wireframe_vert, wireframe_frag);
 	m_vertex_layout = gdevGet()->createVertexLayout({
 		{VertexLayoutElement::VEC3, "pos"},
 		{VertexLayoutElement::VEC3, "normal"},
@@ -364,6 +405,7 @@ MeshPlotRenderer::MeshPlotRenderer()
 MeshPlotRenderer::~MeshPlotRenderer()
 {
 	delete m_plot_shader;
+	delete m_wireframe_shader;
 	delete m_vertex_layout;
 }
 
@@ -404,7 +446,7 @@ void MeshPlotRenderer::set_specular(float specular)
 	m_specular = specular;
 }
 
-void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh_plot)
+void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* mesh_plot, bool render_wireframe, const glm::vec4& wireframe_color, float wireframe_line_width)
 {
 	// check for vertex and index buffer
 	if (!mesh_plot->vertex_buffer || !mesh_plot->index_buffer)
@@ -412,8 +454,16 @@ void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* me
 		return;
 	}
 
+	// Drawing.
+	mesh_plot->vertex_buffer->bind();
+	mesh_plot->index_buffer->bind();
+	m_vertex_layout->bind();
+
+
+	// plot render
+
+	// Bind shader.
 	m_plot_shader->bind();
-	// Transform.
 	m_plot_shader->setMat4("projection", m_view_matrix);
 	m_plot_shader->setMat4("model", transform);
 	m_plot_shader->setVec4("color_n", m_color_n);
@@ -425,11 +475,25 @@ void MeshPlotRenderer::render_mesh_plot(const glm::mat4& transform, MeshPlot* me
 	m_plot_shader->setFloat("ambient", m_ambient);
 	m_plot_shader->setFloat("specular", m_specular);
 
-	// Drawing.
-	mesh_plot->vertex_buffer->bind();
-	mesh_plot->index_buffer->bind();
-	m_vertex_layout->bind();
-
+	gdevGet()->setPolygonMode(FACE_FRONT_AND_BACK, POLYGON_MODE_FILL);
 	gdevGet()->drawElements(TOPOLOGY_TRIANGLE_LIST, 0, 3*mesh_plot->faces_count, INDEX_UNSIGNED_INT);
+
+
+	// wireframe render
+	if (render_wireframe)
+	{
+		// Bind shader.
+		m_wireframe_shader->bind();
+		m_wireframe_shader->setMat4("projection", m_view_matrix);
+		m_wireframe_shader->setMat4("model", transform*scale({ 1.001, 1.001, 1.001 }));
+		m_wireframe_shader->setVec4("color", wireframe_color);
+
+		gdevGet()->setPolygonMode(FACE_FRONT_AND_BACK, POLYGON_MODE_LINE);
+		gdevGet()->setLineWidth(wireframe_line_width);
+		gdevGet()->drawElements(TOPOLOGY_TRIANGLE_LIST, 0, 3*mesh_plot->faces_count, INDEX_UNSIGNED_INT);
+	}
+
+	// restore polygon mode
+	gdevGet()->setPolygonMode(FACE_FRONT_AND_BACK, POLYGON_MODE_FILL);
 }
 

@@ -1703,7 +1703,7 @@ private:
 			mpr->set_colors(color_p, color_n);
 			mpr->set_view_projection_matrix(camera.calculateViewProjection());
 			mpr->set_opacity_threshold(0.5);
-			mpr->render_mesh_plot(translate(eigen2glm(heart_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh);
+			mpr->render_mesh_plot(translate(eigen2glm(heart_pos))*scale(glm::vec3(heart_render_scale)), heart_mesh, render_heart_wireframe, { 0, 0, 0, 1 }, render_heart_wireframe_line_width);
 			torso_fb->unbind();
 			gldev->bindBackbuffer();
 
@@ -1759,7 +1759,7 @@ private:
 			torso->update_gpu_buffers();
 		}
 
-		mpr->render_mesh_plot(glm::mat4(1), torso);
+		mpr->render_mesh_plot(glm::mat4(1), torso, render_torso_wireframe, {0, 0, 0, 1}, render_torso_wireframe_line_width);
 		torso_fb->unbind();
 		gldev->bindBackbuffer();
 		// render torso_fb texture
@@ -2449,6 +2449,10 @@ private:
 			}
 			ImGui::EndTable();
 		}
+		ImGui::SliderFloat("Heart Wireframe Line Width", &render_heart_wireframe_line_width, 0, 10);
+		ImGui::Checkbox("Render Heart Wireframe", &render_heart_wireframe);
+		ImGui::SliderFloat("Torso Wireframe Line Width", &render_torso_wireframe_line_width, 0, 10);
+		ImGui::Checkbox("Render Torso Wireframe", &render_torso_wireframe);
 		ImGui::SliderFloat("Mesh Plot Ambient", &mesh_plot_ambient, 0, 1);
 		ImGui::SliderFloat("Mesh Plot Specular", &mesh_plot_specular, 1, 10);
 		ImGui::ColorEdit4("Background Color", (float*)&color_background);
@@ -3238,20 +3242,20 @@ private:
 			// plot each lead
 			VectorX<Real> wilson_lead = (plot_std_ecg_probes_values["RA"] + plot_std_ecg_probes_values["LA"] + plot_std_ecg_probes_values["LL"])/3;
 			// V1:V6
-			plot_std_graph("V1", plot_std_ecg_probes_values["V1"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			plot_std_graph("V1 ", plot_std_ecg_probes_values["V1"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
 			ImGui::SameLine();
-			plot_std_graph("V2", plot_std_ecg_probes_values["V2"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			plot_std_graph("V2 ", plot_std_ecg_probes_values["V2"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
 			ImGui::SameLine();
-			plot_std_graph("V3", plot_std_ecg_probes_values["V3"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
-			plot_std_graph("V4", plot_std_ecg_probes_values["V4"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			plot_std_graph("V3 ", plot_std_ecg_probes_values["V3"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			plot_std_graph("V4 ", plot_std_ecg_probes_values["V4"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
 			ImGui::SameLine();
-			plot_std_graph("V5", plot_std_ecg_probes_values["V5"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			plot_std_graph("V5 ", plot_std_ecg_probes_values["V5"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
 			ImGui::SameLine();
-			plot_std_graph("V6", plot_std_ecg_probes_values["V6"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
+			plot_std_graph("V6 ", plot_std_ecg_probes_values["V6"]-wilson_lead, std_ecg_graph_width, std_ecg_graph_height);
 			// Limb leads
-			plot_std_graph("I",   plot_std_ecg_probes_values["LA"]-plot_std_ecg_probes_values["RA"], std_ecg_graph_width, std_ecg_graph_height);
+			plot_std_graph("I  ", plot_std_ecg_probes_values["LA"]-plot_std_ecg_probes_values["RA"], std_ecg_graph_width, std_ecg_graph_height);
 			ImGui::SameLine();
-			plot_std_graph("II",  plot_std_ecg_probes_values["LL"]-plot_std_ecg_probes_values["RA"], std_ecg_graph_width, std_ecg_graph_height);
+			plot_std_graph("II ", plot_std_ecg_probes_values["LL"]-plot_std_ecg_probes_values["RA"], std_ecg_graph_width, std_ecg_graph_height);
 			ImGui::SameLine();
 			plot_std_graph("III", plot_std_ecg_probes_values["LL"]-plot_std_ecg_probes_values["LA"], std_ecg_graph_width, std_ecg_graph_height);
 			// aV leads
@@ -4188,6 +4192,11 @@ private:
 	// Heart groups render option
 	std::vector<std::shared_ptr<glFrameBuffer>> heart_mesh_groups_frame_buffers;
 	std::vector<float> heart_mesh_groups_opacity;
+	// wireframe
+	float render_heart_wireframe_line_width = 1.0f;
+	bool render_heart_wireframe = false;
+	float render_torso_wireframe_line_width = 1.0f;
+	bool render_torso_wireframe = false;
 
 	// probes
 	bool adding_probe = false;

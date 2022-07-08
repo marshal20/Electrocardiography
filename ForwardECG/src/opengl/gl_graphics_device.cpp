@@ -204,6 +204,58 @@ void glGraphicsDevice::setAlpha(const Alpha& alpha)
 	glBlendFunc(factor_to_glenum(alpha.sfactor), factor_to_glenum(alpha.dfactor));
 }
 
+void glGraphicsDevice::setPolygonMode(const FaceDirection& apply_to_face_dir, const PolygonMode& poly_mode)
+{
+	// select face
+	GLenum face = 0;
+	switch (apply_to_face_dir)
+	{
+	case FACE_BACK:
+		face = GL_BACK;
+		break;
+	case FACE_FRONT:
+		face = GL_FRONT;
+		break;
+	case FACE_FRONT_AND_BACK:
+		face = GL_FRONT_AND_BACK;
+		break;
+	default:
+		face = GL_FRONT_AND_BACK;
+		break;
+	}
+
+	// select polygon mode
+	GLenum mode = 0;
+	switch (poly_mode)
+	{
+	case POLYGON_MODE_FILL:
+		mode = GL_FILL;
+		break;
+	case POLYGON_MODE_LINE:
+		mode = GL_LINE;
+		break;
+	case POLYGON_MODE_POINT:
+		mode = GL_POINT;
+		break;
+	default:
+		face = GL_FILL;
+		break;
+	}
+
+	glPolygonMode(face, mode);
+
+}
+
+void glGraphicsDevice::setLineWidth(float line_width)
+{
+	glLineWidth(line_width);
+}
+
+void glGraphicsDevice::setPointSize(float point_size)
+{
+	setPointSize(point_size);
+}
+
 void glGraphicsDevice::drawArrays(Topology topology, unsigned first, unsigned count)
 {
 	glDrawArrays(topology_to_glenum(topology), first, count);

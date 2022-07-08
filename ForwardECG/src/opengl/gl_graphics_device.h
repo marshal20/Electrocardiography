@@ -44,6 +44,9 @@ public:
 	void depthFunc(Comparison comp);
 	void stencilFunc(Comparison comp, int ref, unsigned mask);
 	void setAlpha(const Alpha& alpha);
+	void setPolygonMode(const FaceDirection& apply_to_face_dir, const PolygonMode& poly_mode);
+	void setLineWidth(float line_width);
+	void setPointSize(float point_size);
 
 	void drawArrays(Topology topology, unsigned first, unsigned count);
 	void drawElements(Topology topology, unsigned first, unsigned count, IndexType i_type);
