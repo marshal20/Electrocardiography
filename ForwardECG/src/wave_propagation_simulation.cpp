@@ -151,6 +151,9 @@ void WavePropagationSimulation::simulation_step()
 			case 2:
 				m_potentials(i) = action_potential_value_with_hyperdepolarizaton(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
 				break;
+			case 3:
+				m_potentials(i) = action_potential_value_with_hyperdepolarizaton_new(m_t, vertex_action_potential_param, m_depolarization_slope_duration, m_repolarization_slope_duration);
+				break;
 			default:
 				m_potentials(i) = ACTION_POTENTIAL_RESTING_POTENTIAL;
 				break;
@@ -224,8 +227,9 @@ void WavePropagationSimulation::render_gui()
 		"TMP Potential 1 (OLD)", 
 		"TMP Potential 2", 
 		"TMP Potential Over Depolarization",
+		"TMP Potential Over Depolarization (NEW)",
 	};
-	ImGui::Combo("TMP Potential Curve", &m_selected_extracellular_potential_curve, im_extracellular_potential_curve_items, 3);
+	ImGui::Combo("TMP Potential Curve", &m_selected_extracellular_potential_curve, im_extracellular_potential_curve_items, IM_ARRAYSIZE(im_extracellular_potential_curve_items));
 	static Real preview_dep_time = 0.2;
 	static Real preview_rep_time = 0.7;
 	ImGui::InputReal("Preview Depolarization Time", &preview_dep_time);
@@ -246,6 +250,9 @@ void WavePropagationSimulation::render_gui()
 			break;
 		case 2:
 			im_extracellular_potential_curve_preview[i] = action_potential_value_with_hyperdepolarizaton(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
+			break;
+		case 3:
+			im_extracellular_potential_curve_preview[i] = action_potential_value_with_hyperdepolarizaton_new(t, preview_parameters, m_depolarization_slope_duration, m_repolarization_slope_duration);
 			break;
 		default:
 			im_extracellular_potential_curve_preview[i] = 0;

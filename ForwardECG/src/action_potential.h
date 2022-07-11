@@ -20,6 +20,7 @@ struct ActionPotentialParameters
 Real action_potential_value(Real t, const ActionPotentialParameters& params);
 Real action_potential_value_2(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050);
 Real action_potential_value_with_hyperdepolarizaton(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050, Real hyperdepolarization_percentage = 0.1, Real amplitude = 1);
+Real action_potential_value_with_hyperdepolarizaton_new(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050, Real hyperdepolarization_percentage = 0.1, Real amplitude = 1);
 
 Real extracellular_potential(Real t, Real dt, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050);
 Real extracellular_potential_negative_t_wave(Real t, const ActionPotentialParameters& params, Real depolarization_slope_duration = 0.020, Real repolarization_slope_duration = 0.050);
