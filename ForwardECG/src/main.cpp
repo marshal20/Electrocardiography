@@ -2797,7 +2797,7 @@ private:
 		ImGui::Text("\tHeart Potential Delta: %f", heart_max_val-heart_min_val);
 
 		// frame rate and frame time
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		ImGui::Text("\t ");
 		ImGui::Text("Frame Rate: %.1f FPS (%.3f ms), elapsed: %.2f s", 1/timer_dt, 1000*timer_dt, timer_time);
 
 	}
@@ -2810,59 +2810,75 @@ private:
 		ImGui::NewFrame();
 
 
+		// set controls window initial position and size
+		ImGui::SetNextWindowPos(ImVec2(20, 20), ImGuiCond_FirstUseEver);
+		ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_FirstUseEver);
+
 		ImGui::Begin("Controls");
 
 		// Geometry
-		ImGui::Text("Geometry");
-		render_gui_geometry();
-
+		if (ImGui::CollapsingHeader("Geometry"))
+		{
+			render_gui_geometry();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
 
 		// Server
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Server");
-		render_gui_server();
-
+		if (ImGui::CollapsingHeader("Server"))
+		{
+			render_gui_server();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
 
 		// Probe Vertex Interpolation
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Interpolation");
-		render_gui_interpolation();
+		if (ImGui::CollapsingHeader("Interpolation"))
+		{
+			render_gui_interpolation();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
 
 
 		// TMP Source
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("TMP Sources");
-		render_gui_tmp_sources();
-
+		if (ImGui::CollapsingHeader("TMP Sources"))
+		{
+			render_gui_tmp_sources();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
 
 		// Rendering Options
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Rendering Options");
-		render_gui_rendering_options();
-		
+		if (ImGui::CollapsingHeader("Rendering Options"))
+		{
+			render_gui_rendering_options();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
 
 		// Torso Probes
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Torso Probes");
-		render_gui_torso_probes();
-
+		if (ImGui::CollapsingHeader("Torso Probes"))
+		{
+			render_gui_torso_probes();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
 
 		// Probes Graph
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Probes Graph");
-		render_gui_probes_graph();
-		
+		if (ImGui::CollapsingHeader("Probes Graph"))
+		{
+			render_gui_probes_graph();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
 
 		// Heart Probes
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Heart Probes");
-		render_gui_heart_probes();
-
+		if (ImGui::CollapsingHeader("Heart Probes"))
+		{
+			render_gui_heart_probes();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
 
 		// Stats
-		ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
-		ImGui::Text("Stats");
-		render_gui_stats();
+		if (ImGui::CollapsingHeader("Stats"))
+		{
+			render_gui_stats();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
 
 		ImGui::End();
 
