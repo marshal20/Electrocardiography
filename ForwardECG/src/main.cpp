@@ -764,6 +764,7 @@ private:
 				PBB(i, face.idx[2]) += const_val/3;
 			}
 
+			//PBB(i, i) = PBB(i, i) + 1; // test new equation
 			PBB(i, i) = PBB(i, i) - 1; // TODO: CHECK    PBB(i, i) = -1;
 			//PBB(i, i) = -1;
 		}
@@ -820,201 +821,6 @@ private:
 		printf("Calculated PBH matrix in: %.3f sec\n", frame_timer.elapsed_seconds());
 		frame_timer.start();
 
-		// skip unused calculations
-		/*
-
-
-		// GBH (NxM)
-		MatrixX<Real> GBH = MatrixX<Real>::Zero(N, M);
-		for (int i = 0; i < N; i++)
-		{
-			// vertex position
-			const MeshPlotVertex& vertex = torso->vertices[i];
-			Vector3<Real> r = glm2eigen(vertex.pos);
-
-			// A: For heart faces
-			for (const MeshPlotFace& face : heart_mesh->faces)
-			{
-				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
-				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
-				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
-				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
-
-				// flip normal
-				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
-					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[1]].group]
-					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[2]].group])
-				{
-					face_normal = -face_normal;
-				}
-
-				Real area = ((b-a).cross(c-a)).norm()/2;
-				Vector3<Real> center = (a+b+c)/3; // triangle center
-				Vector3<Real> r_vec = r-center; // r-c
-				//Real const_val = -1/(4*PI) * area;
-				Real const_val = -1/(4*PI) / r_vec.norm();
-
-				GBH(i, face.idx[0]) += const_val/3;
-				GBH(i, face.idx[1]) += const_val/3;
-				GBH(i, face.idx[2]) += const_val/3;
-			}
-		}
-
-		// print status
-		printf("Calculated GBH matrix in: %.3f sec\n", timer.elapsed_seconds());
-		timer.start();
-
-
-		// Matrices derived from potentials at the heart
-
-		// PHB (MxN)
-		MatrixX<Real> PHB = MatrixX<Real>::Zero(M, N);
-		for (int i = 0; i < M; i++)
-		{
-			// vertex position
-			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
-			Vector3<Real> r = heart_pos + glm2eigen(vertex.pos);
-
-			// A: For torso faces
-			for (const MeshPlotFace& face : torso->faces)
-			{
-				Vector3<Real> a = glm2eigen(torso->vertices[face.idx[0]].pos);
-				Vector3<Real> b = glm2eigen(torso->vertices[face.idx[1]].pos);
-				Vector3<Real> c = glm2eigen(torso->vertices[face.idx[2]].pos);
-				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
-
-				Real area = ((b-a).cross(c-a)).norm()/2;
-				Vector3<Real> center = (a+b+c)/3; // triangle center
-				Vector3<Real> r_vec = r-center; // r-c
-				//Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
-				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), r_power)); // omega = (r^.n^ * ds)/(r*r)
-				Real const_val = 1/(4*PI)*solid_angle;
-
-				// ignore negative dot product
-				if (ignore_negative_dot_product && r_vec.dot(face_normal) < 0)
-				{
-					continue;
-				}
-
-				PHB(i, face.idx[0]) += const_val/3;
-				PHB(i, face.idx[1]) += const_val/3;
-				PHB(i, face.idx[2]) += const_val/3;
-			}
-		}
-
-		// print status
-		printf("Calculated PHB matrix in: %.3f sec\n", timer.elapsed_seconds());
-		timer.start();
-
-		// PHH (MxM)
-		MatrixX<Real> PHH = MatrixX<Real>::Zero(M, M);
-		for (int i = 0; i < M; i++)
-		{
-			// vertex position
-			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
-			Vector3<Real> r = heart_pos + glm2eigen(vertex.pos);
-
-			// A: For heart faces
-			for (const MeshPlotFace& face : heart_mesh->faces)
-			{
-				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
-				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
-				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
-				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = -(b-a).cross(c-a).normalized();
-
-				// flip normal
-				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
-					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[1]].group]
-					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[2]].group])
-				{
-					face_normal = -face_normal;
-				}
-
-				Real area = ((b-a).cross(c-a)).norm()/2;
-				Vector3<Real> center = (a+b+c)/3; // triangle center
-				Vector3<Real> r_vec = r-center; // r-c
-				//Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), 2)); // omega = (r^.n^ * ds)/(r*r)
-				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), r_power)); // omega = (r^.n^ * ds)/(r*r)
-				Real const_val = -1/(4*PI)*solid_angle;
-
-				// skip for close region triangles
-				if ((center-r).norm() < close_range_threshold)
-				{
-					continue;
-				}
-
-				// ignore negative dot product
-				if (ignore_negative_dot_product && r_vec.dot(face_normal) < 0)
-				{
-					continue;
-				}
-
-				PHH(i, face.idx[0]) += const_val/3;
-				PHH(i, face.idx[1]) += const_val/3;
-				PHH(i, face.idx[2]) += const_val/3;
-			}
-
-			PHH(i, i) = PHH(i, i) - 1; // TODO: CHECK    PHH(i, i) = -1;
-			//PHH(i, i) = -1;
-		}
-
-		// print status
-		printf("Calculated PHH matrix in: %.3f sec\n", timer.elapsed_seconds());
-		timer.start();
-
-		// GHH (MxM)
-		MatrixX<Real> GHH = MatrixX<Real>::Zero(M, M);
-		for (int i = 0; i < M; i++)
-		{
-			// vertex position
-			const MeshPlotVertex& vertex = heart_mesh->vertices[i];
-			Vector3<Real> r = heart_pos + glm2eigen(vertex.pos);
-
-			// A: For heart faces
-			for (const MeshPlotFace& face : heart_mesh->faces)
-			{
-				Vector3<Real> a = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[0]].pos);
-				Vector3<Real> b = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[1]].pos);
-				Vector3<Real> c = heart_pos + glm2eigen(heart_mesh->vertices[face.idx[2]].pos);
-				//Vector3<Real> face_normal = (glm2eigen(torso.vertices[face.idx[0]].normal)+glm2eigen(torso.vertices[face.idx[1]].normal)+glm2eigen(torso.vertices[face.idx[2]].normal))/3;
-				Vector3<Real> face_normal = (b-a).cross(c-a).normalized();
-
-				// flip normal
-				if (heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[0]].group]
-					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[1]].group]
-					|| heart_mesh_invert_group_normal[heart_mesh->vertices[face.idx[2]].group])
-				{
-					face_normal = -face_normal;
-				}
-
-				Real area = ((b-a).cross(c-a)).norm()/2;
-				Vector3<Real> center = (a+b+c)/3; // triangle center
-				Vector3<Real> r_vec = r-center; // r-c
-				//Real const_val = -1/(4*PI) * area;
-				Real const_val = -1/(4*PI) / r_vec.norm();
-
-				// skip for close region triangles
-				if ((center-r).norm() < close_range_threshold)
-				{
-					continue;
-				}
-
-				GHH(i, face.idx[0]) += const_val/3;
-				GHH(i, face.idx[1]) += const_val/3;
-				GHH(i, face.idx[2]) += const_val/3;
-			}
-		}
-
-		// print status
-		printf("Calculated GHH matrix in: %.3f sec\n", timer.elapsed_seconds());
-		timer.start();
-
-		*/
-
-
 
 		/*
 		// DEBUG
@@ -1032,24 +838,9 @@ private:
 		};
 		print_matrix_info("PBB", PBB);
 		print_matrix_info("PBH", PBH);
-		print_matrix_info("GBH", GBH);
-		print_matrix_info("PHB", PHB);
-		print_matrix_info("PHH", PBB);
-		print_matrix_info("GHH", PBB);
 		//printf("PBB: %d x %d\n", PBB.rows(), PBB.cols());
 		//printf("PBH: %d x %d\n", PBH.rows(), PBH.cols());
-		//printf("GBH: %d x %d\n", GBH.rows(), GBH.cols());
-		//printf("PHB: %d x %d\n", PHB.rows(), PHB.cols());
-		//printf("PHH: %d x %d\n", PHH.rows(), PHH.cols());
-		//printf("GHH: %d x %d\n", GHH.rows(), GHH.cols());
 		*/
-
-		// ZBH (NxM) : heart potentials to torso potentials transfer matrix
-		// ZBH = (PBB - GBH*GHH^-1*PHB)^-1 * (GBH*GHH^-1*PHH - PBH)
-		// Q_B = ZBH * Q_H
-		//ZBH = (PBB - GBH*GHH.inverse()*PHB).inverse() * (GBH*GHH.inverse()*PHH - PBH); // with potential gradient effect
-
-		// TODO: Restore
 
 		
 		// ZBH = - PBB^-1 * PBH
@@ -1659,11 +1450,11 @@ private:
 		}
 		else if (heart_use_separate_min_max_range)
 		{
-			mpr->set_values_range(heart_potential_min_value, heart_potential_max_value);
+			mpr->set_values_range(heart_potential_min_value*heart_potential_range_multiplier, heart_potential_max_value*heart_potential_range_multiplier);
 		}
 		else
 		{
-			mpr->set_values_range(-heart_potential_max_abs_value, heart_potential_max_abs_value);
+			mpr->set_values_range(-heart_potential_max_abs_value*heart_potential_range_multiplier, heart_potential_max_abs_value*heart_potential_range_multiplier);
 		}
 
 		// interpolation preview
@@ -1678,7 +1469,7 @@ private:
 			{
 				max_abs_effect = rmax(max_abs_effect, rabs(probe_interpolation_effect(i)));
 			}
-			mpr->set_values_range(-max_abs_effect, max_abs_effect);
+			mpr->set_values_range(-max_abs_effect*torso_potential_range_multiplier, max_abs_effect*torso_potential_range_multiplier);
 
 			// update torso potentials
 			for (int i = 0; i < heart_mesh->vertices.size(); i++)
@@ -1728,11 +1519,11 @@ private:
 		mpr->set_view_projection_matrix(camera.calculateViewProjection());
 		if (torso_use_separate_min_max_range)
 		{
-			mpr->set_values_range(torso_potential_min_value, torso_potential_max_value);
+			mpr->set_values_range(torso_potential_min_value*torso_potential_range_multiplier, torso_potential_max_value*torso_potential_range_multiplier);
 		}
 		else
 		{
-			mpr->set_values_range(-torso_potential_max_abs_value, torso_potential_max_abs_value);
+			mpr->set_values_range(-torso_potential_max_abs_value*torso_potential_range_multiplier, torso_potential_max_abs_value*torso_potential_range_multiplier);
 		}
 
 		// heart element effect
@@ -1753,7 +1544,7 @@ private:
 			{
 				max_abs_effect = rmax(max_abs_effect, rabs(element_torso_values(i)));
 			}
-			mpr->set_values_range(-max_abs_effect, max_abs_effect);
+			mpr->set_values_range(-max_abs_effect*torso_potential_range_multiplier, max_abs_effect*torso_potential_range_multiplier);
 
 			// update torso potentials
 			for (int i = 0; i < torso->vertices.size(); i++)
@@ -2329,6 +2120,7 @@ private:
 		ImGui::DragReal("Torso Plot Scale (max absolute value)", &torso_potential_max_abs_value, 0.001);
 		ImGui::DragReal("Torso Plot max value", &torso_potential_max_value, 0.001);
 		ImGui::DragReal("Torso Plot min value", &torso_potential_min_value, 0.001);
+		ImGui::DragReal("Torso Plot Range Multiplier", &torso_potential_range_multiplier, 0.001);
 		if (ImGui::Button("Reset Torso Plot Scale"))
 		{
 			torso_potential_max_abs_value = 0;
@@ -2342,6 +2134,7 @@ private:
 		ImGui::DragReal("Heart Plot Scale (max absolute value)", &heart_potential_max_abs_value, 0.001);
 		ImGui::DragReal("Heart Plot max value", &heart_potential_max_value, 0.001);
 		ImGui::DragReal("Heart Plot min value", &heart_potential_min_value, 0.001);
+		ImGui::DragReal("Heart Plot Range Multiplier", &heart_potential_range_multiplier, 0.001);
 		if (ImGui::Button("Reset Heart Plot Scale"))
 		{
 			heart_potential_max_abs_value = 0;
@@ -4102,6 +3895,7 @@ private:
 	Real torso_potential_max_abs_value = 0;
 	Real torso_potential_max_value = -1e12;
 	Real torso_potential_min_value = 1e12;
+	Real torso_potential_range_multiplier = 1;
 	// Heart potentials range
 	bool heart_use_separate_min_max_range = false;
 	bool heart_potential_adaptive_range = false;
@@ -4109,6 +3903,7 @@ private:
 	Real heart_potential_max_abs_value = 0;
 	Real heart_potential_max_value = -1e12;
 	Real heart_potential_min_value = 1e12;
+	Real heart_potential_range_multiplier = 1;
 	// Heart groups render option
 	std::vector<std::shared_ptr<glFrameBuffer>> heart_mesh_groups_frame_buffers;
 	std::vector<float> heart_mesh_groups_opacity;

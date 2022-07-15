@@ -320,6 +320,8 @@ vec3 hsv2rgb(vec3 c)
 void main()
 {
 	float value_normalized = (value-min_val)/(max_val-min_val);
+	value_normalized = clamp(value_normalized, 0, 1);	
+
 	float mix_percentage = value_normalized;
 	vec3 color_rgb = mix(color_n.xyz, color_p.xyz, mix_percentage);
 	vec3 color_hsv = hsv2rgb(mix(rgb2hsv(color_n.xyz), rgb2hsv(color_p.xyz), mix_percentage));
