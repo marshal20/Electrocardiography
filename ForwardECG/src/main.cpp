@@ -481,7 +481,7 @@ public:
 		dipole_vec = { 0, 0, 0 };
 		air_conductivity = 0;
 		toso_conductivity = 1;
-		heart_conductivity = 10;
+		heart_conductivity = 1;
 
 		// heart mesh plot: TODO: Add load_heart_model function or append it to load_torso_model
 		heart_mesh = load_mesh_plot("models/heart_model_7.fbx", true);
@@ -653,12 +653,6 @@ private:
 		// DEBUG
 		printf("Loading torso model: Vertex count: Troso: %d vertex  \tHeart: %d vertex\n", N, M);
 
-		// set conductivities inside and outside each boundary
-		torso_sigma_p = air_conductivity; // outside the torso
-		torso_sigma_n = toso_conductivity; // inside the torso
-		heart_sigma_p = toso_conductivity; // outside the heart
-		heart_sigma_n = heart_conductivity; // inside the heart
-
 		return true;
 	}
 
@@ -720,8 +714,8 @@ private:
 		// Matrices derived from potentials at the torso
 
 		printf("Calculating the transfer matrix...\n");
-		Timer calculations_matrix;
-		calculations_matrix.start();
+		Timer matrix_calculations_timer;
+		matrix_calculations_timer.start();
 
 		// PBB (NxN)
 		MatrixX<Real> PBB = MatrixX<Real>::Zero(N, N);
@@ -764,14 +758,14 @@ private:
 				PBB(i, face.idx[2]) += const_val/3;
 			}
 
-			//PBB(i, i) = PBB(i, i) + 1; // test new equation
-			PBB(i, i) = PBB(i, i) - 1; // TODO: CHECK    PBB(i, i) = -1;
+			PBB(i, i) = PBB(i, i) + 1; // test new equation
+			//PBB(i, i) = PBB(i, i) - 1; // TODO: CHECK    PBB(i, i) = -1;
 			//PBB(i, i) = -1;
 		}
 
 		// print status
-		printf("Calculated PBB matrix in: %.3f sec\n", frame_timer.elapsed_seconds());
-		frame_timer.start();
+		printf("Calculated PBB matrix in: %.3f sec\n", matrix_calculations_timer.elapsed_seconds());
+		matrix_calculations_timer.start();
 
 		// PBH (NxM)
 		MatrixX<Real> PBH = MatrixX<Real>::Zero(N, M);
@@ -803,7 +797,7 @@ private:
 				Vector3<Real> r_vec = r-center; // r-c
 				//Real solid_angle = r_vec.normalized().dot(face_normal)*area / r_vec.squaredNorm(); // omega = (r^.n^ * ds)/(r*r)
 				Real solid_angle = r_vec.normalized().dot(face_normal)*area / (pow(r_vec.norm(), r_power)); // omega = (r^.n^ * ds)/(r*r)
-				Real const_val = -1/(4*PI)*solid_angle;
+				Real const_val = -heart_conductivity/(4*PI*toso_conductivity)*solid_angle;
 
 				// ignore negative dot product
 				if (ignore_negative_dot_product && r_vec.dot(face_normal) < 0)
@@ -818,8 +812,8 @@ private:
 		}
 
 		// print status
-		printf("Calculated PBH matrix in: %.3f sec\n", frame_timer.elapsed_seconds());
-		frame_timer.start();
+		printf("Calculated PBH matrix in: %.3f sec\n", matrix_calculations_timer.elapsed_seconds());
+		matrix_calculations_timer.start();
 
 
 		/*
@@ -843,12 +837,12 @@ private:
 		*/
 
 		
-		// ZBH = - PBB^-1 * PBH
-		ZBH = - PBB.inverse() * PBH; // without potential gradient effect
+		// ZBH = PBB^-1 * PBH
+		ZBH = PBB.inverse() * PBH;
 
 		//ZBH = MatrixX<Real>::Zero(N, M);
 
-		//ZBH = -PBH; // without potential gradient effect
+		//ZBH = -PBH; // without bounded counductor effect
 
 		// TODO: try to fix the first equation.
 
@@ -863,8 +857,8 @@ private:
 		//}
 
 		// print status
-		printf("Calculated transfer matrix (ZBH) in: %.3f sec\n", frame_timer.elapsed_seconds());
-		frame_timer.start();
+		printf("Calculated transfer matrix (ZBH) in: %.3f sec\n", matrix_calculations_timer.elapsed_seconds());
+		matrix_calculations_timer.start();
 	}
 
 	void calculate_torso_potentials()
@@ -3856,10 +3850,6 @@ private:
 	Real air_conductivity;
 	Real toso_conductivity;
 	Real heart_conductivity;
-	Real torso_sigma_p;
-	Real torso_sigma_n;
-	Real heart_sigma_p;
-	Real heart_sigma_n;
 	Vector3<Real> heart_pos;
 	Real heart_scale = 1;
 	Vector3<Real> dipole_pos;
@@ -3875,10 +3865,6 @@ private:
 	MatrixX<Real> QH; // Heart potentials
 	MatrixX<Real> QB; // Body potentials
 	MatrixX<Real> ZBH; // transfer matrix
-	//MatrixX<Real> A_heart;
-	//MatrixX<Real> IA_inv_heart;
-	//MatrixX<Real> B_heart;
-	//MatrixX<Real> Q_heart;
 	std::vector<bool> heart_mesh_invert_group_normal;
 
 	// dipole vector source
