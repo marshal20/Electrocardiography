@@ -2107,6 +2107,12 @@ private:
 			ImGui::Checkbox("Render Dipole Vector Values Vectors", &render_dipole_vec_values_vectors);
 			ImGui::Checkbox("Render Dipole Vector Values Locus", &render_dipole_vec_values_locus);
 		}
+	}
+
+	void render_gui_plot_range()
+	{
+		// Plot Range
+
 		// Torso Potential Range
 		ImGui::Checkbox("Torso Use Separate Min Max For The Range", &torso_use_separate_min_max_range);
 		ImGui::Checkbox("Torso Potential Adaptive Range (Each Frame Separate)", &torso_potential_adaptive_range);
@@ -2843,6 +2849,13 @@ private:
 		if (ImGui::CollapsingHeader("Rendering Options"))
 		{
 			render_gui_rendering_options();
+			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
+		}
+
+		// Plot Range
+		if (ImGui::CollapsingHeader("Plot Range"))
+		{
+			render_gui_plot_range();
 			ImGui::Dummy(ImVec2(0.0f, 20.0f)); // spacer
 		}
 
