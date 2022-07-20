@@ -33,6 +33,7 @@ public:
 
 	int get_sample_count();
 	int get_current_sample();
+	Real get_dt();
 	const VectorX<Real>& get_potentials() const;
 	void simulation_step();
 	void render();

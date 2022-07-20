@@ -83,6 +83,11 @@ int WavePropagationSimulation::get_current_sample()
 	return m_sample;
 }
 
+Real WavePropagationSimulation::get_dt()
+{
+	return m_dt;
+}
+
 const VectorX<Real>& WavePropagationSimulation::get_potentials() const
 {
 	return m_potentials;

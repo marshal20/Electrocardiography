@@ -1258,6 +1258,7 @@ private:
 				wave_prop.simulation_step();
 				sample_count = wave_prop.get_sample_count();
 				current_sample = wave_prop.get_current_sample();
+				TMP_dt = wave_prop.get_dt();
 				//wave_prop.update_mesh_values();
 				QH = wave_prop.get_potentials();
 				probes_values.resize(probes.size(), sample_count);
@@ -2750,6 +2751,92 @@ private:
 			}
 
 			printf("Generated TMP BSP probes values in: %.3f seconds\n", generating_timer.elapsed_seconds());
+
+			// save to file
+			std::string file_name = save_file_dialog("TMP_BSP_values.csv", "All\0*.*\0CSV File (.csv)\0*.csv\0");
+
+			// dump
+			if (file_name != "")
+			{
+				bool res = dump_matrix_to_csv(file_name, names, TMP_BSP_values);
+				if (res)
+				{
+					printf("Successfuly dumped probes to \"%s\"\n", file_name.c_str());
+				}
+				else
+				{
+					printf("Failed to dump probes to \"%s\"\n", file_name.c_str());
+				}
+			}
+		}
+
+		if (ImGui::Button("Dump TMP BSP Probes to CSV (integrated)"))
+		{
+			Timer generating_timer;
+			generating_timer.start();
+
+			// calculate BSP probes values
+			std::vector<std::string> names(heart_probes.size()+probes.size()*2, "");
+			MatrixX<Real> TMP_BSP_values = MatrixX<Real>::Zero(sample_count, heart_probes.size()+probes.size()*2);
+			for (int sample = 0; sample < sample_count; sample++)
+			{
+				Real t_current = sample*TMP_dt;
+
+				// update heart potentials
+				if (tmp_source == TMP_SOURCE_ACTION_POTENTIAL_PARAMETERS)
+				{
+					// update heart TMP from action potential parameters
+					for (int i = 0; i < M; i++)
+					{
+						QH(i) = extracellular_potential(t_current, TMP_dt, heart_action_potential_params[i]); //action_potential_value_2
+					}
+				}
+				else /*TMP_SOURCE_WAVE_PROPAGATION*/
+				{
+					// wave propagation
+					if (sample == 0)
+					{
+						wave_prop.reset();
+					}
+					wave_prop.simulation_step();
+					QH = wave_prop.get_potentials();
+				}
+
+				// calculate body surface potentials
+				calculate_torso_potentials();
+
+				for (int i = 0; i < heart_probes.size(); i++)
+				{
+					names[i] = heart_probes[i].name;
+					TMP_BSP_values(sample, i) = evaluate_heart_probe(heart_probes[i], i);
+				}
+
+				for (int i = 0; i < probes.size(); i++)
+				{
+					names[heart_probes.size()+i] = probes[i].name;
+					TMP_BSP_values(sample, heart_probes.size()+i) = evaluate_torso_probe(probes[i]);
+				}
+
+				// itegrated values
+				if (sample == 0)
+				{
+					for (int i = 0; i < probes.size(); i++)
+					{
+						names[heart_probes.size()+probes.size()+i] = probes[i].name + "_int";
+						TMP_BSP_values(sample, heart_probes.size()+probes.size()+i) = TMP_dt*TMP_BSP_values(sample, heart_probes.size()+i);
+					}
+				}
+				else
+				{
+					for (int i = 0; i < probes.size(); i++)
+					{
+						names[heart_probes.size()+probes.size()+i] = probes[i].name + "_int";
+						TMP_BSP_values(sample, heart_probes.size()+probes.size()+i) = TMP_dt*TMP_BSP_values(sample, heart_probes.size()+i) + TMP_BSP_values(sample-1, heart_probes.size()+probes.size()+i);
+					}
+				}
+			}
+
+			printf("Generated TMP BSP probes values (integrated) in: %.3f seconds\n", generating_timer.elapsed_seconds());
 
 			// save to file
 			std::string file_name = save_file_dialog("TMP_BSP_values.csv", "All\0*.*\0CSV File (.csv)\0*.csv\0");
